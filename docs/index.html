@@ -1,0 +1,677 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Finance Hub — Self-Hosted Swiss Personal Finance Dashboard</title>
+  <meta name="description" content="A self-hosted personal finance dashboard built for Swiss residents. Track accounts, model budgets, follow your portfolio, and get AI-powered wealth advice — on your own hardware." />
+  <meta property="og:title" content="Finance Hub — Self-Hosted Swiss Finance Dashboard" />
+  <meta property="og:description" content="Track accounts, model budgets, follow your portfolio, and get AI-powered wealth advice. Built for Swiss residents. Runs on your own hardware." />
+  <meta property="og:image" content="https://raw.githubusercontent.com/renehungerbuehler/finance_hub/main/screenshots/finance-hub-1.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    /* ── Exact Finance Hub dark theme colors ── */
+    :root {
+      --bg:          #0f1117;
+      --card:        #1a1d27;
+      --cardHover:   #222632;
+      --border:      #2a2e3a;
+      --text:        #e4e4e7;
+      --textMuted:   #a1a1aa;
+      --textDim:     #71717a;
+      --accent:      #2563eb;
+      --accentLight: #60a5fa;
+      --accentDim:   #1d4ed8;
+      --green:       #22c55e;
+      --greenBg:     rgba(34,197,94,0.1);
+      --red:         #ef4444;
+      --redBg:       rgba(239,68,68,0.1);
+      --blue:        #3b82f6;
+      --blueBg:      rgba(59,130,246,0.1);
+      --orange:      #f97316;
+      --orangeBg:    rgba(249,115,22,0.1);
+      --teal:        #14b8a6;
+      --tealBg:      rgba(20,184,166,0.1);
+      --yellow:      #eab308;
+      --yellowBg:    rgba(234,179,8,0.1);
+      --cyan:        #06b6d4;
+      --cyanBg:      rgba(6,182,212,0.1);
+      --radius:      12px;
+    }
+
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: 'Inter', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+    a { color: var(--accentLight); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    /* ── NAV ── */
+    nav {
+      position: sticky; top: 0; z-index: 100;
+      background: rgba(15,17,23,0.88);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      padding: 0 32px;
+      display: flex; align-items: center; justify-content: space-between;
+      height: 58px;
+    }
+    .nav-brand {
+      font-weight: 700; font-size: 17px; color: var(--text);
+      display: flex; align-items: center; gap: 8px;
+    }
+    .nav-brand .hi { color: var(--accentLight); }
+    .nav-links { display: flex; gap: 24px; list-style: none; }
+    .nav-links a { color: var(--textMuted); font-size: 14px; font-weight: 500; transition: color 0.15s; }
+    .nav-links a:hover { color: var(--text); text-decoration: none; }
+    .nav-cta {
+      background: var(--accent) !important; color: #fff !important;
+      padding: 5px 16px; border-radius: 8px; font-weight: 600 !important;
+    }
+    .nav-cta:hover { background: var(--accentDim) !important; text-decoration: none !important; }
+
+    /* ── HERO ── */
+    .hero {
+      padding: 96px 24px 72px;
+      text-align: center; max-width: 860px; margin: 0 auto;
+    }
+    .hero-badge {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: var(--blueBg);
+      border: 1px solid rgba(59,130,246,0.3);
+      color: var(--accentLight);
+      font-size: 12px; font-weight: 600; letter-spacing: 0.5px;
+      padding: 4px 12px; border-radius: 999px; margin-bottom: 24px;
+    }
+    .hero h1 {
+      font-size: clamp(34px, 6vw, 60px);
+      font-weight: 800; line-height: 1.1; letter-spacing: -1.5px;
+      margin-bottom: 18px;
+    }
+    .hero h1 .accent { color: var(--accentLight); }
+    .hero p {
+      font-size: clamp(15px, 2vw, 18px);
+      color: var(--textMuted); max-width: 600px;
+      margin: 0 auto 36px;
+    }
+    .hero-actions {
+      display: flex; gap: 12px; justify-content: center; flex-wrap: wrap;
+    }
+    .btn {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 11px 22px; border-radius: 10px;
+      font-size: 14px; font-weight: 600; cursor: pointer;
+      transition: all 0.15s; text-decoration: none !important;
+    }
+    .btn-primary { background: var(--accent); color: #fff; border: 1px solid transparent; }
+    .btn-primary:hover { background: var(--accentDim); transform: translateY(-1px); }
+    .btn-secondary { background: var(--card); color: var(--text); border: 1px solid var(--border); }
+    .btn-secondary:hover { background: var(--cardHover); transform: translateY(-1px); }
+    .btn-coffee { background: #FFDD00; color: #000; border: 1px solid transparent; font-weight: 700; }
+    .btn-coffee:hover { background: #f0ce00; transform: translateY(-1px); }
+
+    /* ── STATS BAR ── */
+    .stats-bar {
+      display: flex; justify-content: center;
+      gap: 48px; flex-wrap: wrap;
+      padding: 28px 24px;
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+      background: var(--card);
+    }
+    .stat { text-align: center; }
+    .stat-value { font-size: 26px; font-weight: 800; color: var(--accentLight); }
+    .stat-label { font-size: 12px; color: var(--textMuted); margin-top: 2px; }
+
+    /* ── SECTION ── */
+    section { padding: 72px 24px; max-width: 1180px; margin: 0 auto; }
+    .section-label {
+      font-size: 11px; font-weight: 700; letter-spacing: 1.8px;
+      text-transform: uppercase; color: var(--accentLight); margin-bottom: 10px;
+    }
+    h2 {
+      font-size: clamp(24px, 4vw, 38px);
+      font-weight: 800; letter-spacing: -0.5px; margin-bottom: 10px;
+    }
+    .section-sub {
+      color: var(--textMuted); font-size: 16px;
+      max-width: 560px; margin-bottom: 44px;
+    }
+
+    /* ── SCREENSHOTS ── */
+    .screenshots-grid {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 14px;
+    }
+    .sc-card {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: var(--radius); overflow: hidden;
+      transition: transform 0.15s, border-color 0.15s; cursor: pointer;
+    }
+    .sc-card:hover { transform: translateY(-3px); border-color: var(--accent); }
+    .sc-card img { width: 100%; display: block; }
+    .sc-card .sc-label {
+      padding: 9px 14px; font-size: 12px; font-weight: 600;
+      color: var(--textMuted); background: var(--cardHover);
+      border-top: 1px solid var(--border);
+    }
+    .sc-card.featured { grid-column: 1 / -1; }
+
+    /* ── FEATURES ── */
+    .features-grid {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(270px, 1fr)); gap: 16px;
+    }
+    .feature-card {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 22px;
+      transition: border-color 0.15s;
+    }
+    .feature-card:hover { border-color: var(--accent); }
+    .f-icon {
+      width: 38px; height: 38px; border-radius: 9px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px; margin-bottom: 12px;
+    }
+    .feature-card h3 { font-size: 15px; font-weight: 700; margin-bottom: 5px; }
+    .feature-card p { font-size: 13px; color: var(--textMuted); line-height: 1.55; }
+    .badge-soon {
+      display: inline-block; font-size: 10px; font-weight: 700;
+      background: var(--orangeBg); color: var(--orange);
+      border: 1px solid rgba(249,115,22,0.3);
+      padding: 1px 7px; border-radius: 4px; margin-left: 6px;
+      vertical-align: middle; letter-spacing: 0.5px;
+    }
+
+    /* ── PAGES ── */
+    .pages-grid {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(310px, 1fr)); gap: 14px;
+    }
+    .page-card {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 18px 22px;
+    }
+    .page-card h3 {
+      font-size: 14px; font-weight: 700; margin-bottom: 5px;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .page-card p { font-size: 13px; color: var(--textMuted); line-height: 1.5; }
+    .page-tag {
+      font-size: 10px; background: var(--blueBg);
+      color: var(--accentLight); padding: 2px 7px;
+      border-radius: 4px; font-weight: 600; letter-spacing: 0.3px;
+    }
+
+    /* ── SWISS SECTION ── */
+    .swiss-list {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 12px;
+    }
+    .swiss-item {
+      display: flex; gap: 12px; align-items: flex-start;
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 16px;
+    }
+    .swiss-item .icon { font-size: 20px; flex-shrink: 0; margin-top: 1px; }
+    .swiss-item h4 { font-size: 13px; font-weight: 700; margin-bottom: 3px; color: var(--text); }
+    .swiss-item p { font-size: 12px; color: var(--textMuted); line-height: 1.5; }
+
+    /* ── TECH ── */
+    .tech-grid { display: flex; flex-wrap: wrap; gap: 10px; }
+    .tech-pill {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 8px; padding: 7px 14px;
+      font-size: 13px; font-weight: 500;
+      display: flex; align-items: center; gap: 7px;
+    }
+    .tech-pill .dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+
+    /* ── SETUP ── */
+    .setup-steps {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+      gap: 14px; margin-bottom: 28px;
+    }
+    .setup-step {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 18px;
+    }
+    .step-num {
+      width: 30px; height: 30px; background: var(--accent);
+      border-radius: 8px; display: flex; align-items: center;
+      justify-content: center; font-size: 14px; font-weight: 700; margin-bottom: 10px;
+    }
+    .setup-step h3 { font-size: 14px; font-weight: 700; margin-bottom: 3px; }
+    .setup-step p { font-size: 12px; color: var(--textMuted); }
+    pre {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 20px 24px;
+      overflow-x: auto; font-size: 13px; line-height: 1.75;
+    }
+    code { font-family: 'SF Mono', 'Fira Code', monospace; }
+    .cmd  { color: var(--green); }
+    .cmt  { color: var(--textDim); }
+
+    /* ── SUPPORT ── */
+    .support-box {
+      background: linear-gradient(135deg, var(--blueBg), var(--tealBg));
+      border: 1px solid rgba(59,130,246,0.25);
+      border-radius: 16px; padding: 52px 40px;
+      text-align: center; max-width: 620px; margin: 0 auto;
+    }
+    .support-box h2 { font-size: 28px; margin-bottom: 12px; }
+    .support-box p  { color: var(--textMuted); font-size: 15px; margin-bottom: 28px; }
+    .support-options { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+
+    /* ── FOOTER ── */
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 28px 32px; color: var(--textMuted); font-size: 12px;
+    }
+    footer .fi { max-width: 1180px; margin: 0 auto;
+      display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; }
+
+    /* ── DIVIDER ── */
+    .divider { border: none; border-top: 1px solid var(--border); margin: 0; }
+
+    /* ── LIGHTBOX ── */
+    .lightbox {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,0.92); z-index: 1000;
+      align-items: center; justify-content: center; padding: 24px;
+    }
+    .lightbox.open { display: flex; }
+    .lightbox img { max-width: 100%; max-height: 90vh; border-radius: var(--radius); }
+    .lb-close {
+      position: fixed; top: 18px; right: 22px;
+      font-size: 24px; color: var(--textMuted); cursor: pointer;
+      background: var(--card); width: 34px; height: 34px;
+      border-radius: 8px; display: flex; align-items: center; justify-content: center;
+      border: 1px solid var(--border);
+    }
+    .lb-close:hover { color: var(--text); }
+
+    @media (max-width: 680px) {
+      .screenshots-grid { grid-template-columns: 1fr; }
+      .sc-card.featured { grid-column: 1; }
+      .nav-links { display: none; }
+      .support-box { padding: 32px 20px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <div class="nav-brand">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>
+    <span class="hi">Finance</span>Hub
+  </div>
+  <ul class="nav-links">
+    <li><a href="#features">Features</a></li>
+    <li><a href="#pages">Pages</a></li>
+    <li><a href="#swiss">Swiss</a></li>
+    <li><a href="#setup">Setup</a></li>
+    <li><a href="#support">Support</a></li>
+    <li><a href="https://github.com/renehungerbuehler/finance_hub" class="nav-cta">GitHub →</a></li>
+  </ul>
+</nav>
+
+<!-- HERO -->
+<div class="hero">
+  <div class="hero-badge">
+    <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor"><circle cx="5" cy="5" r="5"/></svg>
+    Self-hosted · Privacy-first · Swiss-native
+  </div>
+  <h1>Your finances.<br/><span class="accent">On your own hardware.</span></h1>
+  <p>A personal finance dashboard built for Swiss residents. Track every account, model budget scenarios, live portfolio P&amp;L, and get AI-powered wealth advice — all running locally.</p>
+  <div class="hero-actions">
+    <a href="https://github.com/renehungerbuehler/finance_hub" class="btn btn-primary">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.3 3.44 9.8 8.21 11.39.6.11.82-.26.82-.58v-2.03c-3.34.72-4.04-1.61-4.04-1.61-.55-1.39-1.34-1.76-1.34-1.76-1.09-.74.08-.73.08-.73 1.21.09 1.85 1.24 1.85 1.24 1.07 1.84 2.81 1.31 3.5 1 .11-.78.42-1.31.76-1.61-2.67-.3-5.47-1.33-5.47-5.93 0-1.31.47-2.38 1.24-3.22-.13-.3-.54-1.52.12-3.18 0 0 1.01-.32 3.3 1.23a11.5 11.5 0 0 1 3-.4c1.02.005 2.04.14 3 .4 2.28-1.55 3.29-1.23 3.29-1.23.66 1.66.25 2.88.12 3.18.77.84 1.24 1.91 1.24 3.22 0 4.61-2.81 5.63-5.48 5.92.43.37.81 1.1.81 2.22v3.29c0 .32.21.7.82.58C20.56 21.8 24 17.3 24 12c0-6.63-5.37-12-12-12z"/></svg>
+      View on GitHub
+    </a>
+    <a href="#screenshots" class="btn btn-secondary">See Screenshots</a>
+    <a href="#support" class="btn btn-coffee">☕ Buy me a coffee</a>
+  </div>
+</div>
+
+<!-- STATS -->
+<div class="stats-bar">
+  <div class="stat"><div class="stat-value">7</div><div class="stat-label">App pages</div></div>
+  <div class="stat"><div class="stat-value">3+2</div><div class="stat-label">Swiss pillar model</div></div>
+  <div class="stat"><div class="stat-value">4</div><div class="stat-label">AI providers incl. local</div></div>
+  <div class="stat"><div class="stat-value">100%</div><div class="stat-label">Self-hosted</div></div>
+  <div class="stat"><div class="stat-value">CHF</div><div class="stat-label">Native currency</div></div>
+</div>
+
+<hr class="divider" />
+
+<!-- SCREENSHOTS -->
+<section id="screenshots">
+  <div class="section-label">Screenshots</div>
+  <h2>Everything in one place</h2>
+  <p class="section-sub">From raw balances to AI-powered FIRE projections — one app, your own server.</p>
+
+  <div class="screenshots-grid">
+    <div class="sc-card featured" onclick="openLb('screenshots/finance-hub-1.png')">
+      <img src="screenshots/finance-hub-1.png" alt="Dashboard" loading="lazy" />
+      <div class="sc-label">Dashboard — net worth, cashflow split, portfolio allocation</div>
+    </div>
+    <div class="sc-card" onclick="openLb('screenshots/finance-hub-2.png')">
+      <img src="screenshots/finance-hub-2.png" alt="Accounts" loading="lazy" />
+      <div class="sc-label">Accounts — balances &amp; account types</div>
+    </div>
+    <div class="sc-card" onclick="openLb('screenshots/finance-hub-3.png')">
+      <img src="screenshots/finance-hub-3.png" alt="Portfolio" loading="lazy" />
+      <div class="sc-label">Portfolio — live prices, P&amp;L per position</div>
+    </div>
+    <div class="sc-card" onclick="openLb('screenshots/finance-hub-4.png')">
+      <img src="screenshots/finance-hub-4.png" alt="Scenarios" loading="lazy" />
+      <div class="sc-label">Scenarios — budget modelling &amp; cashflow split</div>
+    </div>
+    <div class="sc-card" onclick="openLb('screenshots/finance-hub-5.png')">
+      <img src="screenshots/finance-hub-5.png" alt="Tracker" loading="lazy" />
+      <div class="sc-label">Tracker — monthly forecast vs actual grid</div>
+    </div>
+    <div class="sc-card" onclick="openLb('screenshots/finance-hub-6.png')">
+      <img src="screenshots/finance-hub-6.png" alt="Expenses" loading="lazy" />
+      <div class="sc-label">Expenses — subscriptions, recurring, insurance, taxes</div>
+    </div>
+    <div class="sc-card" onclick="openLb('screenshots/finance-hub-7.png')">
+      <img src="screenshots/finance-hub-7.png" alt="Strategy" loading="lazy" />
+      <div class="sc-label">Strategy — Swiss 5-pillar system &amp; FIRE target</div>
+    </div>
+    <div class="sc-card" onclick="openLb('screenshots/finance-hub-8.png')">
+      <img src="screenshots/finance-hub-8.png" alt="AI Finance Advisor" loading="lazy" />
+      <div class="sc-label">AI Finance Advisor — Claude / GPT-4o / Gemini</div>
+    </div>
+  </div>
+</section>
+
+<hr class="divider" />
+
+<!-- FEATURES -->
+<section id="features">
+  <div class="section-label">Features</div>
+  <h2>Everything you need to track and grow wealth</h2>
+  <p class="section-sub">Built around real Swiss financial workflows — not a generic budgeting app adapted for CH.</p>
+
+  <div class="features-grid">
+    <div class="feature-card">
+      <div class="f-icon" style="background:var(--blueBg)">📊</div>
+      <h3>Live Portfolio P&amp;L</h3>
+      <p>Real-time prices via Yahoo Finance for all ETF, stock, and crypto positions. Cost basis, current value, and P&amp;L per position and account.</p>
+    </div>
+    <div class="feature-card">
+      <div class="f-icon" style="background:var(--greenBg)">🎯</div>
+      <h3>Budget Scenarios</h3>
+      <p>Model any number of income configurations. Link expenses, toggle insurance and subscriptions. Cashflow split donut updates live. PDF export per scenario.</p>
+    </div>
+    <div class="feature-card">
+      <div class="f-icon" style="background:var(--tealBg)">🤖</div>
+      <h3>AI Finance Advisor</h3>
+      <p>Claude Opus, GPT-4o, Gemini — or a fully local model via <strong style="color:var(--teal)">Ollama</strong>. Your full financial context is auto-injected. Multi-turn chat with SSE streaming. Pin any analysis as a dashboard card.</p>
+    </div>
+    <div class="feature-card">
+      <div class="f-icon" style="background:var(--yellowBg)">📅</div>
+      <h3>Wealth Tracker</h3>
+      <p>Month-by-month portfolio grid. Forecast per account, sync actual balances, and visualise forecast vs real growth across the year.</p>
+    </div>
+    <div class="feature-card">
+      <div class="f-icon" style="background:var(--orangeBg)">📋</div>
+      <h3>Swiss Tax History</h3>
+      <p>Multi-year records with all 4 Swiss tax types (Staats-/Gemeinde + Bundessteuer × Provisorisch/Schlussrechnung) with paid dates and bar chart.</p>
+    </div>
+    <div class="feature-card">
+      <div class="f-icon" style="background:var(--greenBg)">📤</div>
+      <h3>Tax Report Export</h3>
+      <p>One-click export of a structured tax report with all account balances, investment positions, income, insurance premiums, and deductions — ready to hand to your accountant or paste into your tax return.</p>
+    </div>
+    <div class="feature-card">
+      <div class="f-icon" style="background:var(--redBg)">💡</div>
+      <h3>FIRE Calculator</h3>
+      <p>Financial freedom target using the 4% rule adjusted for Swiss wealth tax. Shows both the capital needed (money system) and the monthly revenue needed (business system).</p>
+    </div>
+    <div class="feature-card">
+      <div class="f-icon" style="background:var(--cyanBg)">📦</div>
+      <h3>Export / Import</h3>
+      <p>Full JSON backup and restore from the sidebar. All data — accounts, scenarios, tracker, expenses, taxes, insurance, settings — in one portable file.</p>
+    </div>
+    <div class="feature-card">
+      <div class="f-icon" style="background:var(--tealBg)">🔒</div>
+      <h3>100% Private — incl. Local AI</h3>
+      <p>Runs entirely on your own hardware via Docker. No cloud sync, no third-party storage. Use <strong style="color:var(--teal)">Ollama</strong> to run a local LLM (e.g. Llama 3.2, Mistral) — not a single byte of your financial data leaves your machine.</p>
+    </div>
+  </div>
+</section>
+
+<hr class="divider" />
+
+<!-- PAGES -->
+<section id="pages">
+  <div class="section-label">Pages</div>
+  <h2>Seven pages, one complete picture</h2>
+  <p class="section-sub">Every page feeds into the others — change a scenario and your dashboard, strategy, and AI context update instantly.</p>
+
+  <div class="pages-grid">
+    <div class="page-card">
+      <h3>🏠 Dashboard <span class="page-tag">overview</span></h3>
+      <p>Net worth card with liquid/locked split, survival runway, monthly cashflow bar chart, portfolio donut, stat cards, and pinned AI analysis cards.</p>
+    </div>
+    <div class="page-card">
+      <h3>🏦 Accounts <span class="page-tag">data entry</span></h3>
+      <p>All accounts with balances, types (Checking, Investment, Crypto, Pension 2A/3A), institutions. Inline editable, sortable, import per account.</p>
+    </div>
+    <div class="page-card">
+      <h3>📈 Portfolio <span class="page-tag">live prices</span></h3>
+      <p>Expandable per-account positions with real-time Yahoo Finance prices, shares, avg buy price, current value, and P&amp;L. Allocation breakdown chart.</p>
+    </div>
+    <div class="page-card">
+      <h3>🎯 Scenarios <span class="page-tag">budgeting</span></h3>
+      <p>Editable budget models with incomes, payroll deductions, linked expenses with override amounts, savings targets, and investment allocations. PDF export.</p>
+    </div>
+    <div class="page-card">
+      <h3>📊 Tracker <span class="page-tag">monthly</span></h3>
+      <p>Year grid with per-account forecast rows and actual balance cells (highlighted in green). Sync from Accounts. Forecast vs result chart. Compound interest calculator.</p>
+    </div>
+    <div class="page-card">
+      <h3>💳 Expenses <span class="page-tag">costs</span></h3>
+      <p>Subscriptions, recurring costs, insurance policies, multi-year tax records. All normalised to monthly and yearly CHF. Sortable tables, category breakdown.</p>
+    </div>
+    <div class="page-card">
+      <h3>🧭 Strategy <span class="page-tag">planning</span></h3>
+      <p>Swiss 3+2 pillar framework, FIRE number (money system + business system), net hourly rate, and indentured time calculator (what does that car cost in work days?).</p>
+    </div>
+  </div>
+</section>
+
+<hr class="divider" />
+
+<!-- SWISS -->
+<section id="swiss">
+  <div class="section-label">Built for Switzerland</div>
+  <h2>Swiss financial law, built in</h2>
+  <p class="section-sub">Not a generic budgeting app adapted for Switzerland — the Swiss financial structure is the foundation.</p>
+
+  <div class="swiss-list">
+    <div class="swiss-item">
+      <div class="icon">🏛️</div>
+      <div>
+        <h4>3-Pillar Pension System</h4>
+        <p>AHV (Pillar 1), BVG / Pensionskasse (Pillar 2), Pillar 3a — tracked in accounts, scenarios, and strategy. Voluntary buy-in (Einkauf) logic in AI context.</p>
+      </div>
+    </div>
+    <div class="swiss-item">
+      <div class="icon">📋</div>
+      <div>
+        <h4>4 Swiss Tax Line Types</h4>
+        <p>Staats-/Gemeinde + Bundessteuer × Provisorisch/Schlussrechnung per year, with paid dates and a multi-year bar chart overview.</p>
+      </div>
+    </div>
+    <div class="swiss-item">
+      <div class="icon">💰</div>
+      <div>
+        <h4>Tax-Free Capital Gains</h4>
+        <p>Swiss private investors pay zero capital gains tax (Art. 16 Abs. 3 DBG). Reflected in FIRE calculations and fully explained to the AI advisor.</p>
+      </div>
+    </div>
+    <div class="swiss-item">
+      <div class="icon">🩺</div>
+      <div>
+        <h4>Krankenkasse Franchise</h4>
+        <p>AI knows all franchise options (CHF 300–2,500), co-pay rules, break-even logic, and the October 31 switch deadline. Costs tracked in insurance.</p>
+      </div>
+    </div>
+    <div class="swiss-item">
+      <div class="icon">🎯</div>
+      <div>
+        <h4>FIRE Adjusted for Wealth Tax</h4>
+        <p>Freedom target uses the 4% rule minus ~0.25% Vermögenssteuer (Kanton Zürich) = 3.75% net yield — built into every capital calculation.</p>
+      </div>
+    </div>
+    <div class="swiss-item">
+      <div class="icon">🏢</div>
+      <div>
+        <h4>Business &amp; Freelance Target</h4>
+        <p>Calculates the gross monthly revenue needed for financial freedom as a self-employed person — accounting for Swiss AHV contributions (~10%) and income tax (~25%).</p>
+      </div>
+    </div>
+    <div class="swiss-item">
+      <div class="icon">🕐</div>
+      <div>
+        <h4>Swiss Working Hours Standard</h4>
+        <p>Net hourly rate calculated as net salary ÷ (40h × 45 working weeks), referencing the Swiss OR Art. 321c standard. Converts any purchase into real work time.</p>
+      </div>
+    </div>
+    <div class="swiss-item">
+      <div class="icon">🇨🇭</div>
+      <div>
+        <h4>CHF-Native Formatting</h4>
+        <p>All amounts use <code>de-CH</code> locale with apostrophe separators: CHF 1'234'567. Currency-native throughout every page and chart.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<hr class="divider" />
+
+<!-- TECH STACK -->
+<section id="tech">
+  <div class="section-label">Tech Stack</div>
+  <h2>Simple, solid, self-contained</h2>
+  <p class="section-sub">One Docker Compose command spins up everything. No cloud services required.</p>
+
+  <div class="tech-grid">
+    <div class="tech-pill"><span class="dot" style="background:#61dafb"></span>React 18</div>
+    <div class="tech-pill"><span class="dot" style="background:#646cff"></span>Vite</div>
+    <div class="tech-pill"><span class="dot" style="background:#339933"></span>Node.js + Express</div>
+    <div class="tech-pill"><span class="dot" style="background:#336791"></span>PostgreSQL 16</div>
+    <div class="tech-pill"><span class="dot" style="background:#2496ed"></span>Docker Compose</div>
+    <div class="tech-pill"><span class="dot" style="background:#f97316"></span>Prisma ORM</div>
+    <div class="tech-pill"><span class="dot" style="background:#a855f7"></span>Anthropic Claude</div>
+    <div class="tech-pill"><span class="dot" style="background:#10a37f"></span>OpenAI GPT-4o</div>
+    <div class="tech-pill"><span class="dot" style="background:#4285f4"></span>Google Gemini</div>
+    <div class="tech-pill"><span class="dot" style="background:var(--teal)"></span>Ollama (local LLM)</div>
+    <div class="tech-pill"><span class="dot" style="background:#22c55e"></span>Recharts</div>
+    <div class="tech-pill"><span class="dot" style="background:#ef4444"></span>jsPDF</div>
+    <div class="tech-pill"><span class="dot" style="background:#e4e4e7"></span>Lucide Icons</div>
+  </div>
+</section>
+
+<hr class="divider" />
+
+<!-- SETUP -->
+<section id="setup">
+  <div class="section-label">Quick Start</div>
+  <h2>Up and running in minutes</h2>
+  <p class="section-sub">One script installs everything — Homebrew, Docker, all dependencies — and loads sample data automatically.</p>
+
+  <div class="setup-steps">
+    <div class="setup-step">
+      <div class="step-num">1</div>
+      <h3>Clone the repo</h3>
+      <p>Download Finance Hub from GitHub to your Mac.</p>
+    </div>
+    <div class="setup-step">
+      <div class="step-num">2</div>
+      <h3>Add an API key</h3>
+      <p>Copy <code>.env.example</code> to <code>.env</code> and add your Anthropic, OpenAI, or Gemini key.</p>
+    </div>
+    <div class="setup-step">
+      <div class="step-num">3</div>
+      <h3>Run setup</h3>
+      <p>One command installs all prerequisites, builds the app, and loads sample data.</p>
+    </div>
+    <div class="setup-step">
+      <div class="step-num">4</div>
+      <h3>Open the app</h3>
+      <p>Visit <code>http://localhost:3000</code> — done.</p>
+    </div>
+  </div>
+
+  <pre><code><span class="cmt"># Clone</span>
+<span class="cmd">git clone https://github.com/renehungerbuehler/finance_hub.git</span>
+<span class="cmd">cd finance_hub</span>
+
+<span class="cmt"># Configure your AI provider</span>
+<span class="cmd">cp .env.example .env</span>
+<span class="cmt"># Edit .env → add ANTHROPIC_API_KEY, OPENAI_API_KEY, or GEMINI_API_KEY</span>
+
+<span class="cmt"># One-command setup (installs Homebrew, Docker, make, jq — builds + loads sample data)</span>
+<span class="cmd">bash setup.sh</span>
+
+<span class="cmt"># Open http://localhost:3000</span></code></pre>
+</section>
+
+<hr class="divider" />
+
+<!-- SUPPORT -->
+<section id="support" style="padding-bottom: 80px;">
+  <div class="support-box">
+    <div style="font-size:44px;margin-bottom:14px">☕</div>
+    <h2>Enjoying Finance Hub?</h2>
+    <p>Finance Hub is free and open source. If it helps you manage your finances, track your wealth, or get closer to financial independence — a coffee goes a long way.</p>
+    <div class="support-options">
+      <a href="https://buymeacoffee.com/reneo" target="_blank" rel="noopener" class="btn btn-coffee">☕ Buy me a coffee</a>
+    </div>
+    <p style="margin-top:18px;font-size:12px;color:var(--textDim)">Or leave a ⭐ on GitHub — it helps more than you think.</p>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div class="fi">
+    <span>Finance Hub — self-hosted Swiss personal finance dashboard</span>
+    <span>
+      <a href="https://github.com/renehungerbuehler/finance_hub">GitHub</a>
+      &nbsp;·&nbsp;
+      <a href="https://github.com/renehungerbuehler/finance_hub/issues">Issues</a>
+      &nbsp;·&nbsp;
+      <a href="https://www.buymeacoffee.com/YOUR_USERNAME">Support</a>
+    </span>
+  </div>
+</footer>
+
+<!-- LIGHTBOX -->
+<div class="lightbox" id="lb" onclick="closeLb()">
+  <div class="lb-close" onclick="closeLb()">✕</div>
+  <img id="lb-img" src="" alt="" onclick="event.stopPropagation()" />
+</div>
+
+<script>
+  function openLb(src) {
+    document.getElementById('lb-img').src = src;
+    document.getElementById('lb').classList.add('open');
+    document.body.style.overflow = 'hidden';
+  }
+  function closeLb() {
+    document.getElementById('lb').classList.remove('open');
+    document.body.style.overflow = '';
+  }
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeLb(); });
+</script>
+</body>
+</html>

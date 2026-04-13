@@ -1,0 +1,778 @@
+{
+  "accounts": [
+    {
+      "id": "acc-1",
+      "name": "Pensionskasse (2A)",
+      "type": "Pension 2A",
+      "color": "#60a5fa",
+      "balance": 280000,
+      "institution": "Pensionskasse"
+    },
+    {
+      "id": "acc-2",
+      "name": "3A Pillar ETF",
+      "type": "Pension 3A",
+      "color": "#14b8a6",
+      "balance": 95000,
+      "positions": [
+        {
+          "id": "id-pos3a-1",
+          "name": "3a ETF Global Equity 95",
+          "value": 60000,
+          "shares": 0,
+          "ticker": "",
+          "avgBuyPrice": 0
+        },
+        {
+          "id": "id-pos3a-2",
+          "name": "3a ETF Balanced 45",
+          "value": 20000,
+          "shares": 0,
+          "ticker": "",
+          "avgBuyPrice": 0
+        },
+        {
+          "id": "id-pos3a-3",
+          "name": "3a ETF Growth 75",
+          "value": 15000,
+          "shares": 0,
+          "ticker": "",
+          "avgBuyPrice": 0
+        }
+      ],
+      "institution": "3A Provider",
+      "instructions": "Proprietary funds (no Yahoo ticker): 3a ETF Global Equity 95, 3a ETF Balanced 45, 3a ETF Growth 75. Use position value as balance.",
+      "interestRate": null,
+      "lastImported": "2026-04-01T10:00:00.000Z"
+    },
+    {
+      "id": "acc-3",
+      "name": "Investment Portfolio",
+      "type": "Investment",
+      "color": "#22c55e",
+      "balance": 205000,
+      "positions": [
+        {
+          "id": "id-inv-1",
+          "name": "Vanguard FTSE All-World (VWRL)",
+          "value": 95000,
+          "shares": 560,
+          "ticker": "VWRL.SW",
+          "avgBuyPrice": 130.0
+        },
+        {
+          "id": "id-inv-2",
+          "name": "iShares Core SPI (CHSPI)",
+          "value": 45000,
+          "shares": 285,
+          "ticker": "CHSPI.SW",
+          "avgBuyPrice": 145.0
+        },
+        {
+          "id": "id-inv-3",
+          "name": "iShares SMI (CSSMI)",
+          "value": 35000,
+          "shares": 257,
+          "ticker": "CSSMI.SW",
+          "avgBuyPrice": 120.0
+        },
+        {
+          "id": "id-inv-4",
+          "name": "Vanguard Total World (VT)",
+          "value": 30000,
+          "shares": 195,
+          "ticker": "VT",
+          "avgBuyPrice": 115.0
+        }
+      ],
+      "institution": "Online Broker",
+      "lastImported": "2026-04-01T10:00:00.000Z"
+    }
+  ],
+  "scenarios": [
+    {
+      "id": "sc-1",
+      "name": "Employer AG | 140k base + ~12k Bonus",
+      "tags": [
+        "current",
+        "active"
+      ],
+      "incomes": [
+        {
+          "id": "sc1-inc-1",
+          "label": "Employer AG – Base Salary",
+          "notes": "~140k/year",
+          "amount": 11666.7
+        },
+        {
+          "id": "sc1-inc-2",
+          "label": "Employer AG – Bonus",
+          "notes": "~1500-4500 every Quarter",
+          "amount": 0
+        }
+      ],
+      "savings": [
+        {
+          "id": "sc1-sav-1",
+          "liq": "locked",
+          "pct": 5.3,
+          "label": "AHV",
+          "notes": "Pillar 1 - SVA",
+          "amount": 618.34,
+          "essential": true
+        },
+        {
+          "id": "sc1-sav-2",
+          "liq": "locked",
+          "label": "BVG",
+          "notes": "Pillar 2 - Pensionskasse",
+          "amount": 522.75,
+          "essential": true
+        },
+        {
+          "id": "sc1-sav-3",
+          "liq": "liquid",
+          "label": "Emergency Fund",
+          "notes": "Bank - Emergency Account",
+          "amount": 500,
+          "essential": false
+        },
+        {
+          "id": "sc1-sav-4",
+          "liq": "liquid",
+          "label": "Savings Goal",
+          "notes": "Bank - Long-term Savings",
+          "amount": 1000,
+          "essential": false
+        }
+      ],
+      "expenses": [
+        {
+          "id": "sc1-exp-1",
+          "pct": 0.687,
+          "label": "NBU",
+          "notes": "Accident insurance (NonW Acc.Ins.-contribution)",
+          "amount": 80.15,
+          "essential": true
+        },
+        {
+          "id": "sc1-exp-2",
+          "pct": 0.201,
+          "label": "KTG",
+          "notes": "Sick day benefits (Loss of Salary-Ins.-Contr. %)",
+          "amount": 23.45,
+          "essential": true
+        },
+        {
+          "id": "sc1-exp-3",
+          "pct": 1.1,
+          "label": "ALV",
+          "notes": "Disability, death pension (Unemployment contribution)",
+          "amount": 128.33,
+          "essential": true
+        }
+      ],
+      "isActive": true,
+      "investments": [
+        {
+          "id": "sc1-inv-1",
+          "liq": "locked",
+          "label": "3A",
+          "notes": "Pillar 3A - ETF Provider",
+          "amount": 600
+        },
+        {
+          "id": "sc1-inv-2",
+          "liq": "liquid",
+          "label": "ETFs / Stocks",
+          "notes": "Online Broker",
+          "amount": 500
+        },
+        {
+          "id": "sc1-inv-3",
+          "liq": "liquid",
+          "pct": 10,
+          "label": "ESPP",
+          "notes": "Employee Stock Purchase Plan",
+          "amount": 1115
+        }
+      ],
+      "linkedCustom": [],
+      "linkedOverrides": {
+        "tax": null,
+        "subsP": null,
+        "insurance": null,
+        "recurring": null
+      }
+    }
+  ],
+  "tracker": {
+    "2026": [
+      {
+        "id": "tr-1",
+        "name": "Pensionskasse (2A)",
+        "active": true,
+        "results": [
+          272800,
+          276400,
+          280000,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null
+        ],
+        "startBal": 272800,
+        "recurring": 1400,
+        "activeUntil": 12
+      },
+      {
+        "id": "tr-2",
+        "name": "3A Pillar ETF",
+        "active": true,
+        "results": [
+          88200,
+          91600,
+          95000,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null
+        ],
+        "startBal": 84800,
+        "recurring": 600,
+        "activeUntil": 12
+      },
+      {
+        "id": "tr-3",
+        "name": "Investment Portfolio",
+        "active": true,
+        "results": [
+          197500,
+          201250,
+          205000,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          null
+        ],
+        "startBal": 193750,
+        "recurring": 500,
+        "activeUntil": 12
+      }
+    ]
+  },
+  "subscriptions_personal": [
+    {
+      "id": "subp-1",
+      "name": "SBB Half Fare",
+      "notes": "Annual half-fare card",
+      "amount": 175,
+      "yearly": 175,
+      "account": "Bank eBill",
+      "monthly": 0,
+      "frequency": 12
+    },
+    {
+      "id": "subp-2",
+      "name": "Internet Provider",
+      "notes": "500 Mbits home internet",
+      "amount": 39.9,
+      "yearly": 0,
+      "account": "Bank eBill",
+      "monthly": 39.9,
+      "frequency": 1
+    },
+    {
+      "id": "subp-3",
+      "name": "Spotify",
+      "notes": "Music streaming",
+      "amount": 12.95,
+      "yearly": 0,
+      "account": "Bank LSV",
+      "monthly": 12.95,
+      "frequency": 1
+    },
+    {
+      "id": "subp-4",
+      "name": "Netflix",
+      "notes": "Streaming subscription",
+      "amount": 17.9,
+      "yearly": 0,
+      "account": "Bank LSV",
+      "monthly": 17.9,
+      "frequency": 1
+    },
+    {
+      "id": "subp-5",
+      "name": "Apple iCloud+",
+      "notes": "200GB storage",
+      "amount": 3.0,
+      "yearly": 0,
+      "account": "Bank eBill",
+      "monthly": 3.0,
+      "frequency": 1
+    },
+    {
+      "id": "subp-6",
+      "name": "Password Manager",
+      "notes": "Password & security app",
+      "amount": 3.99,
+      "yearly": 0,
+      "account": "Bank LSV",
+      "monthly": 3.99,
+      "frequency": 1
+    }
+  ],
+  "yearly": [
+    {
+      "id": "yr-2",
+      "name": "Public TV / Radio",
+      "notes": "Serafe",
+      "amount": 182.5,
+      "yearly": 182.5,
+      "monthly": 15.21,
+      "frequency": 12
+    },
+    {
+      "id": "yr-3",
+      "name": "Electricity",
+      "notes": "Apartment heating, water etc.",
+      "amount": 200,
+      "yearly": 800,
+      "monthly": 66.67,
+      "frequency": 3
+    },
+    {
+      "id": "yr-5",
+      "name": "Unexpected Buffer",
+      "notes": "Buffer for all unexpected invoices",
+      "amount": 2000,
+      "yearly": 2000,
+      "monthly": 248.54,
+      "frequency": 12
+    },
+    {
+      "id": "id-723pj8ao30oy",
+      "name": "Apartment Rent",
+      "notes": "Monthly rent incl. parking",
+      "amount": 2200,
+      "frequency": 1
+    },
+    {
+      "id": "id-25fpx1fi3fkv",
+      "name": "Car Leasing",
+      "notes": "Monthly car lease",
+      "amount": 350,
+      "frequency": 1
+    },
+    {
+      "id": "id-53qzci2a3xev",
+      "name": "Holiday Budget",
+      "notes": "Budget for yearly holidays and trips",
+      "amount": 300,
+      "frequency": 1
+    },
+    {
+      "id": "id-9l5i37kv49j7",
+      "name": "Side Project Funding",
+      "notes": "Monthly budget for side business development",
+      "amount": 200,
+      "frequency": 1
+    },
+    {
+      "id": "id-yxbphausj1ki",
+      "name": "Cash / Daily Expenses",
+      "notes": "Monthly cash budget for groceries, dining, misc.",
+      "amount": 1800,
+      "frequency": 1
+    }
+  ],
+  "taxes": [
+    {
+      "id": "tax-2018",
+      "year": 2018,
+      "lines": [
+        {
+          "id": "tax-2018-line-1",
+          "type": "Staats-/Gemeinde Steuer (Provisorisch)",
+          "amount": 398.4,
+          "paidAt": "25.06.2018"
+        },
+        {
+          "id": "tax-2018-line-2",
+          "type": "Staats-/Gemeinde Steuer (Schlussrechnung)",
+          "amount": 4359.65,
+          "paidAt": "18.07.2018"
+        },
+        {
+          "id": "tax-2018-line-3",
+          "type": "Direkte Bundessteuer (Provisorisch)",
+          "amount": 0,
+          "paidAt": ""
+        },
+        {
+          "id": "tax-2018-line-4",
+          "type": "Direkte Bundessteuer (Schlussrechnung)",
+          "amount": 597.05,
+          "paidAt": "27.05.2018"
+        }
+      ]
+    },
+    {
+      "id": "tax-2019",
+      "year": 2019,
+      "lines": [
+        {
+          "id": "tax-2019-line-1",
+          "type": "Staats-/Gemeinde Steuer (Provisorisch)",
+          "amount": 5330.35,
+          "paidAt": "25.06.2019"
+        },
+        {
+          "id": "tax-2019-line-2",
+          "type": "Staats-/Gemeinde Steuer (Schlussrechnung)",
+          "amount": 2868.25,
+          "paidAt": "26.05.2020"
+        },
+        {
+          "id": "tax-2019-line-3",
+          "type": "Direkte Bundessteuer (Provisorisch)",
+          "amount": 0,
+          "paidAt": ""
+        },
+        {
+          "id": "tax-2019-line-4",
+          "type": "Direkte Bundessteuer (Schlussrechnung)",
+          "amount": 1087.1,
+          "paidAt": "26.05.2020"
+        }
+      ]
+    },
+    {
+      "id": "tax-2020",
+      "year": 2020,
+      "lines": [
+        {
+          "id": "tax-2020-line-1",
+          "type": "Staats-/Gemeinde Steuer (Provisorisch)",
+          "amount": 5330.35,
+          "paidAt": "26.08.2020"
+        },
+        {
+          "id": "tax-2020-line-2",
+          "type": "Staats-/Gemeinde Steuer (Schlussrechnung)",
+          "amount": 2887.25,
+          "paidAt": "26.12.2021"
+        },
+        {
+          "id": "tax-2020-line-3",
+          "type": "Direkte Bundessteuer (Provisorisch)",
+          "amount": 1087.1,
+          "paidAt": "26.03.2021"
+        },
+        {
+          "id": "tax-2020-line-4",
+          "type": "Direkte Bundessteuer (Schlussrechnung)",
+          "amount": 0,
+          "paidAt": ""
+        }
+      ]
+    },
+    {
+      "id": "tax-2021",
+      "year": 2021,
+      "lines": [
+        {
+          "id": "tax-2021-line-1",
+          "type": "Staats-/Gemeinde Steuer (Provisorisch)",
+          "amount": 8192.7,
+          "paidAt": "30.09.2021"
+        },
+        {
+          "id": "tax-2021-line-2",
+          "type": "Staats-/Gemeinde Steuer (Schlussrechnung)",
+          "amount": 298.95,
+          "paidAt": "20.11.2022"
+        },
+        {
+          "id": "tax-2021-line-3",
+          "type": "Direkte Bundessteuer (Provisorisch)",
+          "amount": 1090.05,
+          "paidAt": "31.03.2022"
+        },
+        {
+          "id": "tax-2021-line-4",
+          "type": "Direkte Bundessteuer (Schlussrechnung)",
+          "amount": 0,
+          "paidAt": ""
+        }
+      ]
+    },
+    {
+      "id": "tax-2022",
+      "year": 2022,
+      "lines": [
+        {
+          "id": "tax-2022-line-1",
+          "type": "Staats-/Gemeinde Steuer (Provisorisch)",
+          "amount": 7328.85,
+          "paidAt": "23.12.2022"
+        },
+        {
+          "id": "tax-2022-line-2",
+          "type": "Staats-/Gemeinde Steuer (Schlussrechnung)",
+          "amount": 3370.75,
+          "paidAt": "26.02.2024"
+        },
+        {
+          "id": "tax-2022-line-3",
+          "type": "Direkte Bundessteuer (Provisorisch)",
+          "amount": 1125.7,
+          "paidAt": "23.02.2023"
+        },
+        {
+          "id": "tax-2022-line-4",
+          "type": "Direkte Bundessteuer (Schlussrechnung)",
+          "amount": 1325.9,
+          "paidAt": "26.03.2024"
+        }
+      ]
+    },
+    {
+      "id": "tax-2023",
+      "year": 2023,
+      "lines": [
+        {
+          "id": "tax-2023-line-1",
+          "type": "Staats-/Gemeinde Steuer (Provisorisch)",
+          "amount": 7328.85,
+          "paidAt": "28.09.2023"
+        },
+        {
+          "id": "tax-2023-line-2",
+          "type": "Staats-/Gemeinde Steuer (Schlussrechnung)",
+          "amount": 4313.35,
+          "paidAt": "26.03.2024"
+        },
+        {
+          "id": "tax-2023-line-3",
+          "type": "Direkte Bundessteuer (Provisorisch)",
+          "amount": 1090.5,
+          "paidAt": "27.02.2024"
+        },
+        {
+          "id": "tax-2023-line-4",
+          "type": "Direkte Bundessteuer (Schlussrechnung)",
+          "amount": 1652.1,
+          "paidAt": "26.03.2024"
+        }
+      ]
+    },
+    {
+      "id": "tax-2024",
+      "year": 2024,
+      "lines": [
+        {
+          "id": "tax-2024-line-1",
+          "type": "Staats-/Gemeinde Steuer (Provisorisch)",
+          "amount": 7168,
+          "paidAt": "26.09.2024"
+        },
+        {
+          "id": "tax-2024-line-2",
+          "type": "Staats-/Gemeinde Steuer (Schlussrechnung)",
+          "amount": 4717.9,
+          "paidAt": "28.02.2026"
+        },
+        {
+          "id": "tax-2024-line-3",
+          "type": "Direkte Bundessteuer (Provisorisch)",
+          "amount": 2677.1,
+          "paidAt": "27.03.2025"
+        },
+        {
+          "id": "tax-2024-line-4",
+          "type": "Direkte Bundessteuer (Schlussrechnung)",
+          "amount": 184.8,
+          "paidAt": "28.02.2026"
+        }
+      ]
+    },
+    {
+      "id": "tax-2025",
+      "year": 2025,
+      "lines": [
+        {
+          "id": "tax-2025-line-1",
+          "type": "Staats-/Gemeinde Steuer (Provisorisch)",
+          "amount": 11403.65,
+          "paidAt": "26.09.2025"
+        },
+        {
+          "id": "tax-2025-line-2",
+          "type": "Staats-/Gemeinde Steuer (Schlussrechnung)",
+          "amount": 0,
+          "paidAt": ""
+        },
+        {
+          "id": "tax-2025-line-3",
+          "type": "Direkte Bundessteuer (Provisorisch)",
+          "amount": 0,
+          "paidAt": ""
+        },
+        {
+          "id": "tax-2025-line-4",
+          "type": "Direkte Bundessteuer (Schlussrechnung)",
+          "amount": 0,
+          "paidAt": ""
+        }
+      ]
+    },
+    {
+      "id": "tax-2026",
+      "year": 2026,
+      "lines": [
+        {
+          "id": "tax-2026-line-1",
+          "type": "Staats-/Gemeinde Steuer (Provisorisch)",
+          "amount": 11153.6,
+          "paidAt": "28.09.2026"
+        },
+        {
+          "id": "tax-2026-line-2",
+          "type": "Staats-/Gemeinde Steuer (Schlussrechnung)",
+          "amount": 0,
+          "paidAt": ""
+        },
+        {
+          "id": "tax-2026-line-3",
+          "type": "Direkte Bundessteuer (Provisorisch)",
+          "amount": 2628.6,
+          "paidAt": "30.03.2026"
+        },
+        {
+          "id": "tax-2026-line-4",
+          "type": "Direkte Bundessteuer (Schlussrechnung)",
+          "amount": 0,
+          "paidAt": ""
+        }
+      ]
+    }
+  ],
+  "insurance": [
+    {
+      "id": "ins-1",
+      "name": "Krankenkasse",
+      "notes": "Franchise 2500.-",
+      "amount": 4445,
+      "yearly": 4445,
+      "billing": "Halbjährlich / Dez, Jun",
+      "insurer": "Health Insurer",
+      "frequency": 12
+    },
+    {
+      "id": "ins-2",
+      "name": "Auto Versicherung, Pannenhilfe",
+      "notes": "-",
+      "amount": 1800,
+      "yearly": 1800,
+      "billing": "Jährlich / September",
+      "insurer": "Auto Insurer",
+      "frequency": 12
+    },
+    {
+      "id": "ins-3",
+      "name": "Privat Rechtsschutz",
+      "notes": "-",
+      "amount": 225,
+      "yearly": 225,
+      "billing": "Jährlich / September",
+      "insurer": "Legal Protection",
+      "frequency": 12
+    },
+    {
+      "id": "ins-4",
+      "name": "Privathaftpflicht + Hausrat",
+      "notes": "-",
+      "amount": 213,
+      "yearly": 213,
+      "billing": "Jährlich / November",
+      "insurer": "Liability & Contents Insurer",
+      "frequency": 12
+    },
+    {
+      "id": "ins-5",
+      "name": "Reiseversicherung",
+      "notes": "-",
+      "amount": 165,
+      "yearly": 165,
+      "billing": "Jährlich / September",
+      "insurer": "Travel Insurer",
+      "frequency": 12
+    },
+    {
+      "id": "ins-6",
+      "name": "Unfallversicherung (Rega, Paraplegiker)",
+      "notes": "-",
+      "amount": 85,
+      "yearly": 85,
+      "billing": "Jährlich / Juli",
+      "insurer": "Rega / Paraplegiker Zentrum",
+      "frequency": 12
+    }
+  ],
+  "settings": {
+    "onboarding": {
+      "dismissed": false,
+      "welcomeAck": false,
+      "aiAdviserAck": false,
+      "lastTrackerSync": null,
+      "lastMonthlyUpdate": null
+    },
+    "promptTemplate": "You are a personal financial advisor and wealth-building coach for the user, a Swiss resident. You have full access to their current financial data (provided below). You are fluent in Swiss financial law, tax optimisation, and practical strategies for building wealth and reaching financial independence.\n\n## Your Role\n\n- Answer questions with precision, Swiss-specific depth, and direct actionability using their actual numbers\n- Proactively guide them toward **financial independence** — not just stability, but genuine freedom from having to work for money\n- Factor in their **side business** as a potential major wealth accelerator — salary alone may limit FIRE timeline, but a growing business changes everything\n- **Use web search** when asked for current rates, market data, new Swiss regulations, or anything that may have changed recently. Search before answering when the question involves current figures, benchmarks, or opportunities\n\n## Wealth-Building Framework\n\nWhen giving advice, think across these levers:\n\n1. **Earn more** — salary negotiation, side business growth, freelance rates, skills that command higher pay\n2. **Spend less** — identify waste, renegotiate fixed costs (Krankenkasse, insurance), tax deductions\n3. **Invest smarter** — Swiss tax-free capital gains, ETF allocation, 3a optimisation, BVG buy-in timing\n4. **Build systems** — passive income, business revenue replacing salary, recurring revenue streams\n5. **Time in market** — compound growth projections, FIRE number calculations\n\n## Financial Independence Context\n\n- Their FIRE number = essential monthly costs × 12 ÷ 3.75% (4% rule adjusted for Swiss wealth tax ~0.25%)\n- Track progress: liquid assets vs FIRE number\n- Side business is a multiplier — CHF 10k/mo from the side business changes the FIRE timeline dramatically vs salary alone\n- Swiss advantage: tax-free capital gains, world-class investment access, stable CHF\n\n---\n\n## Swiss Tax & Legal Framework You Must Know\n\n### Income Tax\n- Three-layer system: Federal (direct federal tax) + Cantonal + Municipal\n- Cantonal rates vary widely — e.g., Kanton Zürich is among the higher cantons (~22-30% marginal rate at CHF 140k gross); use the user's actual canton from their financial data\n- Tax deductions reduce taxable income: 3a contributions, BVG buy-ins, professional expenses, health insurance premiums, mortgage interest\n- Provisional taxes (Provisorisch) are estimates; Schlussrechnung is the final bill — the gap matters\n\n### Pillar 1 — AHV/IV/EO (State Pension)\n- Mandatory: 10.6% of gross salary (AHV/IV/EO) split equally employer/employee (employee pays 5.3%)\n- ALV (unemployment): 1.1% up to CHF 148,200/year salary\n- Cannot be accessed early except emigration outside EU/EFTA\n- AHV pension at 65 (men): max CHF 2,520/month if fully contributed\n\n### Pillar 2 — BVG (Occupational Pension / Pensionskasse)\n- Mandatory for employees earning above threshold (~CHF 22,680/year)\n- Employer must match employee contribution at minimum\n- **Voluntary buy-in (Einkauf):** Fully tax-deductible in year of payment — one of the most powerful Swiss tax tools. Check Vorsorgeausweis from your Pensionskasse provider for maximum Einkaufspotenzial\n- 3-year lock: cannot withdraw as lump sum within 3 years of a buy-in\n- Coordination deduction: CHF 26,460 deducted from salary before BVG calculation\n- Can be withdrawn for: home purchase (Wohneigentumsförderung WEF), emigration, or retirement\n\n### Pillar 3a (Private Pension, Tied)\n- **2025/2026 maximum: CHF 7,258/year** for employed people\n- 100% tax-deductible from taxable income (both federal and cantonal)\n- Cannot be withdrawn before age 60 (men), except: home purchase, emigration, starting a business, or disability\n- Tax on withdrawal: reduced rate (~5-8% depending on canton/amount), calculated as 1/5 of ordinary income tax rate (Art. 38 DBG)\n- **Staggering strategy (Staffelung):** Split across multiple 3a accounts and stagger withdrawals over several years to minimise withdrawal tax\n- ETF-based 3a providers (e.g. Frankly, VIAC): generally better long-term growth vs traditional bank 3a accounts\n- Max annual tax saving varies by canton: ~CHF 1,600-2,300 at Zürich marginal rates; calculate based on user's actual canton and income\n\n### Pillar 3b (Flexible Savings)\n- No contribution limits, no tax deduction\n- Capital gains from shares/ETFs are tax-free (private investor)\n- Dividends and interest are taxed as income\n- Life insurance products may offer limited deductibility\n\n### Capital Gains & Investment Taxation\n- **Capital gains are tax-free** for private investors in Switzerland — one of the most favourable regimes globally\n- Applies to: stocks, ETFs, crypto, real estate gains (with caveats)\n- Exception: if you trade \"professionally\" (high frequency, leverage, funded by loans) — then taxed as income\n- **Dividends/interest:** Taxed as income. 35% withholding tax (Verrechnungssteuer) automatically deducted, refunded via tax return\n- Stempelsteuer (stamp duty): 0.075% on domestic securities, 0.15% on foreign securities, per transaction\n\n### Crypto\n- Capital gains: tax-free as private investor\n- Wealth tax: holdings taxed as wealth on Dec 31 balance sheet\n- Income from staking/mining: taxed as income\n- No FIFO/LIFO requirement — but consistent accounting recommended\n\n### Wealth Tax (Vermögenssteuer)\n- Rate varies by canton — e.g., Kanton Zürich: approximately 0.05–0.3% of net worth annually; use the user's actual canton rate\n- Snapshot taken on **December 31st** each year\n- Pillar 2 and 3a are **exempt from wealth tax** until payout (statutory BVG exemption)\n- Deductions: debts, some social deductions\n- Strategy: large purchases, BVG buy-ins, or 3a contributions before year-end reduce Dec 31 balance\n\n### Health Insurance (Krankenkasse)\n- Mandatory for all Swiss residents\n- Deductible (Franchise) options: CHF 300, 500, 1,000, 1,500, 2,000, 2,500\n- Co-pay (Selbstbehalt): 10% of costs above Franchise, capped at CHF 700/year\n- Max out-of-pocket with CHF 2,500 Franchise: CHF 2,500 + CHF 700 = CHF 3,200/year\n- Higher franchise = lower premium. Break-even: if annual health costs < ~CHF 3,800, CHF 2,500 franchise saves money\n- Optimal setup: CHF 2,500 Franchise (maximum) — most cost-effective for healthy individuals\n- Premiums are partially deductible (up to CHF 3,600 single, CHF 7,200 couple)\n- Annual comparison deadline: **October 31st** to switch provider for next year (via priminfo.admin.ch or comparis.ch)\n- Supplementary insurance (Zusatzversicherung): not mandatory, not regulated — compare carefully\n\n### Mortgages & Real Estate\n- Indirect amortisation (indirekte Amortisation): park amortisation in 3a instead of paying down mortgage → tax-efficient\n- Mortgage interest deductible from taxable income\n- Imputed rental value (Eigenmietwert): if you own property, a notional rental income is added to taxable income\n- Not relevant unless the user owns property\n\n### Estate & Inheritance\n- No federal inheritance tax in Switzerland\n- Most cantons (incl. Zürich): no inheritance tax for direct descendants (spouse, children) — verify for the user's actual canton\n- Gifts during lifetime: generally not taxed for direct descendants in most cantons — verify locally\n\n---\n\n## Key Annual Deadlines & Calendar\n- **March 31:** Swiss tax return filing deadline (varies by canton, e.g., Zürich; extensions usually available)\n- **October 31:** Krankenkasse switch deadline for next year\n- **December 31:** Snapshot for wealth tax; final deadline for 3a contributions, BVG buy-ins, and year-end tax optimisation\n- **Q4:** Review insurance, open enrollment periods\n\n---\n\n## Behaviour\n- Be direct and quantitative — use actual numbers from the financial context\n- When projecting, show the math and assumptions clearly\n- Flag missed optimisations proactively (un-maxed 3a, BVG buy-in, wrong Franchise, suboptimal investment allocation)\n- **Use web_search when asked** for current ETF prices, Swiss tax rates, Krankenkasse premiums, interest rates, or any time-sensitive data\n- Format CHF numbers with apostrophes: CHF 2'840'000\n- Keep responses focused and scannable (use bullet points for numbers)\n- Be ambitious — if the numbers allow for financial independence within a reasonable timeline, show the path. If not with salary alone, show what the side business needs to generate\n- Never give generic advice — always ground it in the user's actual current numbers\n",
+    "subsPInScenario": true
+  },
+  "profile": {
+    "firstName": "Alex",
+    "lastName": "Demo",
+    "gender": "Male",
+    "birthDate": "15/03/1990",
+    "address": "Musterstrasse 1",
+    "postalCode": "8001",
+    "city": "Zürich",
+    "canton": "ZH",
+    "phone": "",
+    "maritalStatus": "Single",
+    "religion": "None",
+    "children": "0",
+    "ahvNumber": "",
+    "company": "Tech Company AG",
+    "jobTitle": "Solution Architect",
+    "businessName": "Demo Digital Solutions",
+    "businessType": "Einzelfirma",
+    "businessProjects": "SaaS App, Mobile App",
+    "notes": ""
+  },
+  "ai_analysis": [
+    {
+      "id": "note-demo-analysis",
+      "text": "# Wealth-Building Analysis & FIRE Roadmap\n\n## 1. WHERE YOU STAND TODAY\n\n| Metric | Value | Assessment |\n|---|---|---|\n| **Total Net Worth** | **CHF 580'000** | Strong position for 36 — top ~15% for your age |\n| Liquid / Investable | CHF 205'000 | 35% liquid |\n| Locked (2a + 3a) | CHF 375'000 | 65% locked — compounding tax-free |\n| Gross Salary | CHF 140'000/yr | Strong base |\n| Monthly Contributions | CHF 2'615 | Savings + Investments |\n| **Savings Rate** | **~27% of gross** | Good, room to increase |\n\n### Key Observations\n- **3A not fully maxed:** Max contribution is CHF 7'258/year (CHF 605/mo). You're at CHF 600/mo — close but verify you hit the annual max.\n- **Pensionskasse buy-in potential:** At CHF 280'000 and salary CHF 140k, there's likely significant buy-in room. Request your Vorsorgeausweis — every CHF contributed is 100% tax-deductible.\n- **Investment portfolio concentrated in quality ETFs** — VWRL + Swiss index is a solid core. Good diversification.\n\n---\n\n## 2. YOUR PATH TO FINANCIAL INDEPENDENCE\n\n### FIRE Number\n\nEstimated essential monthly costs ~CHF 6'500:\n\n> **FIRE Number = CHF 6'500 × 12 ÷ 3.75% = CHF 2'080'000**\n\nYou're at **28% of your FIRE number** today.\n\n### Scenario Analysis\n\n| Scenario | FIRE Age | Years Left |\n|---|---|---|\n| Salary only, CHF 140k flat | ~52 | 16 years |\n| Salary growing to CHF 200k | ~49 | 13 years |\n| + CHF 5k/mo from side business | **~46** | **10 years** |\n| + CHF 10k/mo from side business | **~44** | **8 years** |\n\n---\n\n## 3. TOP ACTIONS RIGHT NOW\n\n1. **Max 3A for 2026** — CHF 7'258/year saves ~CHF 2'177 in tax at your marginal rate\n2. **Request Vorsorgeausweis** — check buy-in potential. A CHF 30k buy-in = CHF 9'000 instant tax savings\n3. **Increase monthly ETF investment** — redirect any excess savings from cash to VWRL/VT; at 6% returns over 14 years that's significant compounding\n4. **Side business revenue** — CHF 7'000/mo gross from a SaaS/service business cuts 6 years off your FIRE timeline\n\n---\n\n## 📋 IMMEDIATE ACTION CHECKLIST\n\n| # | Action | Impact |\n|---|---|---|\n| 1 | Max 3A contribution 2026 (CHF 7'258) | CHF 2'177 tax saved |\n| 2 | Request Vorsorgeausweis from Pensionskasse | Unlock buy-in potential |\n| 3 | Increase ETF investment to CHF 1'500+/mo | Accelerate compounding |\n| 4 | Compare Krankenkasse before October 31 | Potential CHF 300-600/yr savings |\n| 5 | Grow side business to CHF 3k/mo | -4 years on FIRE timeline |\n\n**Bottom line:** CHF 580k at 36 is an excellent foundation. Maximize tax-advantaged accounts, keep investing in broad ETFs, and grow your side business — financial independence before 50 is very achievable.",
+      "savedAt": "2026-04-01T10:00:00.000Z"
+    }
+  ]
+}

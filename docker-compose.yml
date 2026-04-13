@@ -1,0 +1,44 @@
+name: finance-hub
+
+services:
+  web:
+    build: .
+    container_name: finance-hub-web
+    ports:
+      - "3000:3000"
+    restart: unless-stopped
+
+  api:
+    build: ./api
+    container_name: finance-hub-api
+    ports:
+      - "3003:3003"
+    environment:
+      - DATABASE_URL=postgresql://finance:finance@db:5432/finance_hub
+      - API_PORT=3003
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  db:
+    image: postgres:16-alpine
+    container_name: finance-hub-db
+    environment:
+      POSTGRES_USER: finance
+      POSTGRES_PASSWORD: finance
+      POSTGRES_DB: finance_hub
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U finance -d finance_hub"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
