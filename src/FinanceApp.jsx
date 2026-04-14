@@ -91,13 +91,13 @@ const Card = ({ title, subtitle, children, style: s, headerRight }) => (
   </div>
 );
 
-const StatCard = ({ label, value, sub, icon: Icon, color = C.accent, iconColor }) => (
-  <Card style={{ display: "flex", alignItems: "center", gap: 16 }}>
-    <div style={{ width: 44, height: 44, borderRadius: 10, background: (iconColor||color) + "1a", display: "flex", alignItems: "center", justifyContent: "center" }}><Icon size={22} color={iconColor||color} /></div>
-    <div>
-      <div style={{ fontSize: 13, color: C.textMuted, marginBottom: 2 }}>{label}</div>
-      <div style={{ fontSize: 22, fontWeight: 700, color: C.text }}>{value}</div>
-      {sub && <div style={{ fontSize: 12, color: C.textDim, marginTop: 2 }}>{sub}</div>}
+const StatCard = ({ label, value, sub, icon: Icon, color = C.accent, iconColor, compact }) => (
+  <Card style={{ display: "flex", alignItems: "center", gap: compact ? 10 : 16 }}>
+    <div style={{ width: compact?34:44, height: compact?34:44, borderRadius: 10, background: (iconColor||color) + "1a", display: "flex", alignItems: "center", justifyContent: "center", flexShrink:0 }}><Icon size={compact?17:22} color={iconColor||color} /></div>
+    <div style={{minWidth:0}}>
+      <div style={{ fontSize: compact?11:13, color: C.textMuted, marginBottom: 2 }}>{label}</div>
+      <div style={{ fontSize: compact?15:22, fontWeight: 700, color: C.text, lineHeight:1.2 }}>{value}</div>
+      {sub && <div style={{ fontSize: compact?10:12, color: C.textDim, marginTop: 2 }}>{sub}</div>}
     </div>
   </Card>
 );
@@ -2613,11 +2613,11 @@ function ExpensesPage({ subsP, setSubsP, subsPInScenario, setSubsPInScenario, ye
       </div>
     </div>}
 
-    <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:16,marginBottom:20}}>
-      <StatCard label="Subscriptions" value={`CHF ${mask(fmt(Math.round(pTotal)))}/mo`} icon={CreditCard} color={C.accent}/>
-      <StatCard label="Recurring" value={`CHF ${mask(fmt(Math.round(yTotal)))}/mo`} sub="saved monthly" icon={DollarSign} color={C.blue}/>
-      <StatCard label="Insurances" value={`CHF ${mask(fmt(Math.round(insMonthly)))}/mo`} sub={hideBalances?undefined:`CHF ${fmt(Math.round(insTotal))}/yr`} icon={Shield} color={C.green}/>
-      <StatCard label={`Taxes (${latestTax?.year||"—"})`} value={`CHF ${mask(fmt(Math.round(taxMonthly)))}/mo`} sub={hideBalances?undefined:`CHF ${fmt(Math.round(latestTaxTotal))}/yr`} icon={BarChart3} color={C.red}/>
+    <div style={{display:"grid",gridTemplateColumns:isMobile?"repeat(2,1fr)":"repeat(4,1fr)",gap:isMobile?10:16,marginBottom:20}}>
+      <StatCard label="Subscriptions" value={`CHF ${mask(fmt(Math.round(pTotal)))}/mo`} icon={CreditCard} color={C.accent} compact={isMobile}/>
+      <StatCard label="Recurring" value={`CHF ${mask(fmt(Math.round(yTotal)))}/mo`} sub="saved monthly" icon={DollarSign} color={C.blue} compact={isMobile}/>
+      <StatCard label="Insurances" value={`CHF ${mask(fmt(Math.round(insMonthly)))}/mo`} sub={hideBalances?undefined:`CHF ${fmt(Math.round(insTotal))}/yr`} icon={Shield} color={C.green} compact={isMobile}/>
+      <StatCard label={`Taxes (${latestTax?.year||"—"})`} value={`CHF ${mask(fmt(Math.round(taxMonthly)))}/mo`} sub={hideBalances?undefined:`CHF ${fmt(Math.round(latestTaxTotal))}/yr`} icon={BarChart3} color={C.red} compact={isMobile}/>
     </div>
     <div style={{display:"flex",gap:8,marginBottom:16,flexWrap:"wrap"}}>
       <Tab active={tab==="total"} onClick={()=>setTab("total")}>Total Monthly</Tab>
