@@ -296,7 +296,9 @@ function generateInsights({ accounts, scenarios, insurance, inc, exp, sav, inv, 
 // ───────────────────────────────────────────────────────────────
 // ACCOUNTS PAGE
 // ───────────────────────────────────────────────────────────────
-function AccountsPage({ accounts, setAccounts, hideBalances, onAccountsUpdated }) {
+const DEFAULT_EXTRACTION_PROMPT = `You are a financial data extractor. Examine the attached file(s) carefully and extract the data.\n\nRespond with ONLY a raw JSON object — no explanation, no markdown, no code fences, no extra text before or after. Just the JSON.\n\nRequired JSON shape:\n{"accountBalance":null,"interestRate":null,"positions":[{"ticker":"","name":"","shares":0,"avgBuyPrice":0,"value":null}]}\n\nRules:\n- accountBalance: total account/portfolio value as a number, or null if not visible\n- interestRate: annual interest/savings rate as a percentage number (e.g. 1.5 for 1.5%), or null\n- positions: array of holdings. Use [] if none found.\n- ticker: Yahoo Finance symbol if available. Swiss ETFs use .SW suffix (e.g. IWDC.SW, CSSMI.SW, CHSPI.SW, EQQQ.SW, ZSIL.SW, ZGLD.SW, VUSD.SW, VWRL.SW). US stocks: AAPL, MSFT, NVDA, GOOGL, TSLA. Crypto: BTC-USD, ETH-USD. For proprietary tokens (e.g. Swissqoin/SWQ) or funds without a public ticker (e.g. Swiss 3a pillar funds like frankly, VIAC, finpension), leave ticker empty "".\n- name: full fund/product name as shown (e.g. "Developed World (iShares MSCI World CHF Hedged)")\n- shares: exact number of units/shares held as shown — preserve ALL decimal places (e.g. 63.6787, not 63.68). Use 0 only if not shown at all.\n- avgBuyPrice: average purchase price per unit (cost basis). If cost basis is not directly shown but you can see the gain% and current value, CALCULATE it: avgBuyPrice = currentValue / shares / (1 + gainPercent/100). If neither cost basis nor gain data is available, use 0.\n- value: total position value/market value as a number if shown (e.g. CHF 5457.26 → 5457.26), or null. This is especially important when shares/avgBuyPrice are not available.\n- IMPORTANT: Extract data from ALL images/pages. If multiple screenshots show different positions, combine them all into one positions array.`;
+
+function AccountsPage({ accounts, setAccounts, hideBalances, onAccountsUpdated, extractionPrompt, setExtractionPrompt }) {
   const mask = (v) => hideBalances ? "••••" : v;
   const editAcct = (id, field, val) => { setAccounts(p => p.map(a => a.id === id ? { ...a, [field]: val } : a)); if (field === 'balance' && onAccountsUpdated) onAccountsUpdated(); };
   const addAcct = () => setAccounts(p => [...p, { id: uid(), name: "New Account", institution: "", type: "Checking", balance: 0, color: C.textDim }]);
@@ -307,6 +309,7 @@ function AccountsPage({ accounts, setAccounts, hideBalances, onAccountsUpdated }
   const [importPreview, setImportPreview] = useState(null);
   const [importSelected, setImportSelected] = useState(new Set());
   const [importMode, setImportMode] = useState('replace'); // 'replace' | 'merge'
+  const [extractionPromptOpen, setExtractionPromptOpen] = useState(false);
   const acctImportRef = useRef(null);
   const acctImportTarget = useRef(null);
   useEffect(() => {
@@ -337,7 +340,8 @@ function AccountsPage({ accounts, setAccounts, hideBalances, onAccountsUpdated }
         attachments.push({name:attName,type:attType,data:attData,size:file.size});
       }
       const account = accounts.find(a=>a.id===accountId);
-      const msg = `You are a financial data extractor. Examine the attached file(s) carefully and extract the data.\n\nRespond with ONLY a raw JSON object — no explanation, no markdown, no code fences, no extra text before or after. Just the JSON.\n\nRequired JSON shape:\n{"accountBalance":null,"interestRate":null,"positions":[{"ticker":"","name":"","shares":0,"avgBuyPrice":0,"value":null}]}\n\nRules:\n- accountBalance: total account/portfolio value as a number, or null if not visible\n- interestRate: annual interest/savings rate as a percentage number (e.g. 1.5 for 1.5%), or null\n- positions: array of holdings. Use [] if none found.\n- ticker: standard market ticker symbol. Swiss ETFs use .SW suffix (e.g. IWDC.SW, CSSMI.SW, CHSPI.SW, EQQQ.SW, ZSIL.SW, ZGLD.SW, VUSD.SW, VWRL.SW). US stocks: AAPL, MSFT, NVDA, GOOGL, TSLA. Crypto: BTC-USD, ETH-USD. For proprietary tokens (e.g. Swissqoin/SWQ) or funds without a public ticker (e.g. Swiss 3a pillar funds like frankly, VIAC, finpension), leave ticker empty "".\n- name: full fund/product name as shown (e.g. "Developed World (iShares MSCI World CHF Hedged)")\n- shares: exact number of units/shares held as shown — preserve ALL decimal places (e.g. 63.6787, not 63.68). Use 0 only if not shown at all.\n- avgBuyPrice: average purchase price per unit (cost basis). If cost basis is not directly shown but you can see the gain% and current value, CALCULATE it: avgBuyPrice = currentValue / shares / (1 + gainPercent/100). If neither cost basis nor gain data is available, use 0.\n- value: total position value/market value as a number if shown (e.g. CHF 5457.26 → 5457.26), or null. This is especially important when shares/avgBuyPrice are not available.\n- IMPORTANT: Extract data from ALL images/pages. If multiple screenshots show different positions, combine them all into one positions array.\n- Account type hint: ${account?.type}${account?.instructions ? `\n\nAccount-specific instructions: ${account.instructions}` : ''}`;
+      const basePrompt = extractionPrompt?.trim() || DEFAULT_EXTRACTION_PROMPT;
+      const msg = basePrompt + `\n- Account type hint: ${account?.type}${account?.instructions ? `\n\nAccount-specific instructions: ${account.instructions}` : ''}`;
       const resp = await fetch(`${API_URL}/chat`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:msg,context:{accounts:accounts.map(a=>({name:a.name,type:a.type}))},history:[],attachments})});
       const reader=resp.body.getReader(); const dec=new TextDecoder(); let buf='',fullText='',done=false;
       while(!done){const chunk=await reader.read();done=chunk.done;if(chunk.value)buf+=dec.decode(chunk.value,{stream:true});const lines=buf.split('\n');buf=lines.pop();for(const line of lines){if(!line.startsWith('data: '))continue;const p=line.slice(6);if(p==='[DONE]'){done=true;break;}try{const d=JSON.parse(p);if(d.text)fullText+=d.text;else if(d.error)fullText='API Error: '+d.error;}catch{}}}
@@ -446,7 +450,46 @@ function AccountsPage({ accounts, setAccounts, hideBalances, onAccountsUpdated }
     </div>}
     <input type="file" ref={acctImportRef} style={{display:'none'}} accept=".csv,.xlsx,.xls,.pdf,.png,.jpg,.jpeg,.webp,.gif" multiple onChange={handleAcctImport}/>
 
-    <Card title="Account Balances">
+    {extractionPromptOpen && <div onClick={()=>setExtractionPromptOpen(false)} style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.7)',zIndex:200,display:'flex',alignItems:'center',justifyContent:'center',padding:24}}>
+      <div onClick={e=>e.stopPropagation()} style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:16,width:'100%',maxWidth:1140,maxHeight:'84vh',overflowY:'auto',padding:28,boxShadow:'0 24px 80px rgba(0,0,0,0.6)'}}>
+        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:8}}>
+          <h2 style={{margin:0,fontSize:18,fontWeight:700,color:C.text}}>File Extraction Prompt</h2>
+          <button onClick={()=>setExtractionPromptOpen(false)} style={{background:'transparent',border:'none',cursor:'pointer',color:C.textDim}}><X size={18}/></button>
+        </div>
+        <p style={{margin:'0 0 12px',fontSize:12,color:C.textDim}}>
+          Customise the AI prompt used when importing files into accounts. Leave blank to use the built-in default.
+          Account type and per-account instructions are always appended automatically.
+        </p>
+        <div style={{display:'flex',gap:8,marginBottom:10}}>
+          <button onClick={()=>setExtractionPrompt(DEFAULT_EXTRACTION_PROMPT)}
+            style={{padding:'6px 12px',borderRadius:6,border:`1px solid ${C.border}`,background:'transparent',color:C.textMuted,fontSize:12,cursor:'pointer'}}>
+            Load default
+          </button>
+          <button onClick={()=>setExtractionPrompt('')}
+            style={{padding:'6px 12px',borderRadius:6,border:`1px solid ${C.border}`,background:'transparent',color:C.textMuted,fontSize:12,cursor:'pointer'}}>
+            Reset to blank
+          </button>
+        </div>
+        <textarea
+          value={extractionPrompt}
+          onChange={e=>setExtractionPrompt(e.target.value)}
+          placeholder="Leave blank to use the built-in default extraction prompt…"
+          rows={28}
+          style={{width:'100%',padding:'10px 12px',borderRadius:8,border:`1px solid ${C.border}`,background:C.bg,color:C.text,
+            fontSize:12,outline:'none',resize:'vertical',boxSizing:'border-box',fontFamily:'monospace',lineHeight:1.5}}
+        />
+        {extractionPrompt && <div style={{marginTop:6,fontSize:11,color:C.green}}>✓ Custom extraction prompt active — will be used instead of the default.</div>}
+        <button onClick={()=>setExtractionPromptOpen(false)} style={{width:'100%',padding:'11px',borderRadius:8,border:'none',background:C.accent,color:'#fff',fontSize:14,fontWeight:600,cursor:'pointer',marginTop:12}}>
+          Save & Close
+        </button>
+      </div>
+    </div>}
+
+    <Card title="Account Balances" headerRight={
+      <button onClick={()=>setExtractionPromptOpen(true)} style={{display:'flex',alignItems:'center',gap:6,padding:'5px 10px',borderRadius:6,border:`1px solid ${C.border}`,background:'transparent',cursor:'pointer',color:extractionPrompt?C.accentLight:C.textMuted,fontSize:12}}>
+        <Sparkles size={12}/>Extraction Prompt{extractionPrompt?' ✓':''}
+      </button>
+    }>
       <table style={{width:"100%",borderCollapse:"collapse"}}><thead><tr>
         <SortTH col="name">Account</SortTH>
         <SortTH col="institution">Institution</SortTH>
@@ -1168,12 +1211,19 @@ function ScenarioDelBtn({ onDelete }) {
     : <button onClick={e=>{e.stopPropagation();setConf(true);}} style={{position:"absolute",top:8,right:6,background:"transparent",border:"none",cursor:"pointer",color:C.textDim,padding:2}}><Trash2 size={14}/></button>;
 }
 
-function ScenariosPage({ scenarios, setScenarios, subsP, subsPInScenario, yearly, taxes, insurance, hideBalances, darkMode }) {
+const DEFAULT_PAYROLL_PROMPT = `You are a payroll data extractor for Swiss salary slips. Examine the attached payroll document(s) and extract structured data to populate a monthly budget scenario.\n\nRespond with ONLY a raw JSON object — no explanation, no markdown, no code fences. Just the JSON.\n\nRequired JSON shape:\n{"scenarioName":"","incomes":[{"label":"","amount":0,"notes":""}],"expenses":[{"label":"","pct":null,"amount":0,"essential":true,"notes":""}],"savings":[{"label":"","pct":null,"amount":0,"essential":true,"liq":"locked","notes":""}],"investments":[]}\n\nRules:\n- scenarioName: employer name + pay period (e.g. "Red Hat – Feb 2026", "Tecan – Dec 2018")\n- incomes: base monthly salary as one item. Label with employer name. Use the GROSS / pre-deduction salary amount.\n- expenses: mandatory Swiss payroll deductions — AHV, ALV, UVG/UVGZ, KTG, ESPP. Use positive amounts.\n  - Label clearly: "AHV (Social Security)", "ALV (Unemployment)", "UVG (Accident Ins.)", "KTG (Loss of Salary Ins.)", "ESPP"\n  - essential: true for statutory deductions (AHV, ALV, UVG, KTG), false for voluntary (ESPP)\n  - PERCENTAGE RULE: if the payslip shows a rate % for a deduction, set pct to that number (e.g. 5.3) and amount to the calculated CHF value. If no rate is shown, set pct to null and amount to the CHF amount.\n  - notes: format as "<employer> – <rate>% of gross" when a rate is shown (e.g. "Red Hat – 5.300% of gross"), otherwise just the employer name\n  - If ESPP appears as both "in" and "out" that net to zero, omit it\n- savings: BVG/PK/PP pension employee contribution → label "BVG / Pension (2nd Pillar)", liq: "locked", essential: true\n  - PERCENTAGE RULE: same as expenses — set pct if a rate % is shown, else null\n  - notes: format as "<employer> – <rate>% of gross" when rate is shown\n- investments: always []\n- All amounts are monthly in CHF. Annual figures must be divided by 12.`;
+
+function ScenariosPage({ scenarios, setScenarios, subsP, subsPInScenario, yearly, taxes, insurance, hideBalances, darkMode, payrollExtractionPrompt, setPayrollExtractionPrompt }) {
   const mask = (v) => hideBalances ? "••••" : v;
   const [selId, setSelId] = useState(()=>scenarios.find(s=>s.isActive)?.id || scenarios[0]?.id);
   const [addingTag, setAddingTag] = useState(false);
   const [newTag, setNewTag] = useState("");
   const [linkedExpanded, setLinkedExpanded] = useState(new Set());
+  const [payrollImporting, setPayrollImporting] = useState(false);
+  const [payrollPreview, setPayrollPreview] = useState(null);
+  const [payrollImportMode, setPayrollImportMode] = useState('new');
+  const [payrollPromptOpen, setPayrollPromptOpen] = useState(false);
+  const payrollImportRef = useRef(null);
   const sc = scenarios.find(s=>s.id===selId) ?? scenarios.find(s=>s.isActive) ?? scenarios[0];
   const update = (id, fn) => setScenarios(prev=>prev.map(s=>s.id===id?fn({...s}):s));
 
@@ -1219,6 +1269,60 @@ function ScenariosPage({ scenarios, setScenarios, subsP, subsPInScenario, yearly
   const totalExp = exp + linkedTotal;
   const rem = inc - totalExp - sav - inv;
   const flow=[{name:"Expenses",value:Math.max(0,totalExp),pct:totalExp/inc,color:C.red},{name:"Savings",value:Math.max(0,sav),pct:sav/inc,color:C.blue},{name:"Investments",value:Math.max(0,inv),pct:inv/inc,color:C.teal},{name:"Unallocated",value:Math.max(0,rem),pct:rem/inc,color:C.yellow}];
+
+  const handlePayrollImport = async e => {
+    const files = Array.from(e.target.files||[]);
+    if (!files.length) return;
+    e.target.value='';
+    if (files.reduce((s,f)=>s+f.size,0)>4*1024*1024) { alert('Files too large (max 4MB total).'); return; }
+    setPayrollImporting(true);
+    try {
+      const attachments = [];
+      for (const file of files) {
+        const buf=await file.arrayBuffer(); const bytes=new Uint8Array(buf);
+        let bin=''; bytes.forEach(b=>bin+=String.fromCharCode(b));
+        attachments.push({name:file.name,type:file.type||'application/octet-stream',data:btoa(bin),size:file.size});
+      }
+      const basePrompt = payrollExtractionPrompt?.trim() || DEFAULT_PAYROLL_PROMPT;
+      const resp = await fetch(`${API_URL}/chat`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:basePrompt,context:{},history:[],attachments})});
+      const reader=resp.body.getReader(); const dec=new TextDecoder(); let buf='',fullText='',done=false;
+      while(!done){const chunk=await reader.read();done=chunk.done;if(chunk.value)buf+=dec.decode(chunk.value,{stream:true});const lines=buf.split('\n');buf=lines.pop();for(const line of lines){if(!line.startsWith('data: '))continue;const p=line.slice(6);if(p==='[DONE]'){done=true;break;}try{const d=JSON.parse(p);if(d.text)fullText+=d.text;else if(d.error)fullText='API Error: '+d.error;}catch{}}}
+      try{
+        const cleaned=fullText.replace(/```(?:json)?\s*/gi,'').replace(/```/g,'').trim();
+        const m=cleaned.match(/\{[\s\S]*\}/);
+        const parsed=m?JSON.parse(m[0]):null;
+        setPayrollPreview({data:parsed,rawText:parsed?null:fullText||'(empty response — check API key and file size)'});
+      }catch{setPayrollPreview({data:null,rawText:fullText||'(empty response — check API key and file size)'});}
+    } catch(err){alert('Import failed: '+err.message);}
+    setPayrollImporting(false);
+  };
+
+  const confirmPayrollImport = () => {
+    if (!payrollPreview?.data) return;
+    const d = payrollPreview.data;
+    const mkLine = (item) => ({id:uid(), label:item.label||'Item', amount:item.amount||0, ...(item.pct!=null&&{pct:item.pct}), notes:item.notes||'', ...(item.essential!=null&&{essential:item.essential}), ...(item.liq&&{liq:item.liq})});
+    if (payrollImportMode==='new') {
+      const n = {
+        id:uid(), name:d.scenarioName||'Imported Payroll', tags:[], isActive:false,
+        incomes:(d.incomes||[]).map(mkLine),
+        expenses:(d.expenses||[]).map(mkLine),
+        savings:(d.savings||[]).map(mkLine),
+        investments:(d.investments||[]).map(mkLine),
+        linkedOverrides:{}
+      };
+      setScenarios(p=>[...p,n]);
+      setSelId(n.id);
+    } else {
+      update(sc.id, s => {
+        s.incomes=[...s.incomes,...(d.incomes||[]).map(mkLine)];
+        s.expenses=[...s.expenses,...(d.expenses||[]).map(mkLine)];
+        s.savings=[...s.savings,...(d.savings||[]).map(mkLine)];
+        s.investments=[...s.investments,...(d.investments||[]).map(mkLine)];
+        return s;
+      });
+    }
+    setPayrollPreview(null);
+  };
 
   const addLine = (section) => update(sc.id, s => { const item = { id:uid(), label:"New item", amount:0, notes:"" }; if(section==="savings"||section==="investments") item.liq="liquid"; if(section==="expenses"||section==="savings") item.essential=true; s[section] = [...s[section], item]; return s; });
   const removeLine = (section, lid) => update(sc.id, s => { s[section] = s[section].filter(l=>l.id!==lid); return s; });
@@ -1417,6 +1521,102 @@ function ScenariosPage({ scenarios, setScenarios, subsP, subsPInScenario, yearly
   );
 
   return <div>
+    <input type="file" ref={payrollImportRef} style={{display:'none'}} accept=".pdf,.png,.jpg,.jpeg,.webp,.csv,.xlsx,.xls" multiple onChange={handlePayrollImport}/>
+
+    {/* Payroll extraction prompt modal */}
+    {payrollPromptOpen && <div onClick={()=>setPayrollPromptOpen(false)} style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.7)',zIndex:200,display:'flex',alignItems:'center',justifyContent:'center',padding:24}}>
+      <div onClick={e=>e.stopPropagation()} style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:16,width:'100%',maxWidth:1140,maxHeight:'84vh',overflowY:'auto',padding:28,boxShadow:'0 24px 80px rgba(0,0,0,0.6)'}}>
+        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:8}}>
+          <h2 style={{margin:0,fontSize:18,fontWeight:700,color:C.text}}>Payroll Extraction Prompt</h2>
+          <button onClick={()=>setPayrollPromptOpen(false)} style={{background:'transparent',border:'none',cursor:'pointer',color:C.textDim}}><X size={18}/></button>
+        </div>
+        <p style={{margin:'0 0 12px',fontSize:12,color:C.textDim}}>
+          Customise the AI prompt used when importing payroll files into scenarios. Leave blank to use the built-in default.
+        </p>
+        <div style={{display:'flex',gap:8,marginBottom:10}}>
+          <button onClick={()=>setPayrollExtractionPrompt(DEFAULT_PAYROLL_PROMPT)}
+            style={{padding:'6px 12px',borderRadius:6,border:`1px solid ${C.border}`,background:'transparent',color:C.textMuted,fontSize:12,cursor:'pointer'}}>
+            Load default
+          </button>
+          <button onClick={()=>setPayrollExtractionPrompt('')}
+            style={{padding:'6px 12px',borderRadius:6,border:`1px solid ${C.border}`,background:'transparent',color:C.textMuted,fontSize:12,cursor:'pointer'}}>
+            Reset to blank
+          </button>
+        </div>
+        <textarea
+          value={payrollExtractionPrompt}
+          onChange={e=>setPayrollExtractionPrompt(e.target.value)}
+          placeholder="Leave blank to use the built-in default payroll extraction prompt…"
+          rows={28}
+          style={{width:'100%',padding:'10px 12px',borderRadius:8,border:`1px solid ${C.border}`,background:C.bg,color:C.text,
+            fontSize:12,outline:'none',resize:'vertical',boxSizing:'border-box',fontFamily:'monospace',lineHeight:1.5}}
+        />
+        {payrollExtractionPrompt && <div style={{marginTop:6,fontSize:11,color:C.green}}>✓ Custom extraction prompt active — will be used instead of the default.</div>}
+        <button onClick={()=>setPayrollPromptOpen(false)} style={{width:'100%',padding:'11px',borderRadius:8,border:'none',background:C.accent,color:'#fff',fontSize:14,fontWeight:600,cursor:'pointer',marginTop:12}}>
+          Save & Close
+        </button>
+      </div>
+    </div>}
+
+    {/* Payroll preview modal */}
+    {payrollPreview && <div onClick={()=>setPayrollPreview(null)} style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.8)',zIndex:300,display:'flex',alignItems:'center',justifyContent:'center',padding:24}}>
+      <div onClick={e=>e.stopPropagation()} style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:16,width:'100%',maxWidth:860,maxHeight:'84vh',overflowY:'auto',padding:28,boxShadow:'0 24px 80px rgba(0,0,0,0.6)'}}>
+        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:16}}>
+          <div>
+            <h3 style={{margin:'0 0 2px',fontSize:16,fontWeight:700,color:C.text}}>Payroll Import Preview</h3>
+            <div style={{fontSize:11,color:C.textDim}}>Review extracted data before applying to a scenario</div>
+          </div>
+          <button onClick={()=>setPayrollPreview(null)} style={{background:'transparent',border:'none',cursor:'pointer',color:C.textDim}}><X size={18}/></button>
+        </div>
+        {payrollPreview.data ? <>
+          <div style={{marginBottom:16}}>
+            <label style={{fontSize:11,color:C.textDim,fontWeight:600,textTransform:'uppercase',letterSpacing:0.5}}>Scenario name</label>
+            <input value={payrollPreview.data.scenarioName||''} onChange={e=>setPayrollPreview(p=>({...p,data:{...p.data,scenarioName:e.target.value}}))}
+              style={{display:'block',width:'100%',marginTop:4,padding:'7px 10px',borderRadius:6,border:`1px solid ${C.border}`,background:C.bg,color:C.text,fontSize:13,outline:'none',boxSizing:'border-box'}}/>
+          </div>
+          {[['incomes','Incomes',C.green],['expenses','Expenses',C.red],['savings','Savings',C.blue]].map(([key,label,color])=>{
+            const items = payrollPreview.data[key]||[];
+            if(!items.length) return null;
+            return <div key={key} style={{marginBottom:14}}>
+              <div style={{fontSize:12,fontWeight:600,color,marginBottom:6,textTransform:'uppercase',letterSpacing:0.5}}>{label}</div>
+              <table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
+                <thead><tr>
+                  {['Label','Rate / Amount','Notes'].map((h,i)=><th key={i} style={{padding:'5px 8px',textAlign:i===1?'right':'left',fontSize:11,color:C.textDim,fontWeight:600,borderBottom:`1px solid ${C.border}`}}>{h}</th>)}
+                </tr></thead>
+                <tbody>{items.map((item,i)=>(
+                  <tr key={i} style={{borderBottom:`1px solid ${C.border}22`}}>
+                    <td style={{padding:'5px 8px',color:C.text}}>{item.label}</td>
+                    <td style={{padding:'5px 8px',textAlign:'right',fontWeight:600}}>
+                      {item.pct!=null
+                        ? <span><span style={{color:C.accentLight}}>{item.pct}%</span><span style={{color:C.textDim,fontSize:11,fontWeight:400}}> = </span><span style={{color}}>{item.amount!=null?`CHF ${item.amount.toLocaleString('de-CH',{minimumFractionDigits:2,maximumFractionDigits:2})}`:'—'}</span></span>
+                        : <span style={{color}}>{item.amount!=null?`CHF ${item.amount.toLocaleString('de-CH',{minimumFractionDigits:2,maximumFractionDigits:2})}`:'—'}</span>
+                      }
+                    </td>
+                    <td style={{padding:'5px 8px',color:C.textDim,fontSize:11}}>{item.notes||'—'}</td>
+                  </tr>
+                ))}</tbody>
+              </table>
+            </div>;
+          })}
+          <div style={{display:'flex',gap:8,marginBottom:16,marginTop:8}}>
+            {[['new','Create new scenario'],['append','Append to current']].map(([m,lbl])=>(
+              <button key={m} onClick={()=>setPayrollImportMode(m)}
+                style={{flex:1,padding:'8px',borderRadius:8,border:`1px solid ${payrollImportMode===m?C.accent:C.border}`,background:payrollImportMode===m?C.accent+'18':'transparent',color:payrollImportMode===m?C.accentLight:C.textMuted,fontSize:12,cursor:'pointer',fontWeight:payrollImportMode===m?600:400}}>
+                {lbl}
+              </button>
+            ))}
+          </div>
+          <button onClick={confirmPayrollImport} style={{width:'100%',padding:'11px',borderRadius:8,border:'none',background:C.accent,color:'#fff',fontSize:14,fontWeight:600,cursor:'pointer'}}>
+            {payrollImportMode==='new'?'Create Scenario':'Add to Current Scenario'}
+          </button>
+        </> : <>
+          <div style={{marginBottom:10,fontSize:13,color:C.textMuted}}>Could not parse structured data. Raw AI response:</div>
+          <pre style={{background:C.bg,padding:12,borderRadius:8,fontSize:11,color:C.text,overflowX:'auto',maxHeight:300,overflowY:'auto',whiteSpace:'pre-wrap'}}>{payrollPreview.rawText}</pre>
+          <button onClick={()=>setPayrollPreview(null)} style={{marginTop:12,padding:'8px 16px',borderRadius:8,border:`1px solid ${C.border}`,background:'transparent',color:C.textMuted,fontSize:13,cursor:'pointer'}}>Close</button>
+        </>}
+      </div>
+    </div>}
+
     <div style={{display:"flex",gap:8,marginBottom:20,flexWrap:"wrap"}}>
       {[...scenarios].sort((a,b)=> a.isActive ? -1 : b.isActive ? 1 : 0).map((s,si,arr)=>{
         const realIdx = scenarios.findIndex(x=>x.id===s.id);
@@ -1441,6 +1641,15 @@ function ScenariosPage({ scenarios, setScenarios, subsP, subsPInScenario, yearly
         );
       })}
       <button onClick={addScenario} style={{padding:"10px 16px",borderRadius:10,border:`2px dashed ${C.border}`,background:"transparent",cursor:"pointer",display:"flex",alignItems:"center",gap:6,color:C.textDim,fontSize:13}}><Plus size={16}/>New Scenario</button>
+      <button onClick={()=>payrollImportRef.current?.click()} disabled={payrollImporting}
+        title="Import payroll PDF/image to populate a scenario"
+        style={{padding:"10px 16px",borderRadius:10,border:`1px solid ${C.border}`,background:"transparent",cursor:payrollImporting?'not-allowed':'pointer',display:"flex",alignItems:"center",gap:6,color:payrollImporting?C.textDim:C.textMuted,fontSize:13}}>
+        {payrollImporting ? <><RefreshCw size={14} style={{animation:'spin 1s linear infinite'}}/>Parsing…</> : <><Upload size={14}/>Import Payroll</>}
+      </button>
+      <button onClick={()=>setPayrollPromptOpen(true)}
+        style={{padding:"10px 16px",borderRadius:10,border:`1px solid ${payrollExtractionPrompt?C.accent:C.border}`,background:"transparent",cursor:"pointer",display:"flex",alignItems:"center",gap:6,color:payrollExtractionPrompt?C.accentLight:C.textDim,fontSize:13}}>
+        <Sparkles size={14}/>Extraction Prompt{payrollExtractionPrompt?' ✓':''}
+      </button>
     </div>
     {sc && <div style={{display:"grid",gridTemplateColumns:"2fr 1fr",gap:16}}>
       <Card headerRight={<div style={{display:"flex",gap:6}}>
@@ -3160,6 +3369,8 @@ export default function FinanceApp() {
   const [promptOpen, setPromptOpen] = useState(false);
   const [profileTab, setProfileTab] = useState('profile');
   const [promptTemplate, setPromptTemplate] = useState('');
+  const [extractionPrompt, setExtractionPrompt] = useState('');
+  const [payrollExtractionPrompt, setPayrollExtractionPrompt] = useState('');
   const [hideBalances, setHideBalances] = useState(false);
   const [onboarding, setOnboarding] = useState({ dismissed: false, welcomeAck: false, aiAdviserAck: false, lastMonthlyUpdate: null, lastTrackerSync: null });
   const [darkMode, setDarkMode] = useState(false);
@@ -3192,6 +3403,8 @@ export default function FinanceApp() {
         if (settings) {
           if (settings.subsPInScenario != null) setSubsPInScenario(settings.subsPInScenario);
           if (settings.promptTemplate != null) setPromptTemplate(settings.promptTemplate);
+          if (settings.extractionPrompt != null) setExtractionPrompt(settings.extractionPrompt);
+          if (settings.payrollExtractionPrompt != null) setPayrollExtractionPrompt(settings.payrollExtractionPrompt);
           if (settings.onboarding) setOnboarding(settings.onboarding);
         }
         // profile key is loaded separately
@@ -3218,7 +3431,7 @@ export default function FinanceApp() {
   useEffect(() => { save('taxes', taxes); }, [taxes, save]);
   useEffect(() => { save('insurance', insurance); }, [insurance, save]);
   useEffect(() => { save('profile', profile); }, [profile, save]);
-  useEffect(() => { save('settings', { subsPInScenario, promptTemplate, onboarding }); }, [subsPInScenario, promptTemplate, onboarding, save]);
+  useEffect(() => { save('settings', { subsPInScenario, promptTemplate, extractionPrompt, payrollExtractionPrompt, onboarding }); }, [subsPInScenario, promptTemplate, extractionPrompt, payrollExtractionPrompt, onboarding, save]);
 
   if (loading) return <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", background: darkMode ? "#0f1117" : "#f5f5f7", color: "#a1a1aa", fontSize: 15, fontFamily: "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif" }}>Loading…</div>;
 
@@ -3305,9 +3518,9 @@ export default function FinanceApp() {
           <OnboardingChecklist accounts={accounts} scenarios={scenarios} subsP={subsP} yearly={yearly} profile={profile} onboarding={onboarding} setOnboarding={setOnboarding} setPage={setPage} setProfileOpen={setProfileOpen} setPromptOpen={setPromptOpen}/>
           <Dashboard accounts={accounts} scenarios={scenarios} subsP={subsP} subsPInScenario={subsPInScenario} yearly={yearly} taxes={taxes} insurance={insurance} profile={profile} hideBalances={hideBalances}/>
         </>}
-        {page==="accounts" && <AccountsPage accounts={accounts} setAccounts={setAccounts} hideBalances={hideBalances} onAccountsUpdated={() => setOnboarding(o => ({...o, lastMonthlyUpdate: new Date().toISOString()}))}/>}
+        {page==="accounts" && <AccountsPage accounts={accounts} setAccounts={setAccounts} hideBalances={hideBalances} onAccountsUpdated={() => setOnboarding(o => ({...o, lastMonthlyUpdate: new Date().toISOString()}))} extractionPrompt={extractionPrompt} setExtractionPrompt={setExtractionPrompt}/>}
         {page==="portfolio" && <PortfolioPage accounts={accounts} setAccounts={setAccounts} hideBalances={hideBalances} setChatOpen={setChatOpen} setChatInput={setChatInput}/>}
-        {page==="scenarios" && <ScenariosPage scenarios={scenarios} setScenarios={setScenarios} subsP={subsP} subsPInScenario={subsPInScenario} yearly={yearly} taxes={taxes} insurance={insurance} hideBalances={hideBalances} darkMode={darkMode}/>}
+        {page==="scenarios" && <ScenariosPage scenarios={scenarios} setScenarios={setScenarios} subsP={subsP} subsPInScenario={subsPInScenario} yearly={yearly} taxes={taxes} insurance={insurance} hideBalances={hideBalances} darkMode={darkMode} payrollExtractionPrompt={payrollExtractionPrompt} setPayrollExtractionPrompt={setPayrollExtractionPrompt}/>}
         {page==="tracker" && <TrackerPage tracker={tracker} setTracker={setTracker} accounts={accounts} hideBalances={hideBalances} onTrackerSynced={() => setOnboarding(o => ({...o, lastTrackerSync: new Date().toISOString()}))}/>}
         {page==="expenses" && <ExpensesPage subsP={subsP} setSubsP={setSubsP} subsPInScenario={subsPInScenario} setSubsPInScenario={setSubsPInScenario} yearly={yearly} setYearly={setYearly} taxes={taxes} setTaxes={setTaxes} insurance={insurance} setInsurance={setInsurance} hideBalances={hideBalances} profile={profile} accounts={accounts} scenarios={scenarios} darkMode={darkMode}/>}
         {page==="pillars" && <PillarPage accounts={accounts} scenarios={scenarios} subsP={subsP} subsPInScenario={subsPInScenario} yearly={yearly} taxes={taxes} insurance={insurance} hideBalances={hideBalances}/>}
