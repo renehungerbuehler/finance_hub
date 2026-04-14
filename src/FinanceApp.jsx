@@ -711,7 +711,7 @@ function OnboardingChecklist({ accounts, scenarios, subsP, yearly, profile, onbo
 
 // DASHBOARD
 // ───────────────────────────────────────────────────────────────
-function Dashboard({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes, insurance, profile, hideBalances }) {
+function Dashboard({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes, insurance, profile, hideBalances, setChatOpen, setChatInput, notesVersion }) {
   const mask = (v) => hideBalances ? "••••" : v;
   const totalWealth = accounts.reduce((s, a) => s + a.balance, 0);
   const liquidTypes = ["Checking","Savings","Investment","Crypto"];
@@ -851,9 +851,32 @@ function Dashboard({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes,
       </div>
     </Card>
 
-    {/* AI Wealth Analysis */}
-    <PinnedNotes/>
-    <AiWealthCard accounts={accounts} scenarios={scenarios} yearly={yearly} taxes={taxes} insurance={insurance} subsP={subsP} profile={profile}/>
+    {/* AI Adviser */}
+    <Card style={{marginTop:16}}>
+      <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14}}>
+        <div style={{width:36,height:36,borderRadius:10,background:C.accent+"1a",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><Sparkles size={20} color={C.accentLight}/></div>
+        <div>
+          <h3 style={{margin:0,fontSize:16,fontWeight:700,color:C.text}}>AI Finance Advisor</h3>
+          <p style={{margin:0,fontSize:12,color:C.textDim}}>Click a question to open the advisor, or type your own</p>
+        </div>
+      </div>
+      <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
+        {[
+          { q: "Give me a complete financial health check", color: C.accent },
+          { q: "Am I on track for early retirement (FIRE)?", color: C.teal },
+          { q: "How can I optimise my Swiss taxes?", color: C.yellow },
+          { q: "What are my top 3 financial risks right now?", color: C.red },
+          { q: "How long is my survival runway if I lose income?", color: C.orange },
+          { q: "How should I allocate my next savings?", color: C.green },
+        ].map(({ q, color }) => (
+          <button key={q} onClick={() => { setChatInput && setChatInput(q); setChatOpen && setChatOpen(true); }}
+            style={{padding:"10px 16px",borderRadius:8,border:`1px solid ${color}44`,background:color+'18',color,fontSize:13,cursor:"pointer",textAlign:"left",lineHeight:1.4}}>
+            {q}
+          </button>
+        ))}
+      </div>
+    </Card>
+    <PinnedNotes version={notesVersion}/>
   </div>;
 }
 
@@ -967,7 +990,7 @@ function extractTitle(text) {
   return text.slice(0, 60).replace(/\n/g, ' ');
 }
 
-function PinnedNotes() {
+function PinnedNotes({ version = 0 }) {
   const [notes, setNotes] = useState([]);
   const [open, setOpen] = useState(null); // id of expanded note
   const [confirmDel, setConfirmDel] = useState(null); // id of note pending delete confirmation
@@ -977,7 +1000,7 @@ function PinnedNotes() {
       .then(r => r.status === 404 ? null : r.json())
       .then(d => { if (Array.isArray(d)) setNotes(d); else if (d && d.text) setNotes([d]); })
       .catch(() => {});
-  }, []);
+  }, [version]);
 
   const deleteNote = async (id) => {
     const updated = notes.filter(n => n.id !== id);
@@ -3042,7 +3065,7 @@ function PillarPage({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes
 // ───────────────────────────────────────────────────────────────
 // AI CHAT PANEL
 // ───────────────────────────────────────────────────────────────
-function ChatPanel({ accounts, scenarios, subsP, yearly, taxes, insurance, profile, open, setOpen, externalInput, setExternalInput, promptTemplate }) {
+function ChatPanel({ accounts, scenarios, subsP, yearly, taxes, insurance, profile, open, setOpen, externalInput, setExternalInput, promptTemplate, onPinned }) {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
@@ -3051,6 +3074,7 @@ function ChatPanel({ accounts, scenarios, subsP, yearly, taxes, insurance, profi
   const [maximized, setMaximized] = useState(false);
   const [aiProvider, setAiProvider] = useState({ label: '…', description: 'Loading…' });
   const [btnPos, setBtnPos] = useState({ right: 24, bottom: 24 });
+  const [saved, setSaved] = useState(false);
   const fileInputRef = useRef(null);
   const isDragging = useRef(false);
 
@@ -3124,6 +3148,17 @@ function ChatPanel({ accounts, scenarios, subsP, yearly, taxes, insurance, profi
       latestTax: taxes[taxes.length-1] || null,
       _profile: profile || null,
     };
+  };
+
+  const pinLastResponse = async () => {
+    const lastAssistant = [...messages].reverse().find(m => m.role === "assistant" && m.content && !m.content.startsWith("⚠️"));
+    if (!lastAssistant) return;
+    const existing = await fetch(`${API_URL}/ai_analysis`).then(r => r.status === 404 ? [] : r.json()).catch(() => []);
+    const list = Array.isArray(existing) ? existing : (existing?.text ? [existing] : []);
+    await fetch(`${API_URL}/ai_analysis`, { method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify([...list, { id: `note-${Date.now()}`, text: lastAssistant.content, savedAt: new Date().toISOString() }]) });
+    setSaved(true); setTimeout(() => setSaved(false), 2500);
+    onPinned && onPinned();
   };
 
   const sendMessage = async () => {
@@ -3201,6 +3236,7 @@ function ChatPanel({ accounts, scenarios, subsP, yearly, taxes, insurance, profi
         </div>
         <div style={{display:"flex",gap:6,alignItems:'center'}}>
           {messages.length>0 && <button onClick={()=>setMessages([])} title="Clear chat" style={{padding:"4px 8px",borderRadius:6,border:`1px solid ${C.border}`,background:"transparent",color:C.textDim,fontSize:11,cursor:"pointer"}}>Clear</button>}
+          {messages.some(m=>m.role==="assistant"&&m.content) && <button onClick={pinLastResponse} title="Pin last AI response to notes" style={{padding:"4px 8px",borderRadius:6,border:`1px solid ${C.border}`,background:"transparent",color:saved?C.green:C.textDim,fontSize:11,cursor:"pointer"}}>{saved?"✓ Pinned":"📌 Pin"}</button>}
           <button onClick={()=>setMaximized(m=>!m)} title={maximized?"Restore":"Maximize"} style={{background:"transparent",border:"none",cursor:"pointer",color:C.textDim,padding:4,display:'flex'}}>{maximized?<Minimize2 size={15}/>:<Maximize2 size={15}/>}</button>
           <button onClick={()=>setOpen(false)} style={{background:"transparent",border:"none",cursor:"pointer",color:C.textDim,padding:4,display:'flex'}}><X size={16}/></button>
         </div>
@@ -3583,6 +3619,7 @@ export default function FinanceApp() {
   const [darkMode, setDarkMode] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
   const [chatInput, setChatInput] = useState("");
+  const [notesVersion, setNotesVersion] = useState(0);
   const importJsonRef = useRef(null);
   C = darkMode ? DARK : LIGHT;
 
@@ -3727,7 +3764,7 @@ export default function FinanceApp() {
         </div>}
         {page==="dashboard" && <>
           <OnboardingChecklist accounts={accounts} scenarios={scenarios} subsP={subsP} yearly={yearly} profile={profile} onboarding={onboarding} setOnboarding={setOnboarding} setPage={setPage} setProfileOpen={setProfileOpen} setPromptOpen={setPromptOpen} onClearAll={(skipConfirm)=>{ if(skipConfirm !== 'skip' && !window.confirm('Clear all data and start fresh? This cannot be undone.')) return; setAccounts([]); setScenarios([]); setSubsP([]); setYearly([]); setTaxes([]); setInsurance([]); setTracker({2026:[]}); setProfile({firstName:'',lastName:'',gender:'',birthDate:'',address:'',postalCode:'',city:'',canton:'',phone:'',maritalStatus:'',religion:'',children:'',ahvNumber:'',company:'',jobTitle:'',businessName:'',businessType:'',businessProjects:'',notes:''}); setOnboarding(o=>({...o,dataCleared:true})); }}/>
-          <Dashboard accounts={accounts} scenarios={scenarios} subsP={subsP} subsPInScenario={subsPInScenario} yearly={yearly} taxes={taxes} insurance={insurance} profile={profile} hideBalances={hideBalances}/>
+          <Dashboard accounts={accounts} scenarios={scenarios} subsP={subsP} subsPInScenario={subsPInScenario} yearly={yearly} taxes={taxes} insurance={insurance} profile={profile} hideBalances={hideBalances} setChatOpen={setChatOpen} setChatInput={setChatInput} notesVersion={notesVersion}/>
         </>}
         {page==="accounts" && <AccountsPage accounts={accounts} setAccounts={setAccounts} hideBalances={hideBalances} onAccountsUpdated={() => setOnboarding(o => ({...o, lastMonthlyUpdate: new Date().toISOString()}))} extractionPrompt={extractionPrompt} setExtractionPrompt={setExtractionPrompt}/>}
         {page==="portfolio" && <PortfolioPage accounts={accounts} setAccounts={setAccounts} hideBalances={hideBalances} setChatOpen={setChatOpen} setChatInput={setChatInput}/>}
@@ -3737,7 +3774,7 @@ export default function FinanceApp() {
         {page==="pillars" && <PillarPage accounts={accounts} scenarios={scenarios} subsP={subsP} subsPInScenario={subsPInScenario} yearly={yearly} taxes={taxes} insurance={insurance} hideBalances={hideBalances}/>}
       </div>
     </div>
-    <ChatPanel accounts={accounts} scenarios={scenarios} subsP={subsP} yearly={yearly} taxes={taxes} insurance={insurance} profile={profile} open={chatOpen} setOpen={setChatOpen} externalInput={chatInput} setExternalInput={setChatInput} promptTemplate={promptTemplate}/>
+    <ChatPanel accounts={accounts} scenarios={scenarios} subsP={subsP} yearly={yearly} taxes={taxes} insurance={insurance} profile={profile} open={chatOpen} setOpen={setChatOpen} externalInput={chatInput} setExternalInput={setChatInput} promptTemplate={promptTemplate} onPinned={() => setNotesVersion(v => v + 1)}/>
     {profileOpen && <div onClick={()=>setProfileOpen(false)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.7)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:24}}>
       <div onClick={e=>e.stopPropagation()} style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:16,width:"100%",maxWidth:1140,maxHeight:"84vh",overflowY:"auto",padding:28,boxShadow:"0 24px 80px rgba(0,0,0,0.6)"}}>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:24}}>
