@@ -194,12 +194,13 @@ const CATEGORY_LABELS = { tax: "Tax", pension: "Pension", insurance: "Insurances
 
 const ONBOARDING_STEPS = [
   { id: 'welcome', label: 'Welcome to FinanceHub', desc: 'Your personal Swiss finance hub — AI-powered, fully private, runs locally.', type: 'one-time', icon: Sparkles, action: 'ack' },
-  { id: 'clearData', label: 'Clear sample data & start fresh', desc: 'Browse the pages to see how everything works, then hit "Clear data" above to wipe the sample data and begin with your own.', type: 'one-time', icon: Trash2, action: 'clear' },
+  { id: 'clearData', label: 'Clear sample data & start fresh', desc: 'Browse the pages to see how everything works, then click Clear to wipe the sample data and begin with your own.', type: 'one-time', icon: Trash2, action: 'clear' },
   { id: 'profile', label: 'Complete your profile', desc: 'Add your name, canton, and marital status. The AI advisor uses this to give personalised Swiss tax and financial advice.', type: 'one-time', icon: User, action: 'profile' },
   { id: 'aiAdviser', label: 'Customise the AI Adviser prompt', desc: 'The AI Adviser chat uses a default system prompt. You can edit it to focus on your goals, risk tolerance, or any topic you care about.', type: 'one-time', icon: Sparkles, action: 'prompt', badge: 'prompt' },
   { id: 'accounts', label: 'Add or import accounts', desc: 'Add accounts manually — or click Import on the Accounts page and upload a bank statement or PDF. AI extracts balances and investment positions automatically. Each account also has a notes field for AI-specific context.', type: 'one-time', icon: Landmark, action: 'accounts', badge: 'import' },
   { id: 'expenses', label: 'Add or Import your expenses', desc: 'Each Expenses tab (Insurances, Taxes, Recurring, Subscriptions) has an Import button. Upload a bank statement CSV, insurance PDF, or tax notice — AI extracts the data. Use the Prompt ✓ button to customise the extraction prompt per section.', type: 'one-time', icon: CreditCard, action: 'expenses', badge: 'import' },
   { id: 'scenario', label: 'Create a budget scenario', desc: 'Build a scenario manually or use Import Payroll on the Scenarios page — upload a payroll PDF and AI generates your income, net salary, and all deductions (AHV, BVG, etc.) including percentage-based items.', type: 'one-time', icon: Target, action: 'scenarios', badge: 'import' },
+  { id: 'backup', label: 'Create a backup', desc: 'Download a full JSON backup of your data and store it somewhere safe (cloud drive, external disk). Restore it any time via the Import button in the sidebar.', type: 'one-time', icon: Download, action: 'backup' },
   { id: 'monthlyBalances', label: 'Update account balances', desc: 'Import or edit your account balances this month.', type: 'recurring', icon: RefreshCw, action: 'accounts' },
   { id: 'monthlyTracker', label: 'Sync Tracker', desc: 'Sync your tracker with current account balances.', type: 'recurring', icon: Activity, action: 'tracker' },
 ];
@@ -576,6 +577,7 @@ function OnboardingChecklist({ accounts, scenarios, subsP, yearly, profile, onbo
       case 'clearData': return onboarding.dataCleared === true;
       case 'profile': return !!(profile.firstName);
       case 'aiAdviser': return onboarding.aiAdviserAck === true;
+      case 'backup': return onboarding.backupDone === true;
       case 'accounts': return accounts.length >= 1;
       case 'expenses': return subsP.length >= 1 || yearly.length >= 1;
       case 'scenario': return scenarios.length >= 1;
@@ -597,12 +599,7 @@ function OnboardingChecklist({ accounts, scenarios, subsP, yearly, profile, onbo
       case 'ack':
         if (step.id === 'welcome') setOnboarding(o => ({ ...o, welcomeAck: true }));
         break;
-      case 'clear':
-        if (onClearAll) {
-          const confirmed = window.confirm('Clear all sample data and start fresh? This cannot be undone.');
-          if (confirmed) { onClearAll('skip'); setOnboarding(o => ({ ...o, dataCleared: true })); }
-        }
-        break;
+      case 'clear': break;
       case 'profile': setProfileOpen(true); break;
       case 'prompt':
         setPromptOpen(true);
@@ -612,6 +609,18 @@ function OnboardingChecklist({ accounts, scenarios, subsP, yearly, profile, onbo
       case 'expenses': setPage('expenses'); break;
       case 'scenarios': setPage('scenarios'); break;
       case 'tracker': setPage('tracker'); break;
+      case 'backup':
+        (async () => {
+          try {
+            const keys = ['accounts','scenarios','tracker','subscriptions_personal','yearly','taxes','insurance','settings','profile'];
+            const out = {};
+            for (const k of keys) { const r = await fetch(`${API_URL}/${k}`); out[k] = r.status === 404 ? null : await r.json(); }
+            const ts = new Date().toISOString().slice(0,16).replace('T','_').replace(':','');
+            const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([JSON.stringify(out,null,2)],{type:'application/json'})); a.download = `finance_hub_${ts}.json`; a.style.display = 'none'; document.body.appendChild(a); a.click(); URL.revokeObjectURL(a.href); document.body.removeChild(a);
+            setOnboarding(o => ({ ...o, backupDone: true }));
+          } catch(e) { alert('Backup failed: ' + e.message); }
+        })();
+        break;
       default: break;
     }
   };
@@ -644,8 +653,8 @@ function OnboardingChecklist({ accounts, scenarios, subsP, yearly, profile, onbo
       {oneTimeSteps.map(step => {
         const done = isComplete(step);
         const Icon = step.icon;
-        return <div key={step.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: '10px 12px', borderRadius: 8, background: done ? 'transparent' : C.bg, opacity: done ? 0.5 : 1 }}>
-          <div style={{ width: 28, height: 28, borderRadius: 8, background: done ? C.green + '22' : C.accent + '18', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1 }}>
+        return <div key={step.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px', borderRadius: 8, background: done ? 'transparent' : C.bg, opacity: done ? 0.5 : 1 }}>
+          <div style={{ width: 28, height: 28, borderRadius: 8, background: done ? C.green + '22' : C.accent + '18', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
             {done ? <Check size={14} color={C.green} /> : <Icon size={14} color={C.accent} />}
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
@@ -656,10 +665,19 @@ function OnboardingChecklist({ accounts, scenarios, subsP, yearly, profile, onbo
             </div>
             <div style={{ fontSize: 11, color: C.textDim, marginTop: 2 }}>{step.desc}</div>
           </div>
-          {!done && <button onClick={() => handleAction(step)}
-            style={{ padding: '5px 14px', borderRadius: 6, border: `1px solid ${C.accent}44`, background: C.accent + '18', color: C.accentLight, fontSize: 12, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0, marginTop: 2 }}>
-            {step.action === 'ack' ? 'Got it' : step.action === 'prompt' ? 'Review' : step.action === 'clear' ? 'Clear' : 'Go'}
-          </button>}
+          {!done && step.id === 'clearData' ? (
+            <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+              <button onClick={() => { onClearAll && onClearAll('skip'); setOnboarding(o => ({ ...o, dataCleared: true })); }}
+                style={{ padding: '5px 14px', borderRadius: 6, border: `1px solid ${C.accent}44`, background: C.accent + '18', color: C.accentLight, fontSize: 12, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}>Clear</button>
+              <button onClick={() => setOnboarding(o => ({ ...o, dataCleared: true }))}
+                style={{ padding: '5px 14px', borderRadius: 6, border: `1px solid ${C.border}`, background: 'transparent', color: C.textDim, fontSize: 12, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}>Skip</button>
+            </div>
+          ) : !done && (
+            <button onClick={() => handleAction(step)}
+              style={{ padding: '5px 14px', borderRadius: 6, border: `1px solid ${C.accent}44`, background: C.accent + '18', color: C.accentLight, fontSize: 12, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}>
+              {step.action === 'ack' ? 'Got it' : step.action === 'prompt' ? 'Review' : step.action === 'backup' ? 'Download' : 'Go'}
+            </button>
+          )}
         </div>;
       })}
     </div>}
@@ -3561,7 +3579,7 @@ export default function FinanceApp() {
   const [recPrompt, setRecPrompt] = useState('');
   const [subPrompt, setSubPrompt] = useState('');
   const [hideBalances, setHideBalances] = useState(false);
-  const [onboarding, setOnboarding] = useState({ dismissed: false, welcomeAck: false, aiAdviserAck: false, dataCleared: false, lastMonthlyUpdate: null, lastTrackerSync: null });
+  const [onboarding, setOnboarding] = useState({ dismissed: false, welcomeAck: false, aiAdviserAck: false, dataCleared: false, backupDone: false, lastMonthlyUpdate: null, lastTrackerSync: null });
   const [darkMode, setDarkMode] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
   const [chatInput, setChatInput] = useState("");
