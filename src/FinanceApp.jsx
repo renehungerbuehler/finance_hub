@@ -3075,6 +3075,9 @@ function ChatPanel({ accounts, scenarios, subsP, yearly, taxes, insurance, profi
   const [aiProvider, setAiProvider] = useState({ label: '…', description: 'Loading…' });
   const [btnPos, setBtnPos] = useState({ right: 24, bottom: 24 });
   const [saved, setSaved] = useState(false);
+  const [pinPending, setPinPending] = useState(false);
+  const pendingPin = useRef(false);
+  const messagesRef = useRef([]);
   const fileInputRef = useRef(null);
   const isDragging = useRef(false);
 
@@ -3119,6 +3122,14 @@ function ChatPanel({ accounts, scenarios, subsP, yearly, taxes, insurance, profi
 
   useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
   useEffect(() => { if (open) setTimeout(() => inputRef.current?.focus(), 50); }, [open]);
+  useEffect(() => { messagesRef.current = messages; }, [messages]);
+  useEffect(() => {
+    if (!streaming && pendingPin.current) {
+      pendingPin.current = false;
+      setPinPending(false);
+      doSavePin(messagesRef.current);
+    }
+  }, [streaming]);
 
   const buildContext = () => {
     const sc = scenarios.find(s => s.isActive);
@@ -3150,8 +3161,8 @@ function ChatPanel({ accounts, scenarios, subsP, yearly, taxes, insurance, profi
     };
   };
 
-  const pinLastResponse = async () => {
-    const lastAssistant = [...messages].reverse().find(m => m.role === "assistant" && m.content && !m.content.startsWith("⚠️"));
+  const doSavePin = async (msgs) => {
+    const lastAssistant = [...msgs].reverse().find(m => m.role === "assistant" && m.content && !m.content.startsWith("⚠️"));
     if (!lastAssistant) return;
     const existing = await fetch(`${API_URL}/ai_analysis`).then(r => r.status === 404 ? [] : r.json()).catch(() => []);
     const list = Array.isArray(existing) ? existing : (existing?.text ? [existing] : []);
@@ -3159,6 +3170,15 @@ function ChatPanel({ accounts, scenarios, subsP, yearly, taxes, insurance, profi
       body: JSON.stringify([...list, { id: `note-${Date.now()}`, text: lastAssistant.content, savedAt: new Date().toISOString() }]) });
     setSaved(true); setTimeout(() => setSaved(false), 2500);
     onPinned && onPinned();
+  };
+
+  const pinLastResponse = () => {
+    if (streaming) {
+      pendingPin.current = true;
+      setPinPending(true);
+      return;
+    }
+    doSavePin(messages);
   };
 
   const sendMessage = async () => {
@@ -3236,7 +3256,7 @@ function ChatPanel({ accounts, scenarios, subsP, yearly, taxes, insurance, profi
         </div>
         <div style={{display:"flex",gap:6,alignItems:'center'}}>
           {messages.length>0 && <button onClick={()=>setMessages([])} title="Clear chat" style={{padding:"4px 8px",borderRadius:6,border:`1px solid ${C.border}`,background:"transparent",color:C.textDim,fontSize:11,cursor:"pointer"}}>Clear</button>}
-          {messages.some(m=>m.role==="assistant"&&m.content) && <button onClick={pinLastResponse} title="Pin last AI response to notes" style={{padding:"4px 8px",borderRadius:6,border:`1px solid ${C.border}`,background:"transparent",color:saved?C.green:C.textDim,fontSize:11,cursor:"pointer"}}>{saved?"✓ Pinned":"📌 Pin"}</button>}
+          {messages.some(m=>m.role==="assistant"&&m.content) && <button onClick={pinLastResponse} title="Pin last AI response to notes" style={{padding:"4px 8px",borderRadius:6,border:`1px solid ${C.border}`,background:"transparent",color:saved?C.green:pinPending?C.yellow:C.textDim,fontSize:11,cursor:"pointer"}}>{saved?"✓ Pinned":pinPending?"⏳ Pinning…":"📌 Pin"}</button>}
           <button onClick={()=>setMaximized(m=>!m)} title={maximized?"Restore":"Maximize"} style={{background:"transparent",border:"none",cursor:"pointer",color:C.textDim,padding:4,display:'flex'}}>{maximized?<Minimize2 size={15}/>:<Maximize2 size={15}/>}</button>
           <button onClick={()=>setOpen(false)} style={{background:"transparent",border:"none",cursor:"pointer",color:C.textDim,padding:4,display:'flex'}}><X size={16}/></button>
         </div>
