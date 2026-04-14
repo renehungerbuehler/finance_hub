@@ -263,7 +263,7 @@ function generateInsights({ accounts, scenarios, insurance, inc, exp, sav, inv, 
   const krankenkasse = insurance.find(i => i.name.toLowerCase().includes("health insurance") || i.name.toLowerCase().includes("krankenkasse"));
   if (krankenkasse) {
     insights.push({ priority: "low", category: "insurance", icon: "check", title: "Health insurance optimised (max Franchise CHF 2'500)",
-      detail: `Your health insurance (Krankenkasse) costs CHF ${fmtD(krankenkasse.yearly)}/year with the maximum deductible (Franchise) of CHF 2'500 — the optimal choice if annual health costs stay below ~CHF 3'800. Your max out-of-pocket: CHF 2'500 (Franchise) + CHF 700 (Selbstbehalt 10% cap) = CHF 3'200/year.`,
+      detail: `Your health insurance (Krankenkasse) costs CHF ${fmtD(insMonthlyCalc(krankenkasse)*12)}/year with the maximum deductible (Franchise) of CHF 2'500 — the optimal choice if annual health costs stay below ~CHF 3'800. Your max out-of-pocket: CHF 2'500 (Franchise) + CHF 700 (Selbstbehalt 10% cap) = CHF 3'200/year.`,
       action: "Compare premiums annually on priminfo.admin.ch or comparis.ch before October 31 deadline", impact: "Ensure you're on the cheapest plan for the same coverage",
     });
   }
@@ -321,7 +321,7 @@ function AccountsPage({ accounts, setAccounts, hideBalances, onAccountsUpdated, 
     if (!files.length||!acctImportTarget.current) return;
     e.target.value='';
     const accountId = acctImportTarget.current; acctImportTarget.current=null;
-    if (files.reduce((s,f)=>s+f.size,0)>4*1024*1024) { alert('Files too large (max 4MB total).'); return; }
+    if (files.reduce((s,f)=>s+f.size,0)>20*1024*1024) { alert('Files too large (max 20MB total).'); return; }
     setImportingAcctId(accountId);
     try {
       const attachments = [];
@@ -1274,7 +1274,7 @@ function ScenariosPage({ scenarios, setScenarios, subsP, subsPInScenario, yearly
     const files = Array.from(e.target.files||[]);
     if (!files.length) return;
     e.target.value='';
-    if (files.reduce((s,f)=>s+f.size,0)>4*1024*1024) { alert('Files too large (max 4MB total).'); return; }
+    if (files.reduce((s,f)=>s+f.size,0)>20*1024*1024) { alert('Files too large (max 20MB total).'); return; }
     setPayrollImporting(true);
     try {
       const attachments = [];
@@ -2066,11 +2066,80 @@ function TrackerPage({ tracker, setTracker, accounts: portfolioAccounts, hideBal
 // ───────────────────────────────────────────────────────────────
 // EXPENSES — editable subscriptions, yearly expenses, taxes
 // ───────────────────────────────────────────────────────────────
-function ExpensesPage({ subsP, setSubsP, subsPInScenario, setSubsPInScenario, yearly, setYearly, taxes, setTaxes, insurance, setInsurance, hideBalances, profile, accounts, scenarios, darkMode }) {
+const DEFAULT_INS_PROMPT = `You are a Swiss insurance document extractor. Examine the attached file(s) and extract insurance policy data.\n\nRespond with ONLY a raw JSON object — no explanation, no markdown, no code fences.\n\n{"policies":[{"name":"","insurer":"","amount":0,"frequency":1,"notes":""}]}\n\nRules:\n- name: policy type in English (e.g. "Health Insurance (Krankenkasse)", "Supplemental Health (Zusatzversicherung)", "Liability Insurance (Haftpflicht)", "Car Insurance", "Household Insurance", "Life Insurance", "Accident Insurance (UVG)")\n- insurer: insurance company name (e.g. "SWICA", "Helsana", "CSS", "Concordia", "Zurich", "AXA", "Mobiliar")\n- amount: the premium amount exactly as shown in the document (CHF)\n- frequency: match the billing period — 1=Monthly (monatlich), 3=Quarterly (vierteljährlich), 6=Half-yearly (halbjährlich/semester), 12=Yearly (jährlich)\n  IMPORTANT: if document shows "Prämie pro Monat" use frequency=1. If it shows a 6-month total (e.g. Jan–Jun), use frequency=6. If annual, use frequency=12.\n- notes: versicherten-Nr / policy number, coverage type (Grundversicherung / Zusatz), period if relevant\n- Extract ALL policies visible. A single document may cover one policy.`;
+
+const DEFAULT_TAX_PROMPT = `You are a Swiss tax document extractor. Examine the attached tax notice (German, French, or English) and extract the tax amounts.\n\nRespond with ONLY a raw JSON object — no explanation, no markdown, no code fences.\n\n{"year":2026,"lines":[{"type":"State/Municipal Tax (Provisional)","amount":0,"paidAt":""},{"type":"State/Municipal Tax (Final Settlement)","amount":0,"paidAt":""},{"type":"Federal Direct Tax (Provisional)","amount":0,"paidAt":""},{"type":"Federal Direct Tax (Final Settlement)","amount":0,"paidAt":""}]}\n\nRules:\n- year: the Steuerperiode / tax year (4-digit). If not explicitly stated, infer from the document date or period.\n- lines: ALWAYS return exactly all 4 lines with the exact type strings above. Use amount=0 for types not in the document.\n- State/Municipal Tax = Staats- und Gemeindesteuern / Impôt cantonal et communal / Cantonal & Municipal Tax / State Tax / Municipal Tax / Gemeindesteuern / Kantonssteuern\n- Federal Direct Tax = Direkte Bundessteuer (DBSt) / Impôt fédéral direct / Federal Tax / Direct Federal Tax\n- Provisional = Provisorische Rechnung / Vorauszahlung / Provisional / Interim / Advance payment / acomptes provisionnels\n- Final Settlement = Schlussabrechnung / Definitive Veranlagung / Final / Settlement / décompte final\n- amount: total CHF amount (look for "Total", "Total mutmasslicher Steuerbetrag", "Betrag", "Amount due", "Total dû", "Gesamtbetrag")\n- paidAt: first or only payment due date as dd.mm.yyyy if shown, else empty string\n- If the document only covers State/Municipal (e.g. from Gemeinde/municipality) set Federal lines to 0\n- If the document says "Provisional Tax" without specifying federal vs state, map to State/Municipal Tax (Provisional)`;
+
+const DEFAULT_REC_PROMPT = `You are a recurring expenses extractor. Examine the attached file — it may be an invoice, bill, contract, OR a bank/card statement (CSV or PDF with transaction rows).\n\nRespond with ONLY a raw JSON object — no explanation, no markdown, no code fences.\n\n{"expenses":[{"name":"","amount":0,"frequency":12,"notes":""}]}\n\nRules:\n- IF the file is a BANK/CARD STATEMENT with transaction rows:\n  * Scan all rows and identify charges that appear repeatedly (same or very similar description, consistent amounts)\n  * Determine frequency from how often the charge recurs: 1=Monthly, 3=Quarterly, 6=Half-yearly, 12=Yearly\n  * Use the most recent or most common amount for each item\n  * EXCLUDE: income/deposits, transfers between own accounts, one-time purchases, ATM withdrawals\n  * INCLUDE: recurring bills, memberships, transport passes, regular services — NOT digital streaming/app subscriptions (those belong in Subscriptions)\n  * Group transactions with the same merchant under one entry\n- IF the file is an INVOICE/CONTRACT/BILL: extract each recurring cost directly\n- name: descriptive expense name (e.g. "SBB GA Travelcard", "Parking Permit", "Phone Contract", "Gym Membership")\n- amount: cost in CHF\n- frequency: 1=Monthly, 3=Quarterly, 6=Half-yearly, 12=Yearly\n- notes: merchant name or source context\n- If nothing recurring is found, return {"expenses":[]}`;
+
+const DEFAULT_SUB_PROMPT = `You are a subscriptions extractor. Examine the attached file — it may be a bank statement (CSV or PDF), credit card bill, or subscription confirmation email.\n\nRespond with ONLY a raw JSON object — no explanation, no markdown, no code fences.\n\n{"subscriptions":[{"name":"","amount":0,"frequency":1,"account":"","notes":""}]}\n\nRules:\n- IF the file is a BANK/CARD STATEMENT with transaction rows:\n  * Scan all rows and identify recurring digital/streaming/app/software charges\n  * Look for known subscription services: Netflix, Spotify, Apple, Google, Adobe, Microsoft, Amazon Prime, YouTube, Disney+, LinkedIn, Dropbox, iCloud, etc.\n  * Also include any other recurring small charges to digital merchants\n  * Determine frequency from recurrence pattern: 1=Monthly, 3=Quarterly, 6=Half-yearly, 12=Yearly\n  * Use the most recent amount\n- IF the file is a subscription email/invoice: extract directly\n- name: service/product name (e.g. "Netflix", "Spotify", "Adobe CC", "iCloud+")\n- amount: cost in CHF (convert EUR/USD approximately if needed)\n- frequency: 1=Monthly, 3=Quarterly, 6=Half-yearly, 12=Yearly\n- account: payment method or card last 4 digits if visible, else empty string\n- notes: plan tier or other context\n- If nothing found, return {"subscriptions":[]}`;
+
+function ExpensesPage({ subsP, setSubsP, subsPInScenario, setSubsPInScenario, yearly, setYearly, taxes, setTaxes, insurance, setInsurance, hideBalances, profile, accounts, scenarios, darkMode, insPrompt, setInsPrompt, taxPrompt, setTaxPrompt, recPrompt, setRecPrompt, subPrompt, setSubPrompt }) {
   const mask = (v) => hideBalances ? "••••" : v;
   const [tab, setTab] = useState("total");
   const [sort, setSort] = useState({key:null,dir:'asc'});
   const toggleSort = (key) => setSort(p => p.key===key ? {key, dir:p.dir==='asc'?'desc':'asc'} : {key, dir:'asc'});
+
+  // ── AI File Import (shared across tabs) ──
+  const [expImporting, setExpImporting] = useState(null); // 'insurance'|'taxes'|'recurring'|'subscriptions'
+  const [expPreview, setExpPreview] = useState(null);     // {section, data, rawText}
+  const [expPromptSection, setExpPromptSection] = useState(null);
+  const expImportRef = useRef(null);
+  const expImportTargetRef = useRef(null);
+  const EXP_PROMPTS = { insurance:[insPrompt,setInsPrompt,DEFAULT_INS_PROMPT], taxes:[taxPrompt,setTaxPrompt,DEFAULT_TAX_PROMPT], recurring:[recPrompt,setRecPrompt,DEFAULT_REC_PROMPT], subscriptions:[subPrompt,setSubPrompt,DEFAULT_SUB_PROMPT] };
+  const EXP_LABELS  = { insurance:'Insurance Policies', taxes:'Taxes', recurring:'Recurring Expenses', subscriptions:'Subscriptions' };
+
+  const triggerExpImport = (section) => { expImportTargetRef.current=section; expImportRef.current?.click(); };
+
+  const handleExpImport = async e => {
+    const files = Array.from(e.target.files||[]);
+    if (!files.length) return;
+    e.target.value='';
+    const section = expImportTargetRef.current; expImportTargetRef.current=null;
+    if (!section) return;
+    if (files.reduce((s,f)=>s+f.size,0)>20*1024*1024) { alert('Files too large (max 20MB total).'); return; }
+    setExpImporting(section);
+    try {
+      const attachments = [];
+      for (const file of files) {
+        const buf=await file.arrayBuffer(); const bytes=new Uint8Array(buf);
+        let bin=''; bytes.forEach(b=>bin+=String.fromCharCode(b));
+        attachments.push({name:file.name,type:file.type||'application/octet-stream',data:btoa(bin),size:file.size});
+      }
+      const [customPrompt,,defaultPrompt] = EXP_PROMPTS[section];
+      const msg = customPrompt?.trim() || defaultPrompt;
+      const resp = await fetch(`${API_URL}/chat`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:msg,context:{},history:[],attachments})});
+      const reader=resp.body.getReader(); const dec=new TextDecoder(); let buf='',fullText='',done=false;
+      while(!done){const chunk=await reader.read();done=chunk.done;if(chunk.value)buf+=dec.decode(chunk.value,{stream:true});const lines=buf.split('\n');buf=lines.pop();for(const line of lines){if(!line.startsWith('data: '))continue;const p=line.slice(6);if(p==='[DONE]'){done=true;break;}try{const d=JSON.parse(p);if(d.text)fullText+=d.text;else if(d.error)fullText='API Error: '+d.error;}catch{}}}
+      try{
+        const cleaned=fullText.replace(/```(?:json)?\s*/gi,'').replace(/```/g,'').trim();
+        const m=cleaned.match(/\{[\s\S]*\}/);
+        const parsed=m?JSON.parse(m[0]):null;
+        setExpPreview({section,data:parsed,rawText:parsed?null:fullText||'(empty response)'});
+      }catch{setExpPreview({section,data:null,rawText:fullText||'(empty response)'});}
+    } catch(err){alert('Import failed: '+err.message);}
+    setExpImporting(null);
+  };
+
+  const confirmExpImport = () => {
+    if (!expPreview?.data) return;
+    const {section,data} = expPreview;
+    if (section==='insurance') {
+      const items=(data.policies||[]).map(p=>({id:uid(),name:p.name||'Policy',insurer:p.insurer||'',amount:p.amount||0,frequency:p.frequency||12,notes:p.notes||''}));
+      setInsurance(p=>[...p,...items]);
+    } else if (section==='taxes') {
+      const yr=data.year||new Date().getFullYear();
+      const gl=(type)=>{ const l=(data.lines||[]).find(x=>x.type===type); return [l?.amount||0, l?.paidAt||'']; };
+      setTaxes(p=>[...p, makeTaxYear(yr,[gl(TAX_TYPES[0]),gl(TAX_TYPES[1]),gl(TAX_TYPES[2]),gl(TAX_TYPES[3])])]);
+    } else if (section==='recurring') {
+      const items=(data.expenses||[]).map(e=>({id:uid(),name:e.name||'Expense',amount:e.amount||0,frequency:e.frequency||12,notes:e.notes||''}));
+      setYearly(p=>[...p,...items]);
+    } else if (section==='subscriptions') {
+      const items=(data.subscriptions||[]).map(s=>({id:uid(),name:s.name||'Subscription',amount:s.amount||0,frequency:s.frequency||1,account:s.account||'',notes:s.notes||''}));
+      setSubsP(p=>[...p,...items]);
+    }
+    setExpPreview(null);
+  };
   const SortTH = ({field, children, w}) => <th onClick={()=>toggleSort(field)} style={{padding:"10px 12px",textAlign:"left",fontSize:12,fontWeight:600,color:C.textDim,borderBottom:`1px solid ${C.border}`,textTransform:"uppercase",letterSpacing:0.5,width:w,cursor:"pointer",userSelect:"none",whiteSpace:"nowrap"}}>
     {children} <span style={{color:sort.key===field?C.accent:C.border,fontSize:10}}>{sort.key===field?(sort.dir==='asc'?'▲':'▼'):'▲'}</span>
   </th>;
@@ -2385,7 +2454,107 @@ function ExpensesPage({ subsP, setSubsP, subsPInScenario, setSubsPInScenario, ye
   const insAdd = ()=>setInsurance(p=>[...p,{id:uid(),name:"New Policy",insurer:"",amount:0,frequency:12,notes:""}]);
   const insDel = (id)=>setInsurance(p=>p.filter(x=>x.id!==id));
 
+  // ── Reusable import/prompt button bar ──
+  const ImportBar = ({section, color}) => {
+    const [prompt,,] = EXP_PROMPTS[section];
+    return <div style={{display:'flex',gap:8,justifyContent:'flex-end'}}>
+      <button onClick={()=>triggerExpImport(section)} disabled={expImporting===section}
+        style={{display:'flex',alignItems:'center',gap:5,padding:'5px 10px',borderRadius:6,border:`1px solid ${C.border}`,background:'transparent',cursor:expImporting===section?'not-allowed':'pointer',color:expImporting===section?C.textDim:C.textMuted,fontSize:12}}>
+        {expImporting===section ? <><RefreshCw size={12} style={{animation:'spin 1s linear infinite'}}/>Parsing…</> : <><Upload size={12}/>Import</>}
+      </button>
+      <button onClick={()=>setExpPromptSection(section)}
+        style={{display:'flex',alignItems:'center',gap:5,padding:'5px 10px',borderRadius:6,border:`1px solid ${prompt?C.accentLight:C.border}`,background:'transparent',cursor:'pointer',color:prompt?C.accentLight:C.textDim,fontSize:12}}>
+        <Sparkles size={12}/>Prompt{prompt?' ✓':''}
+      </button>
+    </div>;
+  };
+
   return <div>
+    <input type="file" ref={expImportRef} style={{display:'none'}} accept=".pdf,.png,.jpg,.jpeg,.webp,.csv,.xlsx,.xls" multiple onChange={handleExpImport}/>
+
+    {/* Prompt editor modal */}
+    {expPromptSection && (()=>{
+      const [prompt, setPrompt, defaultPrompt] = EXP_PROMPTS[expPromptSection];
+      const label = EXP_LABELS[expPromptSection];
+      return <div onClick={()=>setExpPromptSection(null)} style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.7)',zIndex:200,display:'flex',alignItems:'center',justifyContent:'center',padding:24}}>
+        <div onClick={e=>e.stopPropagation()} style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:16,width:'100%',maxWidth:1140,maxHeight:'84vh',overflowY:'auto',padding:28,boxShadow:'0 24px 80px rgba(0,0,0,0.6)'}}>
+          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:8}}>
+            <h2 style={{margin:0,fontSize:18,fontWeight:700,color:C.text}}>{label} — Extraction Prompt</h2>
+            <button onClick={()=>setExpPromptSection(null)} style={{background:'transparent',border:'none',cursor:'pointer',color:C.textDim}}><X size={18}/></button>
+          </div>
+          <p style={{margin:'0 0 12px',fontSize:12,color:C.textDim}}>Customise the AI prompt used when importing {label.toLowerCase()} from files. Leave blank to use the built-in default.</p>
+          <div style={{display:'flex',gap:8,marginBottom:10}}>
+            <button onClick={()=>setPrompt(defaultPrompt)} style={{padding:'6px 12px',borderRadius:6,border:`1px solid ${C.border}`,background:'transparent',color:C.textMuted,fontSize:12,cursor:'pointer'}}>Load default</button>
+            <button onClick={()=>setPrompt('')} style={{padding:'6px 12px',borderRadius:6,border:`1px solid ${C.border}`,background:'transparent',color:C.textMuted,fontSize:12,cursor:'pointer'}}>Reset to blank</button>
+          </div>
+          <textarea value={prompt} onChange={e=>setPrompt(e.target.value)} placeholder="Leave blank to use the built-in default…" rows={24}
+            style={{width:'100%',padding:'10px 12px',borderRadius:8,border:`1px solid ${C.border}`,background:C.bg,color:C.text,fontSize:12,outline:'none',resize:'vertical',boxSizing:'border-box',fontFamily:'monospace',lineHeight:1.5}}/>
+          {prompt && <div style={{marginTop:6,fontSize:11,color:C.green}}>✓ Custom prompt active — will be used instead of the default.</div>}
+          <button onClick={()=>setExpPromptSection(null)} style={{width:'100%',padding:'11px',borderRadius:8,border:'none',background:C.accent,color:'#fff',fontSize:14,fontWeight:600,cursor:'pointer',marginTop:12}}>Save & Close</button>
+        </div>
+      </div>;
+    })()}
+
+    {/* Import preview modal */}
+    {expPreview && <div onClick={()=>setExpPreview(null)} style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.8)',zIndex:300,display:'flex',alignItems:'center',justifyContent:'center',padding:24}}>
+      <div onClick={e=>e.stopPropagation()} style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:16,width:'100%',maxWidth:860,maxHeight:'84vh',overflowY:'auto',padding:28,boxShadow:'0 24px 80px rgba(0,0,0,0.6)'}}>
+        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:16}}>
+          <div><h3 style={{margin:'0 0 2px',fontSize:16,fontWeight:700,color:C.text}}>Import Preview — {EXP_LABELS[expPreview.section]}</h3>
+            <div style={{fontSize:11,color:C.textDim}}>Review extracted data before adding</div></div>
+          <button onClick={()=>setExpPreview(null)} style={{background:'transparent',border:'none',cursor:'pointer',color:C.textDim}}><X size={18}/></button>
+        </div>
+        {expPreview.data ? <>
+          {/* Insurance preview */}
+          {expPreview.section==='insurance' && (expPreview.data.policies||[]).length>0 && <table style={{width:'100%',borderCollapse:'collapse',fontSize:12,marginBottom:16}}>
+            <thead><tr>{['Policy','Insurer','Amount','Frequency','Notes'].map((h,i)=><th key={i} style={{padding:'5px 8px',textAlign:'left',fontSize:11,color:C.textDim,fontWeight:600,borderBottom:`1px solid ${C.border}`}}>{h}</th>)}</tr></thead>
+            <tbody>{(expPreview.data.policies||[]).map((p,i)=><tr key={i} style={{borderBottom:`1px solid ${C.border}22`}}>
+              <td style={{padding:'5px 8px',color:C.text}}>{p.name}</td>
+              <td style={{padding:'5px 8px',color:C.textMuted}}>{p.insurer}</td>
+              <td style={{padding:'5px 8px',color:C.green,fontWeight:600}}>CHF {(p.amount||0).toLocaleString('de-CH',{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
+              <td style={{padding:'5px 8px'}}><select value={p.frequency||12} onChange={ev=>setExpPreview(prev=>({...prev,data:{...prev.data,policies:prev.data.policies.map((x,j)=>j===i?{...x,frequency:Number(ev.target.value)}:x)}}))} style={{padding:'3px 6px',borderRadius:6,border:`1px solid ${C.border}`,background:C.bg,color:C.text,fontSize:11,cursor:'pointer'}}>{FREQ_OPTIONS.map(o=><option key={o.value} value={o.value}>{o.label}</option>)}</select></td>
+              <td style={{padding:'5px 8px',color:C.textDim,fontSize:11}}>{p.notes||'—'}</td>
+            </tr>)}</tbody>
+          </table>}
+          {/* Tax preview */}
+          {expPreview.section==='taxes' && <><div style={{marginBottom:8,fontSize:13,color:C.textMuted}}>Tax year: <strong style={{color:C.text}}>{expPreview.data.year}</strong></div>
+            <table style={{width:'100%',borderCollapse:'collapse',fontSize:12,marginBottom:16}}>
+              <thead><tr>{['Tax Type','Amount (CHF)','Pay date'].map((h,i)=><th key={i} style={{padding:'5px 8px',textAlign:i===1?'right':'left',fontSize:11,color:C.textDim,fontWeight:600,borderBottom:`1px solid ${C.border}`}}>{h}</th>)}</tr></thead>
+              <tbody>{(expPreview.data.lines||[]).map((l,i)=><tr key={i} style={{borderBottom:`1px solid ${C.border}22`}}>
+                <td style={{padding:'5px 8px',color:C.text}}>{l.type}</td>
+                <td style={{padding:'5px 8px',textAlign:'right',color:l.amount>0?C.red:C.textDim,fontWeight:l.amount>0?600:400}}>CHF {(l.amount||0).toLocaleString('de-CH',{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
+                <td style={{padding:'5px 8px',color:C.textDim,fontSize:11}}>{l.paidAt||'—'}</td>
+              </tr>)}</tbody>
+            </table></>}
+          {/* Recurring preview */}
+          {expPreview.section==='recurring' && (expPreview.data.expenses||[]).length>0 && <table style={{width:'100%',borderCollapse:'collapse',fontSize:12,marginBottom:16}}>
+            <thead><tr>{['Expense','Amount','Frequency','Notes'].map((h,i)=><th key={i} style={{padding:'5px 8px',textAlign:'left',fontSize:11,color:C.textDim,fontWeight:600,borderBottom:`1px solid ${C.border}`}}>{h}</th>)}</tr></thead>
+            <tbody>{(expPreview.data.expenses||[]).map((e,i)=><tr key={i} style={{borderBottom:`1px solid ${C.border}22`}}>
+              <td style={{padding:'5px 8px',color:C.text}}>{e.name}</td>
+              <td style={{padding:'5px 8px',color:C.blue,fontWeight:600}}>CHF {(e.amount||0).toLocaleString('de-CH',{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
+              <td style={{padding:'5px 8px'}}><select value={e.frequency||12} onChange={ev=>setExpPreview(prev=>({...prev,data:{...prev.data,expenses:prev.data.expenses.map((x,j)=>j===i?{...x,frequency:Number(ev.target.value)}:x)}}))} style={{padding:'3px 6px',borderRadius:6,border:`1px solid ${C.border}`,background:C.bg,color:C.text,fontSize:11,cursor:'pointer'}}>{FREQ_OPTIONS.map(o=><option key={o.value} value={o.value}>{o.label}</option>)}</select></td>
+              <td style={{padding:'5px 8px',color:C.textDim,fontSize:11}}>{e.notes||'—'}</td>
+            </tr>)}</tbody>
+          </table>}
+          {/* Subscriptions preview */}
+          {expPreview.section==='subscriptions' && (expPreview.data.subscriptions||[]).length>0 && <table style={{width:'100%',borderCollapse:'collapse',fontSize:12,marginBottom:16}}>
+            <thead><tr>{['Name','Amount','Frequency','Account','Notes'].map((h,i)=><th key={i} style={{padding:'5px 8px',textAlign:'left',fontSize:11,color:C.textDim,fontWeight:600,borderBottom:`1px solid ${C.border}`}}>{h}</th>)}</tr></thead>
+            <tbody>{(expPreview.data.subscriptions||[]).map((s,i)=><tr key={i} style={{borderBottom:`1px solid ${C.border}22`}}>
+              <td style={{padding:'5px 8px',color:C.text}}>{s.name}</td>
+              <td style={{padding:'5px 8px',color:C.accent,fontWeight:600}}>CHF {(s.amount||0).toLocaleString('de-CH',{minimumFractionDigits:2,maximumFractionDigits:2})}</td>
+              <td style={{padding:'5px 8px'}}><select value={s.frequency||1} onChange={ev=>setExpPreview(prev=>({...prev,data:{...prev.data,subscriptions:prev.data.subscriptions.map((x,j)=>j===i?{...x,frequency:Number(ev.target.value)}:x)}}))} style={{padding:'3px 6px',borderRadius:6,border:`1px solid ${C.border}`,background:C.bg,color:C.text,fontSize:11,cursor:'pointer'}}>{FREQ_OPTIONS.map(o=><option key={o.value} value={o.value}>{o.label}</option>)}</select></td>
+              <td style={{padding:'5px 8px',color:C.textDim,fontSize:11}}>{s.account||'—'}</td>
+              <td style={{padding:'5px 8px',color:C.textDim,fontSize:11}}>{s.notes||'—'}</td>
+            </tr>)}</tbody>
+          </table>}
+          <button onClick={confirmExpImport} style={{width:'100%',padding:'11px',borderRadius:8,border:'none',background:C.accent,color:'#fff',fontSize:14,fontWeight:600,cursor:'pointer'}}>Add to {EXP_LABELS[expPreview.section]}</button>
+        </> : <>
+          <div style={{marginBottom:10,fontSize:13,color:C.textMuted}}>Could not parse structured data. Raw AI response:</div>
+          <pre style={{background:C.bg,padding:12,borderRadius:8,fontSize:11,color:C.text,overflowX:'auto',maxHeight:300,overflowY:'auto',whiteSpace:'pre-wrap'}}>{expPreview.rawText}</pre>
+          <button onClick={()=>setExpPreview(null)} style={{marginTop:12,padding:'8px 16px',borderRadius:8,border:`1px solid ${C.border}`,background:'transparent',color:C.textMuted,fontSize:13,cursor:'pointer'}}>Close</button>
+        </>}
+      </div>
+    </div>}
+
     <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:16,marginBottom:20}}>
       <StatCard label="Subscriptions" value={`CHF ${mask(fmt(Math.round(pTotal)))}/mo`} icon={CreditCard} color={C.accent}/>
       <StatCard label="Recurring" value={`CHF ${mask(fmt(Math.round(yTotal)))}/mo`} sub="saved monthly" icon={DollarSign} color={C.blue}/>
@@ -2435,6 +2604,7 @@ function ExpensesPage({ subsP, setSubsP, subsPInScenario, setSubsPInScenario, ye
     })()}
 
     {tab==="subscriptions" && <div style={{display:"flex",flexDirection:"column",gap:16}}>
+      <ImportBar section="subscriptions" color={C.accent}/>
       {(() => {
         const allSubs = [...(subsPInScenario ? subsP : []).map(s=>({...s, effective:subMonthly(s), group:"Personal"}))].filter(s=>s.effective>0);
         const subTotal = allSubs.reduce((s,x)=>s+x.effective,0);
@@ -2456,6 +2626,7 @@ function ExpensesPage({ subsP, setSubsP, subsPInScenario, setSubsPInScenario, ye
     </div>}
 
     {tab==="recurring" && <div style={{display:"flex",flexDirection:"column",gap:16}}>
+      <ImportBar section="recurring" color={C.blue}/>
       {yearly.filter(e=>recMonthly(e)>0).length > 0 && <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
         <Card title="Cost Breakdown (effective/mo)">
           <ResponsiveContainer width="100%" height={Math.max(180, yearly.filter(e=>recMonthly(e)>0).length*28)}><BarChart data={yearly.filter(e=>recMonthly(e)>0).map(e=>({name:e.name,value:recMonthly(e)}))} layout="vertical" margin={{left:130}}><XAxis type="number" tick={{fill:C.textDim,fontSize:11}} tickFormatter={fmt}/><YAxis type="category" dataKey="name" tick={{fill:C.textMuted,fontSize:12}} width={130}/><Tooltip formatter={v=>`CHF ${fmtD(v)}/mo`} contentStyle={{background:C.card,border:`1px solid ${C.border}`,borderRadius:8,color:C.text,fontSize:13}} labelStyle={{color:C.textMuted}} itemStyle={{color:C.text}}/><Bar dataKey="value" radius={[0,6,6,0]}>{yearly.filter(e=>recMonthly(e)>0).map((_,i)=><Cell key={i} fill={PIE_COLORS[i%PIE_COLORS.length]}/>)}</Bar></BarChart></ResponsiveContainer>
@@ -2485,9 +2656,10 @@ function ExpensesPage({ subsP, setSubsP, subsPInScenario, setSubsPInScenario, ye
     </Card>
     </div>}
 
-    {tab==="taxes" && <div>
+    {tab==="taxes" && <div style={{display:"flex",flexDirection:"column",gap:16}}>
+      <ImportBar section="taxes" color={C.red}/>
       {/* Bar chart with totals per year */}
-      <Card title="Tax History" style={{marginBottom:16}} headerRight={<button onClick={exportTaxReport} style={{padding:"6px 12px",borderRadius:6,border:`1px solid ${C.border}`,background:"transparent",color:C.textMuted,fontSize:12,cursor:"pointer",display:"flex",alignItems:"center",gap:4}}><Download size={13}/>PDF Report</button>}>
+      <Card title="Tax History" headerRight={<button onClick={exportTaxReport} style={{padding:"6px 12px",borderRadius:6,border:`1px solid ${C.border}`,background:"transparent",color:C.textMuted,fontSize:12,cursor:"pointer",display:"flex",alignItems:"center",gap:4}}><Download size={13}/>PDF Report</button>}>
         <ResponsiveContainer width="100%" height={250}><BarChart data={taxes.map(t=>({year:t.year,total:t.lines.reduce((s,l)=>s+l.amount,0)}))}><CartesianGrid strokeDasharray="3 3" stroke={C.border}/><XAxis dataKey="year" tick={{fill:C.textDim,fontSize:12}}/><YAxis tick={{fill:C.textDim,fontSize:11}} tickFormatter={v=>`${Math.round(v/1000)}k`}/><Tooltip formatter={v=>`CHF ${fmt(v)}`} contentStyle={{background:C.card,border:`1px solid ${C.border}`,borderRadius:8,color:C.text,fontSize:13}} labelStyle={{color:C.textMuted}} itemStyle={{color:C.text}}/><Bar dataKey="total" fill={C.red} radius={[6,6,0,0]} name="Total Paid"/></BarChart></ResponsiveContainer>
       </Card>
 
@@ -2521,8 +2693,9 @@ function ExpensesPage({ subsP, setSubsP, subsPInScenario, setSubsPInScenario, ye
       </div>
     </div>}
 
-    {tab==="insurance" && <div>
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginBottom:20}}>
+    {tab==="insurance" && <div style={{display:"flex",flexDirection:"column",gap:16}}>
+      <ImportBar section="insurance" color={C.green}/>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
         <Card title="Cost Breakdown (effective/mo)">
           <ResponsiveContainer width="100%" height={260}><BarChart data={insurance.map(p=>({name:p.name,monthly:insMonthlyCalc(p)}))} layout="vertical" margin={{left:130}}><XAxis type="number" tick={{fill:C.textDim,fontSize:11}} tickFormatter={fmt}/><YAxis type="category" dataKey="name" tick={{fill:C.textMuted,fontSize:12}} width={130}/><Tooltip formatter={v=>`CHF ${fmtD(v)}/mo`} contentStyle={{background:C.card,border:`1px solid ${C.border}`,borderRadius:8,color:C.text,fontSize:13}} labelStyle={{color:C.textMuted}} itemStyle={{color:C.text}}/><Bar dataKey="monthly" radius={[0,6,6,0]}>{insurance.map((_,i)=><Cell key={i} fill={PIE_COLORS[i%PIE_COLORS.length]}/>)}</Bar></BarChart></ResponsiveContainer>
         </Card>
@@ -3371,6 +3544,10 @@ export default function FinanceApp() {
   const [promptTemplate, setPromptTemplate] = useState('');
   const [extractionPrompt, setExtractionPrompt] = useState('');
   const [payrollExtractionPrompt, setPayrollExtractionPrompt] = useState('');
+  const [insPrompt, setInsPrompt] = useState('');
+  const [taxPrompt, setTaxPrompt] = useState('');
+  const [recPrompt, setRecPrompt] = useState('');
+  const [subPrompt, setSubPrompt] = useState('');
   const [hideBalances, setHideBalances] = useState(false);
   const [onboarding, setOnboarding] = useState({ dismissed: false, welcomeAck: false, aiAdviserAck: false, lastMonthlyUpdate: null, lastTrackerSync: null });
   const [darkMode, setDarkMode] = useState(false);
@@ -3405,6 +3582,10 @@ export default function FinanceApp() {
           if (settings.promptTemplate != null) setPromptTemplate(settings.promptTemplate);
           if (settings.extractionPrompt != null) setExtractionPrompt(settings.extractionPrompt);
           if (settings.payrollExtractionPrompt != null) setPayrollExtractionPrompt(settings.payrollExtractionPrompt);
+          if (settings.insPrompt != null) setInsPrompt(settings.insPrompt);
+          if (settings.taxPrompt != null) setTaxPrompt(settings.taxPrompt);
+          if (settings.recPrompt != null) setRecPrompt(settings.recPrompt);
+          if (settings.subPrompt != null) setSubPrompt(settings.subPrompt);
           if (settings.onboarding) setOnboarding(settings.onboarding);
         }
         // profile key is loaded separately
@@ -3431,7 +3612,7 @@ export default function FinanceApp() {
   useEffect(() => { save('taxes', taxes); }, [taxes, save]);
   useEffect(() => { save('insurance', insurance); }, [insurance, save]);
   useEffect(() => { save('profile', profile); }, [profile, save]);
-  useEffect(() => { save('settings', { subsPInScenario, promptTemplate, extractionPrompt, payrollExtractionPrompt, onboarding }); }, [subsPInScenario, promptTemplate, extractionPrompt, payrollExtractionPrompt, onboarding, save]);
+  useEffect(() => { save('settings', { subsPInScenario, promptTemplate, extractionPrompt, payrollExtractionPrompt, insPrompt, taxPrompt, recPrompt, subPrompt, onboarding }); }, [subsPInScenario, promptTemplate, extractionPrompt, payrollExtractionPrompt, insPrompt, taxPrompt, recPrompt, subPrompt, onboarding, save]);
 
   if (loading) return <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", background: darkMode ? "#0f1117" : "#f5f5f7", color: "#a1a1aa", fontSize: 15, fontFamily: "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif" }}>Loading…</div>;
 
@@ -3522,7 +3703,7 @@ export default function FinanceApp() {
         {page==="portfolio" && <PortfolioPage accounts={accounts} setAccounts={setAccounts} hideBalances={hideBalances} setChatOpen={setChatOpen} setChatInput={setChatInput}/>}
         {page==="scenarios" && <ScenariosPage scenarios={scenarios} setScenarios={setScenarios} subsP={subsP} subsPInScenario={subsPInScenario} yearly={yearly} taxes={taxes} insurance={insurance} hideBalances={hideBalances} darkMode={darkMode} payrollExtractionPrompt={payrollExtractionPrompt} setPayrollExtractionPrompt={setPayrollExtractionPrompt}/>}
         {page==="tracker" && <TrackerPage tracker={tracker} setTracker={setTracker} accounts={accounts} hideBalances={hideBalances} onTrackerSynced={() => setOnboarding(o => ({...o, lastTrackerSync: new Date().toISOString()}))}/>}
-        {page==="expenses" && <ExpensesPage subsP={subsP} setSubsP={setSubsP} subsPInScenario={subsPInScenario} setSubsPInScenario={setSubsPInScenario} yearly={yearly} setYearly={setYearly} taxes={taxes} setTaxes={setTaxes} insurance={insurance} setInsurance={setInsurance} hideBalances={hideBalances} profile={profile} accounts={accounts} scenarios={scenarios} darkMode={darkMode}/>}
+        {page==="expenses" && <ExpensesPage subsP={subsP} setSubsP={setSubsP} subsPInScenario={subsPInScenario} setSubsPInScenario={setSubsPInScenario} yearly={yearly} setYearly={setYearly} taxes={taxes} setTaxes={setTaxes} insurance={insurance} setInsurance={setInsurance} hideBalances={hideBalances} profile={profile} accounts={accounts} scenarios={scenarios} darkMode={darkMode} insPrompt={insPrompt} setInsPrompt={setInsPrompt} taxPrompt={taxPrompt} setTaxPrompt={setTaxPrompt} recPrompt={recPrompt} setRecPrompt={setRecPrompt} subPrompt={subPrompt} setSubPrompt={setSubPrompt}/>}
         {page==="pillars" && <PillarPage accounts={accounts} scenarios={scenarios} subsP={subsP} subsPInScenario={subsPInScenario} yearly={yearly} taxes={taxes} insurance={insurance} hideBalances={hideBalances}/>}
       </div>
     </div>
