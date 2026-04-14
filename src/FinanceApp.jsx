@@ -193,12 +193,13 @@ const PRIORITY_COLORS = { high: C.red, medium: C.orange, low: C.green };
 const CATEGORY_LABELS = { tax: "Tax", pension: "Pension", insurance: "Insurances", investment: "Investment", savings: "Savings", debt: "Debt" };
 
 const ONBOARDING_STEPS = [
-  { id: 'welcome', label: 'Welcome to FinanceHub', desc: 'Acknowledge to get started.', type: 'one-time', icon: Sparkles, action: 'ack' },
-  { id: 'profile', label: 'Complete your profile', desc: 'Add your name so the AI advisor can personalise advice.', type: 'one-time', icon: User, action: 'profile' },
-  { id: 'aiAdviser', label: 'Review AI Adviser prompt', desc: 'See how the AI advisor works and optionally customise its prompt.', type: 'one-time', icon: Sparkles, action: 'prompt' },
-  { id: 'accounts', label: 'Add an account', desc: 'Add at least one bank, investment, or pension account.', type: 'one-time', icon: Landmark, action: 'accounts' },
-  { id: 'expenses', label: 'Add expenses', desc: 'Add a subscription or yearly expense to track your spending.', type: 'one-time', icon: CreditCard, action: 'expenses' },
-  { id: 'scenario', label: 'Create a scenario', desc: 'Build a budget scenario to plan your finances.', type: 'one-time', icon: Target, action: 'scenarios' },
+  { id: 'welcome', label: 'Welcome to FinanceHub', desc: 'Your personal Swiss finance hub — AI-powered, fully private, runs locally.', type: 'one-time', icon: Sparkles, action: 'ack' },
+  { id: 'clearData', label: 'Clear sample data & start fresh', desc: 'Browse the pages to see how everything works, then hit "Clear data" above to wipe the sample data and begin with your own.', type: 'one-time', icon: Trash2, action: 'clear' },
+  { id: 'profile', label: 'Complete your profile', desc: 'Add your name, canton, and marital status. The AI advisor uses this to give personalised Swiss tax and financial advice.', type: 'one-time', icon: User, action: 'profile' },
+  { id: 'aiAdviser', label: 'Customise the AI Adviser prompt', desc: 'The AI Adviser chat uses a default system prompt. You can edit it to focus on your goals, risk tolerance, or any topic you care about.', type: 'one-time', icon: Sparkles, action: 'prompt', badge: 'prompt' },
+  { id: 'accounts', label: 'Add or import accounts', desc: 'Add accounts manually — or click Import on the Accounts page and upload a bank statement or PDF. AI extracts balances and investment positions automatically. Each account also has a notes field for AI-specific context.', type: 'one-time', icon: Landmark, action: 'accounts', badge: 'import' },
+  { id: 'expenses', label: 'Add or Import your expenses', desc: 'Each Expenses tab (Insurances, Taxes, Recurring, Subscriptions) has an Import button. Upload a bank statement CSV, insurance PDF, or tax notice — AI extracts the data. Use the Prompt ✓ button to customise the extraction prompt per section.', type: 'one-time', icon: CreditCard, action: 'expenses', badge: 'import' },
+  { id: 'scenario', label: 'Create a budget scenario', desc: 'Build a scenario manually or use Import Payroll on the Scenarios page — upload a payroll PDF and AI generates your income, net salary, and all deductions (AHV, BVG, etc.) including percentage-based items.', type: 'one-time', icon: Target, action: 'scenarios', badge: 'import' },
   { id: 'monthlyBalances', label: 'Update account balances', desc: 'Import or edit your account balances this month.', type: 'recurring', icon: RefreshCw, action: 'accounts' },
   { id: 'monthlyTracker', label: 'Sync Tracker', desc: 'Sync your tracker with current account balances.', type: 'recurring', icon: Activity, action: 'tracker' },
 ];
@@ -561,7 +562,7 @@ function AccountsPage({ accounts, setAccounts, hideBalances, onAccountsUpdated, 
 // ───────────────────────────────────────────────────────────────
 // ONBOARDING CHECKLIST
 // ───────────────────────────────────────────────────────────────
-function OnboardingChecklist({ accounts, scenarios, subsP, yearly, profile, onboarding, setOnboarding, setPage, setProfileOpen, setPromptOpen }) {
+function OnboardingChecklist({ accounts, scenarios, subsP, yearly, profile, onboarding, setOnboarding, setPage, setProfileOpen, setPromptOpen, onClearAll }) {
   const now = new Date();
   const currentYM = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
   const toYM = iso => iso ? iso.slice(0, 7) : null;
@@ -572,6 +573,7 @@ function OnboardingChecklist({ accounts, scenarios, subsP, yearly, profile, onbo
   const isComplete = (step) => {
     switch (step.id) {
       case 'welcome': return onboarding.welcomeAck === true;
+      case 'clearData': return onboarding.dataCleared === true;
       case 'profile': return !!(profile.firstName);
       case 'aiAdviser': return onboarding.aiAdviserAck === true;
       case 'accounts': return accounts.length >= 1;
@@ -594,6 +596,12 @@ function OnboardingChecklist({ accounts, scenarios, subsP, yearly, profile, onbo
     switch (step.action) {
       case 'ack':
         if (step.id === 'welcome') setOnboarding(o => ({ ...o, welcomeAck: true }));
+        break;
+      case 'clear':
+        if (onClearAll) {
+          const confirmed = window.confirm('Clear all sample data and start fresh? This cannot be undone.');
+          if (confirmed) { onClearAll('skip'); setOnboarding(o => ({ ...o, dataCleared: true })); }
+        }
         break;
       case 'profile': setProfileOpen(true); break;
       case 'prompt':
@@ -636,17 +644,21 @@ function OnboardingChecklist({ accounts, scenarios, subsP, yearly, profile, onbo
       {oneTimeSteps.map(step => {
         const done = isComplete(step);
         const Icon = step.icon;
-        return <div key={step.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px', borderRadius: 8, background: done ? 'transparent' : C.bg, opacity: done ? 0.5 : 1 }}>
-          <div style={{ width: 28, height: 28, borderRadius: 8, background: done ? C.green + '22' : C.accent + '18', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+        return <div key={step.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: '10px 12px', borderRadius: 8, background: done ? 'transparent' : C.bg, opacity: done ? 0.5 : 1 }}>
+          <div style={{ width: 28, height: 28, borderRadius: 8, background: done ? C.green + '22' : C.accent + '18', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1 }}>
             {done ? <Check size={14} color={C.green} /> : <Icon size={14} color={C.accent} />}
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: done ? C.textDim : C.text }}>{step.label}</div>
-            <div style={{ fontSize: 11, color: C.textDim, marginTop: 1 }}>{step.desc}</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+              <span style={{ fontSize: 13, fontWeight: 600, color: done ? C.textDim : C.text }}>{step.label}</span>
+              {!done && step.badge === 'import' && <span style={{ fontSize: 10, padding: '1px 6px', borderRadius: 4, background: C.blue + '22', color: C.blue, fontWeight: 600, letterSpacing: 0.3 }}>AI Import</span>}
+              {!done && step.badge === 'prompt' && <span style={{ fontSize: 10, padding: '1px 6px', borderRadius: 4, background: C.accentLight + '22', color: C.accentLight, fontWeight: 600, letterSpacing: 0.3 }}>Prompt</span>}
+            </div>
+            <div style={{ fontSize: 11, color: C.textDim, marginTop: 2 }}>{step.desc}</div>
           </div>
           {!done && <button onClick={() => handleAction(step)}
-            style={{ padding: '5px 14px', borderRadius: 6, border: `1px solid ${C.accent}44`, background: C.accent + '18', color: C.accentLight, fontSize: 12, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}>
-            {step.action === 'ack' ? 'Got it' : step.action === 'prompt' ? 'Review' : 'Go'}
+            style={{ padding: '5px 14px', borderRadius: 6, border: `1px solid ${C.accent}44`, background: C.accent + '18', color: C.accentLight, fontSize: 12, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0, marginTop: 2 }}>
+            {step.action === 'ack' ? 'Got it' : step.action === 'prompt' ? 'Review' : step.action === 'clear' ? 'Clear' : 'Go'}
           </button>}
         </div>;
       })}
@@ -3549,7 +3561,7 @@ export default function FinanceApp() {
   const [recPrompt, setRecPrompt] = useState('');
   const [subPrompt, setSubPrompt] = useState('');
   const [hideBalances, setHideBalances] = useState(false);
-  const [onboarding, setOnboarding] = useState({ dismissed: false, welcomeAck: false, aiAdviserAck: false, lastMonthlyUpdate: null, lastTrackerSync: null });
+  const [onboarding, setOnboarding] = useState({ dismissed: false, welcomeAck: false, aiAdviserAck: false, dataCleared: false, lastMonthlyUpdate: null, lastTrackerSync: null });
   const [darkMode, setDarkMode] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
   const [chatInput, setChatInput] = useState("");
@@ -3586,7 +3598,7 @@ export default function FinanceApp() {
           if (settings.taxPrompt != null) setTaxPrompt(settings.taxPrompt);
           if (settings.recPrompt != null) setRecPrompt(settings.recPrompt);
           if (settings.subPrompt != null) setSubPrompt(settings.subPrompt);
-          if (settings.onboarding) setOnboarding(settings.onboarding);
+          if (settings.onboarding) setOnboarding(o => ({ ...o, ...settings.onboarding }));
         }
         // profile key is loaded separately
         if (prof) setProfile(prof);
@@ -3696,7 +3708,7 @@ export default function FinanceApp() {
           <h1 style={{fontSize:24,fontWeight:700,margin:0}}>{NAV.find(n=>n.id===page)?.label}</h1>
         </div>}
         {page==="dashboard" && <>
-          <OnboardingChecklist accounts={accounts} scenarios={scenarios} subsP={subsP} yearly={yearly} profile={profile} onboarding={onboarding} setOnboarding={setOnboarding} setPage={setPage} setProfileOpen={setProfileOpen} setPromptOpen={setPromptOpen}/>
+          <OnboardingChecklist accounts={accounts} scenarios={scenarios} subsP={subsP} yearly={yearly} profile={profile} onboarding={onboarding} setOnboarding={setOnboarding} setPage={setPage} setProfileOpen={setProfileOpen} setPromptOpen={setPromptOpen} onClearAll={(skipConfirm)=>{ if(skipConfirm !== 'skip' && !window.confirm('Clear all data and start fresh? This cannot be undone.')) return; setAccounts([]); setScenarios([]); setSubsP([]); setYearly([]); setTaxes([]); setInsurance([]); setTracker({2026:[]}); setProfile({firstName:'',lastName:'',gender:'',birthDate:'',address:'',postalCode:'',city:'',canton:'',phone:'',maritalStatus:'',religion:'',children:'',ahvNumber:'',company:'',jobTitle:'',businessName:'',businessType:'',businessProjects:'',notes:''}); setOnboarding(o=>({...o,dataCleared:true})); }}/>
           <Dashboard accounts={accounts} scenarios={scenarios} subsP={subsP} subsPInScenario={subsPInScenario} yearly={yearly} taxes={taxes} insurance={insurance} profile={profile} hideBalances={hideBalances}/>
         </>}
         {page==="accounts" && <AccountsPage accounts={accounts} setAccounts={setAccounts} hideBalances={hideBalances} onAccountsUpdated={() => setOnboarding(o => ({...o, lastMonthlyUpdate: new Date().toISOString()}))} extractionPrompt={extractionPrompt} setExtractionPrompt={setExtractionPrompt}/>}
