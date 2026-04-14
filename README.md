@@ -12,6 +12,8 @@
 
 A self-hosted personal finance dashboard built for Swiss household finances. Track every account, model budget scenarios, follow your portfolio month by month, manage subscriptions and taxes, and get AI-powered advice — all from a single app running on your own hardware.
 
+https://renehungerbuehler.github.io/finance_hub/
+
 ---
 
 ## What it does
@@ -263,7 +265,7 @@ Use the **Export** / **Import** buttons in the sidebar to download/restore a ful
 
 ## Author
 
-Self-hosted personal finance tool — runs on a Mac mini via Docker
+Self-hosted personal finance tool — runs in Docker Container
 
 ## License
 
