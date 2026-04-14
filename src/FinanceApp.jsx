@@ -302,6 +302,7 @@ const DEFAULT_EXTRACTION_PROMPT = `You are a financial data extractor. Examine t
 
 function AccountsPage({ accounts, setAccounts, hideBalances, onAccountsUpdated, extractionPrompt, setExtractionPrompt }) {
   const mask = (v) => hideBalances ? "••••" : v;
+  const winW = useWindowWidth(); const isMobile = winW < 768;
   const editAcct = (id, field, val) => { setAccounts(p => p.map(a => a.id === id ? { ...a, [field]: val } : a)); if (field === 'balance' && onAccountsUpdated) onAccountsUpdated(); };
   const addAcct = () => setAccounts(p => [...p, { id: uid(), name: "New Account", institution: "", type: "Checking", balance: 0, color: C.textDim }]);
   const delAcct = (id) => setAccounts(p => p.filter(a => a.id !== id));
@@ -492,30 +493,30 @@ function AccountsPage({ accounts, setAccounts, hideBalances, onAccountsUpdated, 
         <Sparkles size={12}/>Extraction Prompt{extractionPrompt?' ✓':''}
       </button>
     }>
-      <table style={{width:"100%",borderCollapse:"collapse"}}><thead><tr>
+      <div style={{overflowX:"auto"}}><table style={{width:"100%",borderCollapse:"collapse",minWidth:isMobile?560:undefined}}><thead><tr>
         <SortTH col="name">Account</SortTH>
-        <SortTH col="institution">Institution</SortTH>
+        {!isMobile && <SortTH col="institution">Institution</SortTH>}
         <SortTH col="type">Type</SortTH>
-        <TH>Rate %</TH>
-        <SortTH col="balance">Balance (CHF)</SortTH>
-        <TH w={110}></TH>
+        {!isMobile && <TH>Rate %</TH>}
+        <SortTH col="balance">Balance</SortTH>
+        <TH w={isMobile?60:110}></TH>
       </tr></thead>
       <tbody>{sorted.map(a=>{
         const typeColor = ["Checking"].includes(a.type)?C.accent:["Savings"].includes(a.type)?C.yellow:["Investment","Crypto"].includes(a.type)?C.teal:a.type.includes("Pension")?C.blue:a.type==="Deposit"?C.textDim:a.type==="Lent Out"?C.orange:C.textMuted;
         return <React.Fragment key={a.id}>
           <tr onMouseEnter={e=>e.currentTarget.style.background=C.cardHover} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-          <td style={{padding:"10px 12px",fontSize:13,color:C.text,borderBottom:`1px solid ${C.border}11`}}><div style={{display:"flex",alignItems:"center",gap:10}}><div style={{width:8,height:8,borderRadius:4,background:a.color}}/><InlineEdit value={a.name} onChange={v=>editAcct(a.id,"name",v)} inputWidth={160}/></div></td>
-          <td style={{padding:"10px 12px",fontSize:13,color:C.textMuted,borderBottom:`1px solid ${C.border}11`}}><InlineEdit value={a.institution} onChange={v=>editAcct(a.id,"institution",v)} inputWidth={100} style={{color:C.textMuted}}/></td>
+          <td style={{padding:"10px 12px",fontSize:13,color:C.text,borderBottom:`1px solid ${C.border}11`}}><div style={{display:"flex",alignItems:"center",gap:10}}><div style={{width:8,height:8,borderRadius:4,background:a.color,flexShrink:0}}/><InlineEdit value={a.name} onChange={v=>editAcct(a.id,"name",v)} inputWidth={isMobile?120:160}/></div></td>
+          {!isMobile && <td style={{padding:"10px 12px",fontSize:13,color:C.textMuted,borderBottom:`1px solid ${C.border}11`}}><InlineEdit value={a.institution} onChange={v=>editAcct(a.id,"institution",v)} inputWidth={100} style={{color:C.textMuted}}/></td>}
           <td style={{padding:"10px 12px",borderBottom:`1px solid ${C.border}11`}}>
             <select value={a.type} onChange={e=>editAcct(a.id,"type",e.target.value)} style={{padding:"3px 8px",borderRadius:6,border:`1px solid ${typeColor}44`,background:typeColor+"15",color:typeColor,fontSize:11,fontWeight:600,cursor:"pointer",outline:"none",appearance:"auto"}}>
               {ACCT_TYPES.map(t=><option key={t} value={t}>{t}</option>)}
             </select>
           </td>
-          <td style={{padding:"10px 12px",borderBottom:`1px solid ${C.border}11`,textAlign:"right"}}>
+          {!isMobile && <td style={{padding:"10px 12px",borderBottom:`1px solid ${C.border}11`,textAlign:"right"}}>
             {RATE_TYPES.includes(a.type)
               ? <InlineNum value={a.interestRate} onChange={v=>editAcct(a.id,"interestRate",v)} width={55} placeholder="—"/>
               : <span style={{color:C.textDim,fontSize:12}}>—</span>}
-          </td>
+          </td>}
           <td style={{padding:"10px 12px",fontSize:13,textAlign:"right",fontWeight:600,fontVariantNumeric:"tabular-nums",borderBottom:`1px solid ${C.border}11`}}>{hideBalances ? <span style={{color:C.textDim}}>••••</span> : <InlineNum value={a.balance} onChange={v=>editAcct(a.id,"balance",v??0)} width={80}/>}</td>
           <td style={{padding:"8px 12px",borderBottom:`1px solid ${C.border}11`}}>
             <div style={{display:'flex',gap:6,alignItems:'center'}}>
@@ -537,7 +538,7 @@ function AccountsPage({ accounts, setAccounts, hideBalances, onAccountsUpdated, 
           </td>
         </tr>
         {notesOpen.has(a.id) && <tr key={`${a.id}-notes`}>
-          <td colSpan={6} style={{padding:'0 12px 10px',borderBottom:`1px solid ${C.border}11`}}>
+          <td colSpan={isMobile?4:6} style={{padding:'0 12px 10px',borderBottom:`1px solid ${C.border}11`}}>
             <textarea
               value={a.instructions||''}
               onChange={e=>editAcct(a.id,'instructions',e.target.value)}
@@ -553,9 +554,9 @@ function AccountsPage({ accounts, setAccounts, hideBalances, onAccountsUpdated, 
         </tr>}
         </React.Fragment>;
       })}
-      <tr style={{background:C.bg}}><td style={{padding:"10px 12px",fontWeight:700}} colSpan={4}>Total</td><td style={{padding:"10px 12px",textAlign:"right",fontWeight:700,fontSize:15,color:C.accent}}>{mask(fmt(totalWealth))}</td><td/></tr>
-      <AddRow onClick={addAcct} label="Add account" colSpan={6}/>
-      </tbody></table>
+      <tr style={{background:C.bg}}><td style={{padding:"10px 12px",fontWeight:700}} colSpan={isMobile?2:4}>Total</td><td style={{padding:"10px 12px",textAlign:"right",fontWeight:700,fontSize:15,color:C.accent}}>{mask(fmt(totalWealth))}</td><td/></tr>
+      <AddRow onClick={addAcct} label="Add account" colSpan={isMobile?4:6}/>
+      </tbody></table></div>
     </Card>
   </div>;
 }
@@ -713,6 +714,7 @@ function OnboardingChecklist({ accounts, scenarios, subsP, yearly, profile, onbo
 // ───────────────────────────────────────────────────────────────
 function Dashboard({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes, insurance, profile, hideBalances, setChatOpen, setChatInput, notesVersion }) {
   const mask = (v) => hideBalances ? "••••" : v;
+  const winW = useWindowWidth(); const isMobile = winW < 768;
   const totalWealth = accounts.reduce((s, a) => s + a.balance, 0);
   const liquidTypes = ["Checking","Savings","Investment","Crypto"];
   const lockedTypes = ["Pension 2A","Pension 3A","Deposit"];
@@ -758,12 +760,12 @@ function Dashboard({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes,
   return <div>
     {/* Net Worth headline with liquid/locked bar */}
     <Card style={{marginBottom:24,padding:"24px 28px"}}>
-      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:16}}>
+      <div style={{display:"flex",alignItems:isMobile?"flex-start":"center",justifyContent:"space-between",marginBottom:16,flexWrap:"wrap",gap:isMobile?12:0}}>
         <div>
           <div style={{fontSize:13,color:C.textMuted,marginBottom:4}}>Total Net Worth</div>
-          <div style={{fontSize:32,fontWeight:700,color:C.text}}>CHF {mask(fmt(totalWealth))}</div>
+          <div style={{fontSize:isMobile?24:32,fontWeight:700,color:C.text}}>CHF {mask(fmt(totalWealth))}</div>
         </div>
-        <div style={{display:"flex",gap:24,alignItems:"flex-end"}}>
+        <div style={{display:"flex",gap:isMobile?16:24,alignItems:"flex-end",flexWrap:"wrap"}}>
           <div style={{textAlign:"right"}}>
             <div style={{fontSize:11,color:C.textDim,marginBottom:2}}>Liquid</div>
             <div style={{fontSize:20,fontWeight:700,color:C.green}}>CHF {mask(fmt(liquidTotal))}</div>
@@ -806,9 +808,9 @@ function Dashboard({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes,
       <StatCard label="Survival Runway" value={sc?`${survivalMonths} months`:"—"} sub={sc?`Liquid CHF ${mask(fmt(liquidTotal))} ÷ CHF ${mask(fmt(Math.round(essentialTotal)))}/mo`:"no active scenario"} icon={Shield} color={survivalMonths>=6?C.green:survivalMonths>=3?C.yellow:C.red} iconColor={C.cyan}/>
     </div>
 
-    <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(300px,1fr))", gap:16, marginBottom:24 }}>
+    <div style={{ display:"grid", gridTemplateColumns:isMobile?"1fr":"repeat(auto-fit,minmax(300px,1fr))", gap:16, marginBottom:24 }}>
       <Card title="Portfolio Breakdown">
-        <ResponsiveContainer width="100%" height={280}><PieChart><Pie data={pieData} cx="50%" cy="50%" outerRadius={100} innerRadius={55} dataKey="value" paddingAngle={2} stroke="none">{pieData.map((_,i)=><Cell key={i} fill={PIE_COLORS[i%PIE_COLORS.length]}/>)}</Pie><Tooltip formatter={v=>`CHF ${fmt(v)}`} contentStyle={{background:C.card,border:`1px solid ${C.border}`,borderRadius:8,color:C.text,fontSize:13}} labelStyle={{color:C.textMuted}} itemStyle={{color:C.text}}/></PieChart></ResponsiveContainer>
+        <ResponsiveContainer width="100%" height={isMobile?200:280}><PieChart><Pie data={pieData} cx="50%" cy="50%" outerRadius={100} innerRadius={55} dataKey="value" paddingAngle={2} stroke="none">{pieData.map((_,i)=><Cell key={i} fill={PIE_COLORS[i%PIE_COLORS.length]}/>)}</Pie><Tooltip formatter={v=>`CHF ${fmt(v)}`} contentStyle={{background:C.card,border:`1px solid ${C.border}`,borderRadius:8,color:C.text,fontSize:13}} labelStyle={{color:C.textMuted}} itemStyle={{color:C.text}}/></PieChart></ResponsiveContainer>
         {pieData.map((d,i)=>{const total=pieData.reduce((s,x)=>s+x.value,0); return <div key={i} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"5px 0",borderBottom:i<pieData.length-1?`1px solid ${C.border}22`:"none"}}>
           <div style={{display:"flex",alignItems:"center",gap:8}}><div style={{width:10,height:10,borderRadius:3,background:PIE_COLORS[i%PIE_COLORS.length],flexShrink:0}}/><span style={{fontSize:12,color:C.textMuted}}>{d.name}</span></div>
           <div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:12,fontWeight:600,color:C.text,fontVariantNumeric:"tabular-nums"}}>CHF {mask(fmt(d.value))}</span><span style={{fontSize:11,color:C.textDim,width:40,textAlign:"right"}}>{total>0?(d.value/total*100).toFixed(1):0}%</span></div>
@@ -831,7 +833,7 @@ function Dashboard({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes,
           <p style={{margin:0,fontSize:12,color:C.textDim}}>Swiss-specific financial insights based on your portfolio</p>
         </div>
       </div>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(280px,1fr))",gap:12}}>
+      <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"repeat(auto-fit,minmax(280px,1fr))",gap:12}}>
         {[...insights].sort((a,b)=>({high:0,medium:1,low:2}[a.priority]??3)-({high:0,medium:1,low:2}[b.priority]??3)).map((ins,i) => {
           const Icon = INSIGHT_ICONS[ins.icon] || Lightbulb;
           const prioColor = PRIORITY_COLORS[ins.priority];
@@ -1268,6 +1270,7 @@ const DEFAULT_PAYROLL_PROMPT = `You are a payroll data extractor for Swiss salar
 
 function ScenariosPage({ scenarios, setScenarios, subsP, subsPInScenario, yearly, taxes, insurance, hideBalances, darkMode, payrollExtractionPrompt, setPayrollExtractionPrompt }) {
   const mask = (v) => hideBalances ? "••••" : v;
+  const winW = useWindowWidth(); const isMobile = winW < 768;
   const [selId, setSelId] = useState(()=>scenarios.find(s=>s.isActive)?.id || scenarios[0]?.id);
   const [addingTag, setAddingTag] = useState(false);
   const [newTag, setNewTag] = useState("");
@@ -1704,7 +1707,7 @@ function ScenariosPage({ scenarios, setScenarios, subsP, subsPInScenario, yearly
         <Sparkles size={14}/>Extraction Prompt{payrollExtractionPrompt?' ✓':''}
       </button>
     </div>
-    {sc && <div style={{display:"grid",gridTemplateColumns:"2fr 1fr",gap:16}}>
+    {sc && <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"2fr 1fr",gap:16}}>
       <Card headerRight={<div style={{display:"flex",gap:6}}>
         <button onClick={()=>toggleActive(sc.id)} style={{padding:"6px 12px",borderRadius:6,border:`1px solid ${sc.isActive?C.green:C.border}`,background:sc.isActive?C.greenBg:"transparent",color:sc.isActive?C.green:C.textMuted,fontSize:12,cursor:"pointer",display:"flex",alignItems:"center",gap:4}}><Power size={14}/>{sc.isActive?"Active":"Set Active"}</button>
         <button onClick={duplicateScenario} style={{padding:"6px 12px",borderRadius:6,border:`1px solid ${C.border}`,background:"transparent",color:C.textMuted,fontSize:12,cursor:"pointer"}}>Duplicate</button>
@@ -1888,6 +1891,7 @@ function ScenariosPage({ scenarios, setScenarios, subsP, subsPInScenario, yearly
 // ───────────────────────────────────────────────────────────────
 function TrackerPage({ tracker, setTracker, accounts: portfolioAccounts, hideBalances, onTrackerSynced }) {
   const mask = (v) => hideBalances ? "••••" : v;
+  const winW = useWindowWidth(); const isMobile = winW < 768;
   const sortedYears = Object.keys(tracker).map(Number).sort((a,b)=>b-a);
   const [selYear, setSelYear] = useState(sortedYears[0] || 2026);
   const [view, setView] = useState("grid");
@@ -1969,10 +1973,10 @@ function TrackerPage({ tracker, setTracker, accounts: portfolioAccounts, hideBal
       ))}
       <button onClick={addYear} style={{padding:"6px 12px",borderRadius:8,border:`1px dashed ${C.border}`,background:"transparent",color:C.textDim,fontSize:13,cursor:"pointer",display:"flex",alignItems:"center",gap:4}}><Plus size={13}/>New Year</button>
     </div>
-    <div style={{display:"flex",gap:8,marginBottom:20}}>
+    <div style={{display:"flex",gap:8,marginBottom:20,flexWrap:"wrap"}}>
       <Tab active={view==="grid"} onClick={()=>setView("grid")}>{selYear} Tracker Grid</Tab>
       <Tab active={view==="chart"} onClick={()=>setView("chart")}>Forecast vs Result</Tab>
-      <Tab active={view==="compound"} onClick={()=>setView("compound")}>Compound Interest Calculator</Tab>
+      <Tab active={view==="compound"} onClick={()=>setView("compound")}>Compound Interest</Tab>
     </div>
 
     {view==="grid" && <Card headerRight={
@@ -2098,10 +2102,10 @@ function TrackerPage({ tracker, setTracker, accounts: portfolioAccounts, hideBal
     </Card>}
 
     {view==="chart" && <Card title={`${selYear}: Forecast vs Actual`}>
-      <ResponsiveContainer width="100%" height={350}><ComposedChart data={totals}><CartesianGrid strokeDasharray="3 3" stroke={C.border}/><XAxis dataKey="month" tick={{fill:C.textDim,fontSize:12}}/><YAxis tick={{fill:C.textDim,fontSize:11}} tickFormatter={v=>`${Math.round(v/1000)}k`}/><Tooltip formatter={v=>`CHF ${fmt(v)}`} contentStyle={{background:C.card,border:`1px solid ${C.border}`,borderRadius:8,color:C.text,fontSize:13}} labelStyle={{color:C.textMuted}} itemStyle={{color:C.text}}/><Legend/><Area type="monotone" dataKey="forecast" fill={C.accent+"22"} stroke={C.accent} strokeWidth={2} name="Forecast"/><Line type="monotone" dataKey="result" stroke={C.green} strokeWidth={2.5} dot={{fill:C.green,r:4}} name="Result" connectNulls={false}/></ComposedChart></ResponsiveContainer>
+      <ResponsiveContainer width="100%" height={isMobile?220:350}><ComposedChart data={totals}><CartesianGrid strokeDasharray="3 3" stroke={C.border}/><XAxis dataKey="month" tick={{fill:C.textDim,fontSize:12}}/><YAxis tick={{fill:C.textDim,fontSize:11}} tickFormatter={v=>`${Math.round(v/1000)}k`}/><Tooltip formatter={v=>`CHF ${fmt(v)}`} contentStyle={{background:C.card,border:`1px solid ${C.border}`,borderRadius:8,color:C.text,fontSize:13}} labelStyle={{color:C.textMuted}} itemStyle={{color:C.text}}/><Legend/><Area type="monotone" dataKey="forecast" fill={C.accent+"22"} stroke={C.accent} strokeWidth={2} name="Forecast"/><Line type="monotone" dataKey="result" stroke={C.green} strokeWidth={2.5} dot={{fill:C.green,r:4}} name="Result" connectNulls={false}/></ComposedChart></ResponsiveContainer>
     </Card>}
 
-    {view==="compound" && <div style={{display:"grid",gridTemplateColumns:"320px 1fr",gap:16}}>
+    {view==="compound" && <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"320px 1fr",gap:16}}>
       <Card title="Parameters"><div style={{display:"flex",flexDirection:"column",gap:20}}>
         <div><label style={{fontSize:12,color:C.textMuted}}>Starting Balance</label><div style={{fontSize:22,fontWeight:700,color:C.accent}}>CHF {mask(fmt(currentTotal))}</div></div>
         <div><label style={{fontSize:12,color:C.textMuted,display:"flex",justifyContent:"space-between"}}><span>Annual Growth Rate</span><span style={{color:C.accent,fontWeight:600}}>{growthRate}%</span></label><input type="range" min={0} max={15} step={0.5} value={growthRate} onChange={e=>setGrowthRate(Number(e.target.value))} style={{width:"100%",accentColor:C.accent}}/></div>
@@ -2110,7 +2114,7 @@ function TrackerPage({ tracker, setTracker, accounts: portfolioAccounts, hideBal
         <div style={{padding:16,background:C.bg,borderRadius:10}}><div style={{fontSize:12,color:C.textMuted}}>Projected in {years} years</div><div style={{fontSize:28,fontWeight:700,color:C.green}}>CHF {mask(fmt(proj[proj.length-1].balance))}</div><div style={{fontSize:12,color:C.textDim,marginTop:4}}>Contributed: CHF {mask(fmt(proj[proj.length-1].contributed))}</div><div style={{fontSize:12,color:C.accentLight}}>Growth: CHF {mask(fmt(proj[proj.length-1].balance-proj[proj.length-1].contributed))}</div></div>
       </div></Card>
       <Card title="Compound Growth Projection">
-        <ResponsiveContainer width="100%" height={400}><AreaChart data={proj}><CartesianGrid strokeDasharray="3 3" stroke={C.border}/><XAxis dataKey="year" tick={{fill:C.textDim,fontSize:11}}/><YAxis tick={{fill:C.textDim,fontSize:11}} tickFormatter={v=>v>=1e6?`${(v/1e6).toFixed(1)}M`:`${Math.round(v/1000)}k`}/><Tooltip formatter={v=>`CHF ${fmt(v)}`} contentStyle={{background:C.card,border:`1px solid ${C.border}`,borderRadius:8,color:C.text,fontSize:13}} labelStyle={{color:C.textMuted}} itemStyle={{color:C.text}}/><Legend/><Area type="monotone" dataKey="contributed" fill={C.blue+"33"} stroke={C.blue} strokeWidth={1.5} name="Contributed"/><Area type="monotone" dataKey="balance" fill={C.green+"33"} stroke={C.green} strokeWidth={2} name="With Growth"/></AreaChart></ResponsiveContainer>
+        <ResponsiveContainer width="100%" height={isMobile?250:400}><AreaChart data={proj}><CartesianGrid strokeDasharray="3 3" stroke={C.border}/><XAxis dataKey="year" tick={{fill:C.textDim,fontSize:11}}/><YAxis tick={{fill:C.textDim,fontSize:11}} tickFormatter={v=>v>=1e6?`${(v/1e6).toFixed(1)}M`:`${Math.round(v/1000)}k`}/><Tooltip formatter={v=>`CHF ${fmt(v)}`} contentStyle={{background:C.card,border:`1px solid ${C.border}`,borderRadius:8,color:C.text,fontSize:13}} labelStyle={{color:C.textMuted}} itemStyle={{color:C.text}}/><Legend/><Area type="monotone" dataKey="contributed" fill={C.blue+"33"} stroke={C.blue} strokeWidth={1.5} name="Contributed"/><Area type="monotone" dataKey="balance" fill={C.green+"33"} stroke={C.green} strokeWidth={2} name="With Growth"/></AreaChart></ResponsiveContainer>
       </Card>
     </div>}
   </div>;
@@ -2129,6 +2133,7 @@ const DEFAULT_SUB_PROMPT = `You are a subscriptions extractor. Examine the attac
 
 function ExpensesPage({ subsP, setSubsP, subsPInScenario, setSubsPInScenario, yearly, setYearly, taxes, setTaxes, insurance, setInsurance, hideBalances, profile, accounts, scenarios, darkMode, insPrompt, setInsPrompt, taxPrompt, setTaxPrompt, recPrompt, setRecPrompt, subPrompt, setSubPrompt }) {
   const mask = (v) => hideBalances ? "••••" : v;
+  const winW = useWindowWidth(); const isMobile = winW < 768;
   const [tab, setTab] = useState("total");
   const [sort, setSort] = useState({key:null,dir:'asc'});
   const toggleSort = (key) => setSort(p => p.key===key ? {key, dir:p.dir==='asc'?'desc':'asc'} : {key, dir:'asc'});
@@ -2485,7 +2490,7 @@ function ExpensesPage({ subsP, setSubsP, subsPInScenario, setSubsPInScenario, ye
     const subGetVal = (s,k) => k==='name'?s.name:k==='amount'?s.amount:k==='frequency'?s.frequency:k==='effective'?toMonthly(s.amount,s.frequency):k==='account'?s.account:k==='notes'?s.notes:'';
     const sorted = sortItems(items, subGetVal);
     return <Card title={title} headerRight={<span style={{fontSize:13,color:accentColor,fontWeight:600}}>CHF {mask(fmtD(tot))}/mo</span>}>
-      <table style={{width:"100%",borderCollapse:"collapse"}}><thead><tr><SortTH field="name">Name</SortTH><SortTH field="amount">Amount</SortTH><SortTH field="frequency">Frequency</SortTH><SortTH field="effective">Effective/mo</SortTH><SortTH field="account">Payment</SortTH><SortTH field="notes">Notes</SortTH><TH w={30}></TH></tr></thead>
+      <div style={{overflowX:"auto"}}><table style={{width:"100%",borderCollapse:"collapse",minWidth:580}}><thead><tr><SortTH field="name">Name</SortTH><SortTH field="amount">Amount</SortTH><SortTH field="frequency">Frequency</SortTH><SortTH field="effective">Effective/mo</SortTH><SortTH field="account">Payment</SortTH><SortTH field="notes">Notes</SortTH><TH w={30}></TH></tr></thead>
       <tbody>
         {sorted.map(s=><tr key={s.id} onMouseEnter={e=>e.currentTarget.style.background=C.cardHover} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
           <td style={{padding:"8px 12px",fontSize:13,borderBottom:`1px solid ${C.border}11`}}><InlineEdit value={s.name} onChange={v=>edit(s.id,"name",v)} inputWidth={160}/></td>
@@ -2498,7 +2503,7 @@ function ExpensesPage({ subsP, setSubsP, subsPInScenario, setSubsPInScenario, ye
         </tr>)}
         <tr style={{background:C.bg}}><td style={{padding:"10px 12px",fontWeight:700}} colSpan={3}>Total</td><td style={{padding:"10px 12px",fontWeight:700,fontVariantNumeric:"tabular-nums"}}>{mask(fmtD(tot))}</td><td colSpan={3}/></tr>
         <AddRow onClick={add} label="Add subscription" colSpan={7}/>
-      </tbody></table>
+      </tbody></table></div>
     </Card>;
   };
 
@@ -2614,7 +2619,7 @@ function ExpensesPage({ subsP, setSubsP, subsPInScenario, setSubsPInScenario, ye
       <StatCard label="Insurances" value={`CHF ${mask(fmt(Math.round(insMonthly)))}/mo`} sub={hideBalances?undefined:`CHF ${fmt(Math.round(insTotal))}/yr`} icon={Shield} color={C.green}/>
       <StatCard label={`Taxes (${latestTax?.year||"—"})`} value={`CHF ${mask(fmt(Math.round(taxMonthly)))}/mo`} sub={hideBalances?undefined:`CHF ${fmt(Math.round(latestTaxTotal))}/yr`} icon={BarChart3} color={C.red}/>
     </div>
-    <div style={{display:"flex",gap:8,marginBottom:16}}>
+    <div style={{display:"flex",gap:8,marginBottom:16,flexWrap:"wrap"}}>
       <Tab active={tab==="total"} onClick={()=>setTab("total")}>Total Monthly</Tab>
       <Tab active={tab==="recurring"} onClick={()=>setTab("recurring")}>Recurring</Tab>
       <Tab active={tab==="subscriptions"} onClick={()=>setTab("subscriptions")}>Subscriptions</Tab>
@@ -2636,23 +2641,23 @@ function ExpensesPage({ subsP, setSubsP, subsPInScenario, setSubsPInScenario, ye
         {label:"Tax Provision",total:taxMonthly,color:C.red},
       ];
       return <Card title="Monthly Expense Summary" headerRight={<span style={{fontSize:15,fontWeight:700,color:C.accent}}>CHF {mask(fmtD(grandTotal))}/mo</span>}>
-        <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12,marginBottom:20}}>
-          {groups.map((g,i)=><div key={i} style={{padding:12,borderRadius:8,background:C.bg,border:`1px solid ${C.border}`}}>
-            <div style={{fontSize:11,color:g.color,fontWeight:600,textTransform:"uppercase",letterSpacing:0.5,marginBottom:4}}>{g.label}</div>
-            <div style={{fontSize:18,fontWeight:700,color:C.text}}>CHF {mask(fmt(Math.round(g.total)))}</div>
-            <div style={{fontSize:11,color:C.textDim}}>{grandTotal>0?pct(g.total/grandTotal):"0%"} of total</div>
+        <div style={{display:"grid",gridTemplateColumns:isMobile?"repeat(2,1fr)":"repeat(4,1fr)",gap:isMobile?8:12,marginBottom:20}}>
+          {groups.map((g,i)=><div key={i} style={{padding:isMobile?"8px 10px":12,borderRadius:8,background:C.bg,border:`1px solid ${C.border}`}}>
+            <div style={{fontSize:isMobile?10:11,color:g.color,fontWeight:600,textTransform:"uppercase",letterSpacing:0.5,marginBottom:4,lineHeight:1.3}}>{g.label}</div>
+            <div style={{fontSize:isMobile?14:18,fontWeight:700,color:C.text}}>CHF {mask(fmt(Math.round(g.total)))}</div>
+            <div style={{fontSize:isMobile?10:11,color:C.textDim}}>{grandTotal>0?pct(g.total/grandTotal):"0%"} of total</div>
           </div>)}
         </div>
-        {(()=>{const totGetVal=(r,k)=>k==='label'?r.label:k==='source'?r.source:k==='monthly'?r.monthly:k==='yearly'?r.monthly*12:0;const sortedRows=sortItems(allRows,totGetVal);return <table style={{width:"100%",borderCollapse:"collapse"}}><thead><tr><SortTH field="label">Expense</SortTH><SortTH field="source">Category</SortTH><SortTH field="monthly">Monthly (CHF)</SortTH><SortTH field="yearly">Yearly (CHF)</SortTH></tr></thead>
+        {(()=>{const totGetVal=(r,k)=>k==='label'?r.label:k==='source'?r.source:k==='monthly'?r.monthly:k==='yearly'?r.monthly*12:0;const sortedRows=sortItems(allRows,totGetVal);return <div style={{overflowX:"auto"}}><table style={{width:"100%",borderCollapse:"collapse",minWidth:isMobile?380:undefined}}><thead><tr><SortTH field="label">Expense</SortTH><SortTH field="source">Category</SortTH><SortTH field="monthly">Monthly</SortTH>{!isMobile&&<SortTH field="yearly">Yearly</SortTH>}</tr></thead>
         <tbody>
           {sortedRows.map((r,i)=><tr key={i} onMouseEnter={e=>e.currentTarget.style.background=C.cardHover} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
             <td style={{padding:"8px 12px",fontSize:13,borderBottom:`1px solid ${C.border}11`}}>{r.label}</td>
             <td style={{padding:"8px 12px",borderBottom:`1px solid ${C.border}11`}}><Badge color={r.color}>{r.source}</Badge></td>
             <td style={{padding:"8px 12px",fontSize:13,fontVariantNumeric:"tabular-nums",borderBottom:`1px solid ${C.border}11`}}>{mask(fmtD(r.monthly))}</td>
-            <td style={{padding:"8px 12px",fontSize:13,fontVariantNumeric:"tabular-nums",color:C.textMuted,borderBottom:`1px solid ${C.border}11`}}>{mask(fmtD(r.monthly*12))}</td>
+            {!isMobile&&<td style={{padding:"8px 12px",fontSize:13,fontVariantNumeric:"tabular-nums",color:C.textMuted,borderBottom:`1px solid ${C.border}11`}}>{mask(fmtD(r.monthly*12))}</td>}
           </tr>)}
-          <tr style={{background:C.bg}}><td style={{padding:"8px 12px",fontWeight:700}} colSpan={2}>Grand Total</td><td style={{padding:"8px 12px",fontWeight:700,fontVariantNumeric:"tabular-nums"}}>{mask(fmtD(grandTotal))}</td><td style={{padding:"8px 12px",fontWeight:700,fontVariantNumeric:"tabular-nums"}}>{mask(fmtD(grandTotal*12))}</td></tr>
-        </tbody></table>;})()}
+          <tr style={{background:C.bg}}><td style={{padding:"8px 12px",fontWeight:700}} colSpan={2}>Grand Total</td><td style={{padding:"8px 12px",fontWeight:700,fontVariantNumeric:"tabular-nums"}}>{mask(fmtD(grandTotal))}</td>{!isMobile&&<td style={{padding:"8px 12px",fontWeight:700,fontVariantNumeric:"tabular-nums"}}>{mask(fmtD(grandTotal*12))}</td>}</tr>
+        </tbody></table></div>;})()}
       </Card>;
     })()}
 
@@ -2662,7 +2667,7 @@ function ExpensesPage({ subsP, setSubsP, subsPInScenario, setSubsPInScenario, ye
         const allSubs = [...(subsPInScenario ? subsP : []).map(s=>({...s, effective:subMonthly(s), group:"Personal"}))].filter(s=>s.effective>0);
         const subTotal = allSubs.reduce((s,x)=>s+x.effective,0);
         if (allSubs.length === 0) return null;
-        return <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
+        return <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:16}}>
           <Card title="Cost Breakdown (effective/mo)">
             <ResponsiveContainer width="100%" height={Math.max(180, allSubs.length*28)}><BarChart data={allSubs.map(s=>({name:s.name,value:s.effective}))} layout="vertical" margin={{left:130}}><XAxis type="number" tick={{fill:C.textDim,fontSize:11}} tickFormatter={fmt}/><YAxis type="category" dataKey="name" tick={{fill:C.textMuted,fontSize:12}} width={130}/><Tooltip formatter={v=>`CHF ${fmtD(v)}/mo`} contentStyle={{background:C.card,border:`1px solid ${C.border}`,borderRadius:8,color:C.text,fontSize:13}} labelStyle={{color:C.textMuted}} itemStyle={{color:C.text}}/><Bar dataKey="value" radius={[0,6,6,0]}>{allSubs.map((_,i)=><Cell key={i} fill={PIE_COLORS[i%PIE_COLORS.length]}/>)}</Bar></BarChart></ResponsiveContainer>
           </Card>
@@ -2680,7 +2685,7 @@ function ExpensesPage({ subsP, setSubsP, subsPInScenario, setSubsPInScenario, ye
 
     {tab==="recurring" && <div style={{display:"flex",flexDirection:"column",gap:16}}>
       <ImportBar section="recurring" color={C.blue}/>
-      {yearly.filter(e=>recMonthly(e)>0).length > 0 && <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
+      {yearly.filter(e=>recMonthly(e)>0).length > 0 && <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:16}}>
         <Card title="Cost Breakdown (effective/mo)">
           <ResponsiveContainer width="100%" height={Math.max(180, yearly.filter(e=>recMonthly(e)>0).length*28)}><BarChart data={yearly.filter(e=>recMonthly(e)>0).map(e=>({name:e.name,value:recMonthly(e)}))} layout="vertical" margin={{left:130}}><XAxis type="number" tick={{fill:C.textDim,fontSize:11}} tickFormatter={fmt}/><YAxis type="category" dataKey="name" tick={{fill:C.textMuted,fontSize:12}} width={130}/><Tooltip formatter={v=>`CHF ${fmtD(v)}/mo`} contentStyle={{background:C.card,border:`1px solid ${C.border}`,borderRadius:8,color:C.text,fontSize:13}} labelStyle={{color:C.textMuted}} itemStyle={{color:C.text}}/><Bar dataKey="value" radius={[0,6,6,0]}>{yearly.filter(e=>recMonthly(e)>0).map((_,i)=><Cell key={i} fill={PIE_COLORS[i%PIE_COLORS.length]}/>)}</Bar></BarChart></ResponsiveContainer>
         </Card>
@@ -2693,7 +2698,7 @@ function ExpensesPage({ subsP, setSubsP, subsPInScenario, setSubsPInScenario, ye
         </Card>
       </div>}
       <Card title="Recurring Expenses" headerRight={<span style={{fontSize:13,color:C.blue,fontWeight:600}}>CHF {mask(fmtD(yTotal))}/mo</span>}>
-      {(()=>{const recGetVal=(e,k)=>k==='name'?e.name:k==='amount'?e.amount:k==='frequency'?e.frequency:k==='effective'?recMonthly(e):k==='notes'?e.notes:'';const sorted=sortItems(yearly,recGetVal);return <table style={{width:"100%",borderCollapse:"collapse"}}><thead><tr><SortTH field="name">Expense</SortTH><SortTH field="amount">Amount</SortTH><SortTH field="frequency">Frequency</SortTH><SortTH field="effective">Effective/mo</SortTH><SortTH field="notes">Notes</SortTH><TH w={30}></TH></tr></thead>
+      {(()=>{const recGetVal=(e,k)=>k==='name'?e.name:k==='amount'?e.amount:k==='frequency'?e.frequency:k==='effective'?recMonthly(e):k==='notes'?e.notes:'';const sorted=sortItems(yearly,recGetVal);return <div style={{overflowX:"auto"}}><table style={{width:"100%",borderCollapse:"collapse",minWidth:isMobile?480:undefined}}><thead><tr><SortTH field="name">Expense</SortTH><SortTH field="amount">Amount</SortTH><SortTH field="frequency">Frequency</SortTH><SortTH field="effective">Effective/mo</SortTH><SortTH field="notes">Notes</SortTH><TH w={30}></TH></tr></thead>
       <tbody>
         {sorted.map(e=><tr key={e.id} onMouseEnter={ev=>ev.currentTarget.style.background=C.cardHover} onMouseLeave={ev=>ev.currentTarget.style.background="transparent"}>
           <td style={{padding:"8px 12px",fontSize:13,borderBottom:`1px solid ${C.border}11`}}><InlineEdit value={e.name} onChange={v=>setYearly(p=>p.map(x=>x.id===e.id?{...x,name:v}:x))} inputWidth={200}/></td>
@@ -2705,7 +2710,7 @@ function ExpensesPage({ subsP, setSubsP, subsPInScenario, setSubsPInScenario, ye
         </tr>)}
         <tr style={{background:C.bg}}><td style={{padding:"10px 12px",fontWeight:700}} colSpan={3}>Total</td><td style={{padding:"10px 12px",fontWeight:700,fontVariantNumeric:"tabular-nums"}}>{mask(fmtD(yTotal))}</td><td colSpan={2}/></tr>
         <AddRow onClick={()=>setYearly(p=>[...p,{id:uid(),name:"New Expense",amount:0,frequency:1,notes:""}])} label="Add recurring expense" colSpan={6}/>
-      </tbody></table>;})()}
+      </tbody></table></div>;})()}
     </Card>
     </div>}
 
@@ -2725,7 +2730,7 @@ function ExpensesPage({ subsP, setSubsP, subsPInScenario, setSubsPInScenario, ye
             <InlineEdit value={String(t.year)} onChange={v=>{const n=parseInt(v);if(!isNaN(n))setTaxes(p=>p.map(tx=>tx.id===t.id?{...tx,year:n}:tx));}} style={{fontSize:18,fontWeight:700}} inputWidth={60}/>
             <span style={{fontSize:13,color:C.red,fontWeight:600}}>Total: CHF {mask(fmtD(total))}</span>
           </div>} headerRight={<DelBtn onClick={()=>setTaxes(p=>p.filter(tx=>tx.id!==t.id))}/>}>
-            <table style={{width:"100%",borderCollapse:"collapse"}}><thead><tr><TH>Type</TH><TH>Amount (CHF)</TH><TH>Paid at</TH></tr></thead>
+            <div style={{overflowX:"auto"}}><table style={{width:"100%",borderCollapse:"collapse",minWidth:isMobile?340:undefined}}><thead><tr><TH>Type</TH><TH>Amount (CHF)</TH><TH>Paid at</TH></tr></thead>
             <tbody>
               {t.lines.map(line=>(
                 <tr key={line.id} onMouseEnter={e=>e.currentTarget.style.background=C.cardHover} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
@@ -2739,7 +2744,7 @@ function ExpensesPage({ subsP, setSubsP, subsPInScenario, setSubsPInScenario, ye
                 </tr>
               ))}
               <tr style={{background:C.bg}}><td style={{padding:"8px 12px",fontWeight:700}}>Total</td><td style={{padding:"8px 12px",fontWeight:700,fontVariantNumeric:"tabular-nums"}}>{mask(fmtD(total))}</td><td/></tr>
-            </tbody></table>
+            </tbody></table></div>
           </Card>;
         })}
         <button onClick={()=>{const yr=taxes.length>0?Math.max(...taxes.map(t=>t.year))+1:2025;setTaxes(p=>[...p,makeTaxYear(yr,[0,0,0,0])]);}} style={{display:"flex",alignItems:"center",gap:6,padding:"12px 16px",border:`2px dashed ${C.border}`,borderRadius:10,background:"transparent",color:C.textDim,fontSize:13,cursor:"pointer",justifyContent:"center"}}><Plus size={16}/>Add tax year</button>
@@ -2748,7 +2753,7 @@ function ExpensesPage({ subsP, setSubsP, subsPInScenario, setSubsPInScenario, ye
 
     {tab==="insurance" && <div style={{display:"flex",flexDirection:"column",gap:16}}>
       <ImportBar section="insurance" color={C.green}/>
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
+      <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:16}}>
         <Card title="Cost Breakdown (effective/mo)">
           <ResponsiveContainer width="100%" height={260}><BarChart data={insurance.map(p=>({name:p.name,monthly:insMonthlyCalc(p)}))} layout="vertical" margin={{left:130}}><XAxis type="number" tick={{fill:C.textDim,fontSize:11}} tickFormatter={fmt}/><YAxis type="category" dataKey="name" tick={{fill:C.textMuted,fontSize:12}} width={130}/><Tooltip formatter={v=>`CHF ${fmtD(v)}/mo`} contentStyle={{background:C.card,border:`1px solid ${C.border}`,borderRadius:8,color:C.text,fontSize:13}} labelStyle={{color:C.textMuted}} itemStyle={{color:C.text}}/><Bar dataKey="monthly" radius={[0,6,6,0]}>{insurance.map((_,i)=><Cell key={i} fill={PIE_COLORS[i%PIE_COLORS.length]}/>)}</Bar></BarChart></ResponsiveContainer>
         </Card>
@@ -2761,7 +2766,7 @@ function ExpensesPage({ subsP, setSubsP, subsPInScenario, setSubsPInScenario, ye
         </Card>
       </div>
       <Card title="All Policies">
-        {(()=>{const insGetVal=(p,k)=>k==='name'?p.name:k==='insurer'?p.insurer:k==='amount'?p.amount:k==='frequency'?p.frequency:k==='effective'?insMonthlyCalc(p):k==='notes'?p.notes:'';const sorted=sortItems(insurance,insGetVal);return <table style={{width:"100%",borderCollapse:"collapse"}}><thead><tr><SortTH field="name">Policy</SortTH><SortTH field="insurer">Insurer</SortTH><SortTH field="amount">Amount</SortTH><SortTH field="frequency">Frequency</SortTH><SortTH field="effective">Effective/mo</SortTH><SortTH field="notes">Notes</SortTH><TH w={30}></TH></tr></thead>
+        {(()=>{const insGetVal=(p,k)=>k==='name'?p.name:k==='insurer'?p.insurer:k==='amount'?p.amount:k==='frequency'?p.frequency:k==='effective'?insMonthlyCalc(p):k==='notes'?p.notes:'';const sorted=sortItems(insurance,insGetVal);return <div style={{overflowX:"auto"}}><table style={{width:"100%",borderCollapse:"collapse",minWidth:isMobile?560:undefined}}><thead><tr><SortTH field="name">Policy</SortTH><SortTH field="insurer">Insurer</SortTH><SortTH field="amount">Amount</SortTH><SortTH field="frequency">Frequency</SortTH><SortTH field="effective">Effective/mo</SortTH><SortTH field="notes">Notes</SortTH><TH w={30}></TH></tr></thead>
         <tbody>
           {sorted.map((p,i)=><tr key={p.id} onMouseEnter={e=>e.currentTarget.style.background=C.cardHover} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
             <td style={{padding:"10px 12px",fontSize:13,borderBottom:`1px solid ${C.border}11`}}><div style={{display:"flex",alignItems:"center",gap:8}}><div style={{width:8,height:8,borderRadius:4,background:PIE_COLORS[i]}}/><InlineEdit value={p.name} onChange={v=>insEdit(p.id,"name",v)} inputWidth={150}/></div></td>
@@ -2774,7 +2779,7 @@ function ExpensesPage({ subsP, setSubsP, subsPInScenario, setSubsPInScenario, ye
           </tr>)}
           <tr style={{background:C.bg}}><td style={{padding:"10px 12px",fontWeight:700}} colSpan={4}>Total</td><td style={{padding:"10px 12px",fontWeight:700,fontVariantNumeric:"tabular-nums"}}>{mask(fmtD(insMonthly))}</td><td colSpan={2}/></tr>
           <AddRow onClick={insAdd} label="Add insurance policy" colSpan={7}/>
-        </tbody></table>;})()}
+        </tbody></table></div>;})()}
       </Card>
     </div>}
   </div>;
@@ -2785,16 +2790,17 @@ function ExpensesPage({ subsP, setSubsP, subsPInScenario, setSubsPInScenario, ye
 // ───────────────────────────────────────────────────────────────
 function InsurancePage({ insurance, setInsurance }) {
   const totalY = insurance.reduce((s,p)=>s+p.yearly,0);
+  const winW = useWindowWidth(); const isMobile = winW < 768;
   const edit = (id,f,v)=>setInsurance(p=>p.map(x=>x.id===id?{...x,[f]:v}:x));
   const add = ()=>setInsurance(p=>[...p,{id:uid(),name:"New Policy",insurer:"",yearly:0,billing:""}]);
   const del = (id)=>setInsurance(p=>p.filter(x=>x.id!==id));
 
   return <div>
-    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginBottom:20}}>
+    <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:16,marginBottom:20}}>
       <StatCard label="Total Yearly" value={`CHF ${fmtD(totalY)}`} icon={Shield} color={C.accent}/>
       <StatCard label="Monthly Provision" value={`CHF ${fmtD(totalY/12)}`} sub="Save this amount every month" icon={PiggyBank} color={C.green}/>
     </div>
-    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginBottom:20}}>
+    <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:16,marginBottom:20}}>
       <Card title="Cost Breakdown">
         <ResponsiveContainer width="100%" height={260}><BarChart data={insurance} layout="vertical" margin={{left:130}}><XAxis type="number" tick={{fill:C.textDim,fontSize:11}} tickFormatter={fmt}/><YAxis type="category" dataKey="name" tick={{fill:C.textMuted,fontSize:12}} width={130}/><Tooltip formatter={v=>`CHF ${fmtD(v)}`} contentStyle={{background:C.card,border:`1px solid ${C.border}`,borderRadius:8,color:C.text,fontSize:13}} labelStyle={{color:C.textMuted}} itemStyle={{color:C.text}}/><Bar dataKey="yearly" radius={[0,6,6,0]}>{insurance.map((_,i)=><Cell key={i} fill={PIE_COLORS[i%PIE_COLORS.length]}/>)}</Bar></BarChart></ResponsiveContainer>
       </Card>
@@ -2825,6 +2831,7 @@ function InsurancePage({ insurance, setInsurance }) {
 // ───────────────────────────────────────────────────────────────
 function PillarPage({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes, insurance, hideBalances }) {
   const mask = (v) => hideBalances ? "••••" : v;
+  const winW = useWindowWidth(); const isMobile = winW < 768;
   const [yieldRate, setYieldRate] = useState(4);
   const [hoursPerWeek, setHoursPerWeek] = useState(40);
   const [purchase, setPurchase] = useState("");
@@ -2897,7 +2904,7 @@ function PillarPage({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes
 
     {/* Official Swiss 3-pillar system */}
     <div style={{fontSize:11,color:C.accent,fontWeight:700,textTransform:"uppercase",letterSpacing:0.5,marginBottom:8}}>Official Swiss 3-Pillar System (Drei-Saulen-System)</div>
-    <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:12,marginBottom:20}}>
+    <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"repeat(3,1fr)",gap:12,marginBottom:20}}>
       {officialPillars.map(p=><Card key={p.num} style={{borderTop:`3px solid ${p.color}`}}>
         <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12}}>
           <div style={{width:32,height:32,borderRadius:8,background:p.color+"22",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700,fontSize:13,color:p.color}}>{p.num}</div>
@@ -2910,7 +2917,7 @@ function PillarPage({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes
 
     {/* Personal extension pillars */}
     <div style={{fontSize:11,color:C.yellow,fontWeight:700,textTransform:"uppercase",letterSpacing:0.5,marginBottom:8}}>Personal Extension Pillars (Wealth Building)</div>
-    <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:12,marginBottom:24}}>
+    <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"repeat(2,1fr)",gap:12,marginBottom:24}}>
       {personalPillars.map(p=><Card key={p.num} style={{borderTop:`3px solid ${p.color}`}}>
         <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12}}>
           <div style={{width:32,height:32,borderRadius:8,background:p.color+"22",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700,fontSize:13,color:p.color}}>{p.num}</div>
@@ -2929,11 +2936,11 @@ function PillarPage({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes
       The calculation: <strong style={{color:C.accent}}>Essential costs × 12 months ÷ net yield %</strong> = capital needed.
       This is based on the <strong style={{color:C.text}}>4% rule</strong> (Trinity Study), adjusted for Swiss wealth tax. Two paths: <strong style={{color:C.accent}}>Money System</strong> (invest capital, live off returns) or <strong style={{color:C.teal}}>Business System</strong> (build revenue that replaces salary).
     </div>
-    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:16,marginBottom:24}}>
+    <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr 1fr",gap:16,marginBottom:24}}>
 
       {/* Money System */}
-      <Card style={{gridColumn:"1/3"}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:12}}>
+      <Card style={{gridColumn:isMobile?"1":"1/3"}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:12,flexWrap:"wrap",gap:12}}>
           <div>
             <div style={{fontSize:11,color:C.textMuted,marginBottom:4,textTransform:"uppercase",letterSpacing:.5}}>Money System Target</div>
             <div style={{fontSize:28,fontWeight:700,color:C.accent}}>CHF {mask(fmt(Math.round(moneySystemTarget)))}</div>
@@ -3004,7 +3011,7 @@ function PillarPage({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes
     <div style={{padding:"10px 14px",borderRadius:8,background:C.accent+"0a",border:`1px solid ${C.accent}15`,fontSize:11,color:C.textDim,lineHeight:1.7,marginBottom:16}}>
       <strong style={{color:C.text}}>The concept:</strong> Every purchase is paid for with your time. Your <strong style={{color:C.yellow}}>net hourly rate</strong> = annual net salary ÷ actual working hours (after vacation and public holidays). Enter any amount below to see how many hours, days, or weeks of work it really costs you.
     </div>
-    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
+    <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:16}}>
       <Card>
         <div style={{display:"flex",flexDirection:"column",gap:16}}>
           <div>
@@ -3314,6 +3321,7 @@ function ChatPanel({ accounts, scenarios, subsP, yearly, taxes, insurance, profi
 function PortfolioPage({ accounts, setAccounts, hideBalances, setChatOpen, setChatInput }) {
   const INVEST_TYPES = ['Investment', 'Crypto'];
   const mask = v => hideBalances ? '••••' : v;
+  const winW = useWindowWidth(); const isMobile = winW < 768;
 
   // ── Market data ──
   const allTickers = useMemo(() =>
@@ -3421,7 +3429,7 @@ function PortfolioPage({ accounts, setAccounts, hideBalances, setChatOpen, setCh
 
   return <div>
     {/* Summary stats */}
-    <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(200px,1fr))',gap:16,marginBottom:24}}>
+    <div style={{display:'grid',gridTemplateColumns:isMobile?'1fr 1fr':'repeat(auto-fit,minmax(200px,1fr))',gap:16,marginBottom:24}}>
       <StatCard label="Total Portfolio" value={`CHF ${mask(fmt(Math.round(totalPortfolio)))}`} icon={Wallet} color={C.accent}/>
       <StatCard label="Total Invested" value={`CHF ${mask(fmt(Math.round(totalInvested)))}`} sub="cost basis in positions" icon={TrendingUp} color={C.blue}/>
       <StatCard label="Current Value" value={`CHF ${mask(fmt(Math.round(totalCurrentVal)))}`} sub={lastFetched?`prices at ${lastFetched.toLocaleTimeString('de-CH',{hour:'2-digit',minute:'2-digit'})}`:'no live prices'} icon={BarChart3} color={C.teal}/>

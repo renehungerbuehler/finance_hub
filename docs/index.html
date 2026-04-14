@@ -4,9 +4,9 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Finance Hub — Self-Hosted Swiss Personal Finance Dashboard</title>
-  <meta name="description" content="A self-hosted personal finance dashboard built for Swiss residents. Track accounts, model budgets, follow your portfolio, and get AI-powered wealth advice — on your own hardware." />
+  <meta name="description" content="A self-hosted personal finance dashboard built for Swiss residents. Track accounts, import data with AI, follow your portfolio, and get AI-powered wealth advice — on your own hardware." />
   <meta property="og:title" content="Finance Hub — Self-Hosted Swiss Finance Dashboard" />
-  <meta property="og:description" content="Track accounts, model budgets, follow your portfolio, and get AI-powered wealth advice. Built for Swiss residents. Runs on your own hardware." />
+  <meta property="og:description" content="Track accounts, import statements with AI, follow your portfolio, and get AI-powered wealth advice. Built for Swiss residents. Runs on your own hardware." />
   <meta property="og:image" content="https://raw.githubusercontent.com/renehungerbuehler/finance_hub/main/screenshots/finance-hub-1.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
@@ -327,7 +327,7 @@
     Self-hosted · Privacy-first · Swiss-native
   </div>
   <h1>Your finances.<br/><span class="accent">On your own hardware.</span></h1>
-  <p>A personal finance dashboard built for Swiss residents. Track every account, model budget scenarios, live portfolio P&amp;L, and get AI-powered wealth advice — all running locally.</p>
+  <p>A personal finance dashboard built for Swiss residents. Track every account, import statements and bills with AI, model budget scenarios, live portfolio P&amp;L, and get AI-powered wealth advice — all running locally.</p>
   <div class="hero-actions">
     <a href="https://github.com/renehungerbuehler/finance_hub" class="btn btn-primary">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.3 3.44 9.8 8.21 11.39.6.11.82-.26.82-.58v-2.03c-3.34.72-4.04-1.61-4.04-1.61-.55-1.39-1.34-1.76-1.34-1.76-1.09-.74.08-.73.08-.73 1.21.09 1.85 1.24 1.85 1.24 1.07 1.84 2.81 1.31 3.5 1 .11-.78.42-1.31.76-1.61-2.67-.3-5.47-1.33-5.47-5.93 0-1.31.47-2.38 1.24-3.22-.13-.3-.54-1.52.12-3.18 0 0 1.01-.32 3.3 1.23a11.5 11.5 0 0 1 3-.4c1.02.005 2.04.14 3 .4 2.28-1.55 3.29-1.23 3.29-1.23.66 1.66.25 2.88.12 3.18.77.84 1.24 1.91 1.24 3.22 0 4.61-2.81 5.63-5.48 5.92.43.37.81 1.1.81 2.22v3.29c0 .32.21.7.82.58C20.56 21.8 24 17.3 24 12c0-6.63-5.37-12-12-12z"/></svg>
@@ -343,6 +343,7 @@
   <div class="stat"><div class="stat-value">7</div><div class="stat-label">App pages</div></div>
   <div class="stat"><div class="stat-value">3+2</div><div class="stat-label">Swiss pillar model</div></div>
   <div class="stat"><div class="stat-value">4</div><div class="stat-label">AI providers incl. local</div></div>
+  <div class="stat"><div class="stat-value">AI</div><div class="stat-label">File import everywhere</div></div>
   <div class="stat"><div class="stat-value">100%</div><div class="stat-label">Self-hosted</div></div>
   <div class="stat"><div class="stat-value">CHF</div><div class="stat-label">Native currency</div></div>
 </div>
@@ -397,7 +398,7 @@
 <section id="features">
   <div class="section-label">Features</div>
   <h2>Everything you need to track and grow wealth</h2>
-  <p class="section-sub">Built around real Swiss financial workflows — not a generic budgeting app adapted for CH.</p>
+  <p class="section-sub">Built around real Swiss financial workflows — with AI that reads your documents so you don't have to type everything in manually.</p>
 
   <div class="features-grid">
     <div class="feature-card">
@@ -413,7 +414,7 @@
     <div class="feature-card">
       <div class="f-icon" style="background:var(--tealBg)">🤖</div>
       <h3>AI Finance Advisor</h3>
-      <p>Claude Opus, GPT-4o, Gemini — or a fully local model via <strong style="color:var(--teal)">Ollama</strong>. Your full financial context is auto-injected. Multi-turn chat with SSE streaming. Pin any analysis as a dashboard card.</p>
+      <p>Claude, GPT-4o, Gemini — or a fully local model via <strong style="color:var(--teal)">Ollama</strong>. Your full financial context is auto-injected. Ask anything, or tap a ready-made quick-action. Pin any answer directly to your Dashboard as a permanent note.</p>
     </div>
     <div class="feature-card">
       <div class="f-icon" style="background:var(--yellowBg)">📅</div>
@@ -436,14 +437,14 @@
       <p>Financial freedom target using the 4% rule adjusted for Swiss wealth tax. Shows both the capital needed (money system) and the monthly revenue needed (business system).</p>
     </div>
     <div class="feature-card">
-      <div class="f-icon" style="background:var(--cyanBg)">📦</div>
-      <h3>Export / Import</h3>
-      <p>Full JSON backup and restore from the sidebar. All data — accounts, scenarios, tracker, expenses, taxes, insurance, settings — in one portable file.</p>
+      <div class="f-icon" style="background:var(--cyanBg)">📂</div>
+      <h3>AI-Powered File Import</h3>
+      <p>Drop a PDF, photo, or spreadsheet onto any section — accounts, subscriptions, recurring costs, insurance, or taxes — and the AI reads it and fills in the data automatically. Customise the extraction prompt per category for best results.</p>
     </div>
     <div class="feature-card">
       <div class="f-icon" style="background:var(--tealBg)">🔒</div>
       <h3>100% Private — incl. Local AI</h3>
-      <p>Runs entirely on your own hardware via Docker. No cloud sync, no third-party storage. Use <strong style="color:var(--teal)">Ollama</strong> to run a local LLM (e.g. Llama 3.2, Mistral) — not a single byte of your financial data leaves your machine.</p>
+      <p>Runs entirely on your own hardware via Docker. No cloud sync, no third-party storage. Use <strong style="color:var(--teal)">Ollama</strong> to run a local LLM (e.g. Llama 3.3, Mistral) — not a single byte of your financial data leaves your machine. Full JSON backup and restore from the sidebar.</p>
     </div>
   </div>
 </section>
@@ -454,36 +455,36 @@
 <section id="pages">
   <div class="section-label">Pages</div>
   <h2>Seven pages, one complete picture</h2>
-  <p class="section-sub">Every page feeds into the others — change a scenario and your dashboard, strategy, and AI context update instantly.</p>
+  <p class="section-sub">Every page feeds into the others — and every section supports AI file import, so you can drop a document anywhere to update your data.</p>
 
   <div class="pages-grid">
     <div class="page-card">
       <h3>🏠 Dashboard <span class="page-tag">overview</span></h3>
-      <p>Net worth card with liquid/locked split, survival runway, monthly cashflow bar chart, portfolio donut, stat cards, and pinned AI analysis cards.</p>
+      <p>Net worth with liquid/locked split, survival runway, cashflow chart, portfolio donut, and key stats. AI quick-action buttons launch instant analysis. Pin any AI answer as a permanent card right here.</p>
     </div>
     <div class="page-card">
       <h3>🏦 Accounts <span class="page-tag">data entry</span></h3>
-      <p>All accounts with balances, types (Checking, Investment, Crypto, Pension 2A/3A), institutions. Inline editable, sortable, import per account.</p>
+      <p>All accounts with balances, types (Checking, Investment, Crypto, Pension 2A/3A), and institutions. Inline editable and sortable. Upload a bank statement or screenshot and let AI fill in the balances.</p>
     </div>
     <div class="page-card">
       <h3>📈 Portfolio <span class="page-tag">live prices</span></h3>
-      <p>Expandable per-account positions with real-time Yahoo Finance prices, shares, avg buy price, current value, and P&amp;L. Allocation breakdown chart.</p>
+      <p>Expandable per-account positions with real-time Yahoo Finance prices, shares, avg buy price, current value, and P&amp;L. Allocation breakdown chart. AI-powered quick analysis with pinnable results.</p>
     </div>
     <div class="page-card">
       <h3>🎯 Scenarios <span class="page-tag">budgeting</span></h3>
-      <p>Editable budget models with incomes, payroll deductions, linked expenses with override amounts, savings targets, and investment allocations. PDF export.</p>
+      <p>Editable budget models with incomes, payroll deductions, linked expenses, savings targets, and investment allocations. Cashflow donut updates live. PDF export per scenario.</p>
     </div>
     <div class="page-card">
       <h3>📊 Tracker <span class="page-tag">monthly</span></h3>
-      <p>Year grid with per-account forecast rows and actual balance cells (highlighted in green). Sync from Accounts. Forecast vs result chart. Compound interest calculator.</p>
+      <p>Year grid with per-account forecast rows and actual balance cells. Sync from Accounts. Forecast vs result chart. Compound interest calculator.</p>
     </div>
     <div class="page-card">
       <h3>💳 Expenses <span class="page-tag">costs</span></h3>
-      <p>Subscriptions, recurring costs, insurance policies, multi-year tax records. All normalised to monthly and yearly CHF. Sortable tables, category breakdown.</p>
+      <p>Subscriptions, recurring costs, insurance policies, and multi-year tax records — all with AI import. Drop a bill, invoice, or payslip and the AI extracts the numbers. All amounts normalised to monthly and yearly CHF.</p>
     </div>
     <div class="page-card">
       <h3>🧭 Strategy <span class="page-tag">planning</span></h3>
-      <p>Swiss 3+2 pillar framework, FIRE number (money system + business system), net hourly rate, and indentured time calculator (what does that car cost in work days?).</p>
+      <p>Swiss 3+2 pillar framework, FIRE number (money system + business system), net hourly rate, and the indentured time calculator — see exactly what any purchase costs in working days.</p>
     </div>
   </div>
 </section>
