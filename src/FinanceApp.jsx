@@ -6,26 +6,26 @@ import { jsPDF } from "jspdf";
 const API_URL = `http://${window.location.hostname}:3003/api`;
 
 const DARK = {
-  bg: "#0f1117", card: "#1a1d27", cardHover: "#222632", border: "#2a2e3a",
-  text: "#e4e4e7", textMuted: "#a1a1aa", textDim: "#71717a",
-  accent: "#2563eb", accentLight: "#60a5fa", accentDim: "#1d4ed8",
-  green: "#22c55e", greenBg: "rgba(34,197,94,0.1)",
-  red: "#ef4444", redBg: "rgba(239,68,68,0.1)",
-  blue: "#3b82f6", blueBg: "rgba(59,130,246,0.1)",
-  orange: "#f97316", orangeBg: "rgba(249,115,22,0.1)",
-  teal: "#14b8a6", tealBg: "rgba(20,184,166,0.1)",
-  yellow: "#eab308", cyan: "#06b6d4",
+  bg: "#141310", card: "#1e1c18", cardHover: "#28261f", border: "#3a3630",
+  text: "#e8e5de", textMuted: "#9a9688", textDim: "#6b6760",
+  accent: "#e8c96a", accentLight: "#f0d88a", accentDim: "#c8a84b",
+  green: "#3d7a52", greenBg: "rgba(61,122,82,0.1)",
+  red: "#c45454", redBg: "rgba(196,84,84,0.1)",
+  blue: "#e8c96a", blueBg: "rgba(232,201,106,0.1)",
+  orange: "#e8a840", orangeBg: "rgba(232,168,64,0.1)",
+  teal: "#5a9a6a", tealBg: "rgba(90,154,106,0.1)",
+  yellow: "#f0d88a", cyan: "#7aaa8a",
 };
 const LIGHT = {
-  bg: "#f5f5f7", card: "#ffffff", cardHover: "#f0f0f2", border: "#e0e0e4",
-  text: "#1a1a2e", textMuted: "#52525b", textDim: "#a1a1aa",
-  accent: "#2563eb", accentLight: "#2563eb", accentDim: "#1d4ed8",
-  green: "#16a34a", greenBg: "rgba(22,163,74,0.08)",
-  red: "#dc2626", redBg: "rgba(220,38,38,0.08)",
-  blue: "#2563eb", blueBg: "rgba(37,99,235,0.08)",
-  orange: "#ea580c", orangeBg: "rgba(234,88,12,0.08)",
-  teal: "#0d9488", tealBg: "rgba(13,148,136,0.08)",
-  yellow: "#ca8a04", cyan: "#0891b2",
+  bg: "#f5f3ee", card: "#ffffff", cardHover: "#eeebe3", border: "#e4e0d5",
+  text: "#1a1a18", textMuted: "#3d3d38", textDim: "#7a7a72",
+  accent: "#c8a84b", accentLight: "#e8c96a", accentDim: "#b08f3a",
+  green: "#2d5a3d", greenBg: "rgba(45,90,61,0.08)",
+  red: "#8b2e2e", redBg: "rgba(139,46,46,0.08)",
+  blue: "#c8a84b", blueBg: "rgba(200,168,75,0.08)",
+  orange: "#d4940a", orangeBg: "rgba(212,148,10,0.08)",
+  teal: "#3d7a52", tealBg: "rgba(61,122,82,0.08)",
+  yellow: "#e8c96a", cyan: "#5a8a6a",
 };
 let C = DARK;
 const PIE_COLORS = [C.accent, C.green, C.orange, C.blue, C.teal, C.yellow, C.cyan, C.red];
