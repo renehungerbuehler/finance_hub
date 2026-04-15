@@ -11,9 +11,9 @@ const DARK = {
   accent: "#e8c96a", accentLight: "#f0d88a", accentDim: "#c8a84b",
   green: "#3d7a52", greenBg: "rgba(61,122,82,0.1)",
   red: "#c45454", redBg: "rgba(196,84,84,0.1)",
-  blue: "#e8c96a", blueBg: "rgba(232,201,106,0.1)",
+  blue: "#6a9ab0", blueBg: "rgba(106,154,176,0.1)",
   orange: "#e8a840", orangeBg: "rgba(232,168,64,0.1)",
-  teal: "#5a9a6a", tealBg: "rgba(90,154,106,0.1)",
+  teal: "#5aaa9a", tealBg: "rgba(90,170,154,0.1)",
   yellow: "#f0d88a", cyan: "#7aaa8a",
 };
 const LIGHT = {
@@ -22,13 +22,13 @@ const LIGHT = {
   accent: "#c8a84b", accentLight: "#e8c96a", accentDim: "#b08f3a",
   green: "#2d5a3d", greenBg: "rgba(45,90,61,0.08)",
   red: "#8b2e2e", redBg: "rgba(139,46,46,0.08)",
-  blue: "#c8a84b", blueBg: "rgba(200,168,75,0.08)",
+  blue: "#5a7a8a", blueBg: "rgba(90,122,138,0.08)",
   orange: "#d4940a", orangeBg: "rgba(212,148,10,0.08)",
-  teal: "#3d7a52", tealBg: "rgba(61,122,82,0.08)",
+  teal: "#3a7a7a", tealBg: "rgba(58,122,122,0.08)",
   yellow: "#e8c96a", cyan: "#5a8a6a",
 };
 let C = DARK;
-const PIE_COLORS = [C.accent, C.green, C.orange, C.blue, C.teal, C.yellow, C.cyan, C.red];
+const pieColors = () => [C.accent, C.green, C.orange, C.blue, C.teal, C.yellow, C.cyan, C.red];
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 const fmt = (n) => (n === null || n === undefined) ? "—" : n.toLocaleString("de-CH", { minimumFractionDigits: 0, maximumFractionDigits: 0 });
 const fmtD = (n) => n.toLocaleString("de-CH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -83,7 +83,7 @@ const Badge = ({ children, color = C.accent, bg, onRemove }) => (
 const Card = ({ title, subtitle, children, style: s, headerRight }) => (
   <div style={{ background: C.card, borderRadius: 12, border: `1px solid ${C.border}`, padding: "20px 24px", ...s }}>
     {(title || headerRight) && <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: subtitle ? 4 : 16 }}>
-      {title && <h3 style={{ margin: 0, fontSize: 15, fontWeight: 600, color: C.text }}>{title}</h3>}
+      {title && <h3 style={{ margin: 0, fontSize: 15, fontWeight: 400, fontFamily:"'Fraunces',serif", color: C.text }}>{title}</h3>}
       {headerRight}
     </div>}
     {subtitle && <p style={{ margin: "0 0 16px", fontSize: 13, color: C.textMuted }}>{subtitle}</p>}
@@ -95,8 +95,8 @@ const StatCard = ({ label, value, sub, icon: Icon, color = C.accent, iconColor, 
   <Card style={{ display: "flex", alignItems: "center", gap: compact ? 10 : 16 }}>
     <div style={{ width: compact?34:44, height: compact?34:44, borderRadius: 10, background: (iconColor||color) + "1a", display: "flex", alignItems: "center", justifyContent: "center", flexShrink:0 }}><Icon size={compact?17:22} color={iconColor||color} /></div>
     <div style={{minWidth:0}}>
-      <div style={{ fontSize: compact?11:13, color: C.textMuted, marginBottom: 2 }}>{label}</div>
-      <div style={{ fontSize: compact?15:22, fontWeight: 700, color: C.text, lineHeight:1.2 }}>{value}</div>
+      <div style={{ fontSize: compact?11:12, fontFamily:"'DM Mono',monospace", letterSpacing:"0.06em", textTransform:"uppercase", color: C.textMuted, marginBottom: 2 }}>{label}</div>
+      <div style={{ fontSize: compact?15:22, fontWeight: 300, fontFamily:"'Fraunces',serif", color: C.text, lineHeight:1.2 }}>{value}</div>
       {sub && <div style={{ fontSize: compact?10:12, color: C.textDim, marginTop: 2 }}>{sub}</div>}
     </div>
   </Card>
@@ -106,7 +106,7 @@ const Tab = ({ active, children, onClick }) => (
   <button onClick={onClick} style={{ padding: "8px 16px", borderRadius: 8, border: "none", cursor: "pointer", fontSize: 13, fontWeight: 500, color: active ? C.text : C.textMuted, background: active ? C.accent + "22" : "transparent" }}>{children}</button>
 );
 
-const TH = ({ children, w }) => <th style={{ padding: "10px 12px", textAlign: "left", fontSize: 12, fontWeight: 600, color: C.textDim, borderBottom: `1px solid ${C.border}`, textTransform: "uppercase", letterSpacing: 0.5, width: w }}>{children}</th>;
+const TH = ({ children, w }) => <th style={{ padding: "10px 12px", textAlign: "left", fontSize: 11, fontWeight: 400, fontFamily:"'DM Mono',monospace", color: C.textDim, borderBottom: `1px solid ${C.border}`, textTransform: "uppercase", letterSpacing: "0.08em", width: w }}>{children}</th>;
 
 // Inline editable text — click to edit, Enter to save, Escape to cancel
 function InlineEdit({ value, onChange, style: s, placeholder, inputWidth }) {
@@ -479,7 +479,7 @@ function AccountsPage({ accounts, setAccounts, hideBalances, onAccountsUpdated, 
           placeholder="Leave blank to use the built-in default extraction prompt…"
           rows={28}
           style={{width:'100%',padding:'10px 12px',borderRadius:8,border:`1px solid ${C.border}`,background:C.bg,color:C.text,
-            fontSize:12,outline:'none',resize:'vertical',boxSizing:'border-box',fontFamily:'monospace',lineHeight:1.5}}
+            fontSize:12,outline:'none',resize:'vertical',boxSizing:'border-box',fontFamily:"'DM Mono',monospace",lineHeight:1.5}}
         />
         {extractionPrompt && <div style={{marginTop:6,fontSize:11,color:C.green}}>✓ Custom extraction prompt active — will be used instead of the default.</div>}
         <button onClick={()=>setExtractionPromptOpen(false)} style={{width:'100%',padding:'11px',borderRadius:8,border:'none',background:C.accent,color:'#fff',fontSize:14,fontWeight:600,cursor:'pointer',marginTop:12}}>
@@ -839,9 +839,9 @@ function Dashboard({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes,
 
     <div style={{ display:"grid", gridTemplateColumns:isMobile?"1fr":"repeat(auto-fit,minmax(300px,1fr))", gap:16, marginBottom:24 }}>
       <Card title="Portfolio Breakdown">
-        <ResponsiveContainer width="100%" height={isMobile?200:280}><PieChart><Pie data={pieData} cx="50%" cy="50%" outerRadius={100} innerRadius={55} dataKey="value" paddingAngle={2} stroke="none">{pieData.map((_,i)=><Cell key={i} fill={PIE_COLORS[i%PIE_COLORS.length]}/>)}</Pie><Tooltip formatter={v=>`CHF ${fmt(v)}`} contentStyle={{background:C.card,border:`1px solid ${C.border}`,borderRadius:8,color:C.text,fontSize:13}} labelStyle={{color:C.textMuted}} itemStyle={{color:C.text}}/></PieChart></ResponsiveContainer>
+        <ResponsiveContainer width="100%" height={isMobile?200:280}><PieChart><Pie data={pieData} cx="50%" cy="50%" outerRadius={100} innerRadius={55} dataKey="value" paddingAngle={2} stroke="none">{pieData.map((_,i)=><Cell key={i} fill={pieColors()[i%pieColors().length]}/>)}</Pie><Tooltip formatter={v=>`CHF ${fmt(v)}`} contentStyle={{background:C.card,border:`1px solid ${C.border}`,borderRadius:8,color:C.text,fontSize:13}} labelStyle={{color:C.textMuted}} itemStyle={{color:C.text}}/></PieChart></ResponsiveContainer>
         {pieData.map((d,i)=>{const total=pieData.reduce((s,x)=>s+x.value,0); return <div key={i} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"5px 0",borderBottom:i<pieData.length-1?`1px solid ${C.border}22`:"none"}}>
-          <div style={{display:"flex",alignItems:"center",gap:8}}><div style={{width:10,height:10,borderRadius:3,background:PIE_COLORS[i%PIE_COLORS.length],flexShrink:0}}/><span style={{fontSize:12,color:C.textMuted}}>{d.name}</span></div>
+          <div style={{display:"flex",alignItems:"center",gap:8}}><div style={{width:10,height:10,borderRadius:3,background:pieColors()[i%pieColors().length],flexShrink:0}}/><span style={{fontSize:12,color:C.textMuted}}>{d.name}</span></div>
           <div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:12,fontWeight:600,color:C.text,fontVariantNumeric:"tabular-nums"}}>CHF {mask(fmt(d.value))}</span><span style={{fontSize:11,color:C.textDim,width:40,textAlign:"right"}}>{total>0?(d.value/total*100).toFixed(1):0}%</span></div>
         </div>})}
       </Card>
@@ -1662,7 +1662,7 @@ function ScenariosPage({ scenarios, setScenarios, subsP, subsPInScenario, yearly
           placeholder="Leave blank to use the built-in default payroll extraction prompt…"
           rows={28}
           style={{width:'100%',padding:'10px 12px',borderRadius:8,border:`1px solid ${C.border}`,background:C.bg,color:C.text,
-            fontSize:12,outline:'none',resize:'vertical',boxSizing:'border-box',fontFamily:'monospace',lineHeight:1.5}}
+            fontSize:12,outline:'none',resize:'vertical',boxSizing:'border-box',fontFamily:"'DM Mono',monospace",lineHeight:1.5}}
         />
         {payrollExtractionPrompt && <div style={{marginTop:6,fontSize:11,color:C.green}}>✓ Custom extraction prompt active — will be used instead of the default.</div>}
         <button onClick={()=>setPayrollPromptOpen(false)} style={{width:'100%',padding:'11px',borderRadius:8,border:'none',background:C.accent,color:'#fff',fontSize:14,fontWeight:600,cursor:'pointer',marginTop:12}}>
@@ -2202,11 +2202,11 @@ function TrackerPage({ tracker, setTracker, accounts: portfolioAccounts, hideBal
 
     {view==="compound" && <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"320px 1fr",gap:16}}>
       <Card title="Parameters"><div style={{display:"flex",flexDirection:"column",gap:20}}>
-        <div><label style={{fontSize:12,color:C.textMuted}}>Starting Balance</label><div style={{fontSize:22,fontWeight:700,color:C.accent}}>CHF {mask(fmt(currentTotal))}</div></div>
+        <div><label style={{fontSize:12,color:C.textMuted}}>Starting Balance</label><div style={{fontSize:22,fontWeight:300,fontFamily:"'Fraunces',serif",color:C.accent}}>CHF {mask(fmt(currentTotal))}</div></div>
         <div><label style={{fontSize:12,color:C.textMuted,display:"flex",justifyContent:"space-between"}}><span>Annual Growth Rate</span><span style={{color:C.accent,fontWeight:600}}>{growthRate}%</span></label><input type="range" min={0} max={15} step={0.5} value={growthRate} onChange={e=>setGrowthRate(Number(e.target.value))} style={{width:"100%",accentColor:C.accent}}/></div>
         <div><label style={{fontSize:12,color:C.textMuted,display:"flex",justifyContent:"space-between"}}><span>Monthly Contribution</span><span style={{color:C.accent,fontWeight:600}}>CHF {fmt(monthlyAdd)}</span></label><input type="range" min={0} max={8000} step={100} value={monthlyAdd} onChange={e=>setMonthlyAdd(Number(e.target.value))} style={{width:"100%",accentColor:C.accent}}/></div>
         <div><label style={{fontSize:12,color:C.textMuted,display:"flex",justifyContent:"space-between"}}><span>Time Horizon</span><span style={{color:C.accent,fontWeight:600}}>{years} years</span></label><input type="range" min={1} max={40} step={1} value={years} onChange={e=>setYears(Number(e.target.value))} style={{width:"100%",accentColor:C.accent}}/></div>
-        <div style={{padding:16,background:C.bg,borderRadius:10}}><div style={{fontSize:12,color:C.textMuted}}>Projected in {years} years</div><div style={{fontSize:28,fontWeight:700,color:C.green}}>CHF {mask(fmt(proj[proj.length-1].balance))}</div><div style={{fontSize:12,color:C.textDim,marginTop:4}}>Contributed: CHF {mask(fmt(proj[proj.length-1].contributed))}</div><div style={{fontSize:12,color:C.accentLight}}>Growth: CHF {mask(fmt(proj[proj.length-1].balance-proj[proj.length-1].contributed))}</div></div>
+        <div style={{padding:16,background:C.bg,borderRadius:10}}><div style={{fontSize:12,color:C.textMuted}}>Projected in {years} years</div><div style={{fontSize:28,fontWeight:300,fontFamily:"'Fraunces',serif",color:C.green}}>CHF {mask(fmt(proj[proj.length-1].balance))}</div><div style={{fontSize:12,color:C.textDim,marginTop:4}}>Contributed: CHF {mask(fmt(proj[proj.length-1].contributed))}</div><div style={{fontSize:12,color:C.accentLight}}>Growth: CHF {mask(fmt(proj[proj.length-1].balance-proj[proj.length-1].contributed))}</div></div>
       </div></Card>
       <Card title="Compound Growth Projection">
         <ResponsiveContainer width="100%" height={isMobile?250:400}><AreaChart data={proj}><CartesianGrid strokeDasharray="3 3" stroke={C.border}/><XAxis dataKey="year" tick={{fill:C.textDim,fontSize:11}}/><YAxis tick={{fill:C.textDim,fontSize:11}} tickFormatter={v=>v>=1e6?`${(v/1e6).toFixed(1)}M`:`${Math.round(v/1000)}k`}/><Tooltip formatter={v=>`CHF ${fmt(v)}`} contentStyle={{background:C.card,border:`1px solid ${C.border}`,borderRadius:8,color:C.text,fontSize:13}} labelStyle={{color:C.textMuted}} itemStyle={{color:C.text}}/><Legend/><Area type="monotone" dataKey="contributed" fill={C.blue+"33"} stroke={C.blue} strokeWidth={1.5} name="Contributed"/><Area type="monotone" dataKey="balance" fill={C.green+"33"} stroke={C.green} strokeWidth={2} name="With Growth"/></AreaChart></ResponsiveContainer>
@@ -2677,7 +2677,7 @@ function ExpensesPage({ subsP, setSubsP, subsPInScenario, setSubsPInScenario, ye
             <button onClick={()=>setPrompt('')} style={{padding:'6px 12px',borderRadius:6,border:`1px solid ${C.border}`,background:'transparent',color:C.textMuted,fontSize:12,cursor:'pointer'}}>Reset to blank</button>
           </div>
           <textarea value={prompt} onChange={e=>setPrompt(e.target.value)} placeholder="Leave blank to use the built-in default…" rows={24}
-            style={{width:'100%',padding:'10px 12px',borderRadius:8,border:`1px solid ${C.border}`,background:C.bg,color:C.text,fontSize:12,outline:'none',resize:'vertical',boxSizing:'border-box',fontFamily:'monospace',lineHeight:1.5}}/>
+            style={{width:'100%',padding:'10px 12px',borderRadius:8,border:`1px solid ${C.border}`,background:C.bg,color:C.text,fontSize:12,outline:'none',resize:'vertical',boxSizing:'border-box',fontFamily:"'DM Mono',monospace",lineHeight:1.5}}/>
           {prompt && <div style={{marginTop:6,fontSize:11,color:C.green}}>✓ Custom prompt active — will be used instead of the default.</div>}
           <button onClick={()=>setExpPromptSection(null)} style={{width:'100%',padding:'11px',borderRadius:8,border:'none',background:C.accent,color:'#fff',fontSize:14,fontWeight:600,cursor:'pointer',marginTop:12}}>Save & Close</button>
         </div>
@@ -2800,12 +2800,12 @@ function ExpensesPage({ subsP, setSubsP, subsPInScenario, setSubsPInScenario, ye
         if (allSubs.length === 0) return null;
         return <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:16}}>
           <Card title="Cost Breakdown (effective/mo)">
-            <ResponsiveContainer width="100%" height={Math.max(180, allSubs.length*28)}><BarChart data={allSubs.map(s=>({name:s.name,value:s.effective}))} layout="vertical" margin={{left:130}}><XAxis type="number" tick={{fill:C.textDim,fontSize:11}} tickFormatter={fmt}/><YAxis type="category" dataKey="name" tick={{fill:C.textMuted,fontSize:12}} width={130}/><Tooltip formatter={v=>`CHF ${fmtD(v)}/mo`} contentStyle={{background:C.card,border:`1px solid ${C.border}`,borderRadius:8,color:C.text,fontSize:13}} labelStyle={{color:C.textMuted}} itemStyle={{color:C.text}}/><Bar dataKey="value" radius={[0,6,6,0]}>{allSubs.map((_,i)=><Cell key={i} fill={PIE_COLORS[i%PIE_COLORS.length]}/>)}</Bar></BarChart></ResponsiveContainer>
+            <ResponsiveContainer width="100%" height={Math.max(180, allSubs.length*28)}><BarChart data={allSubs.map(s=>({name:s.name,value:s.effective}))} layout="vertical" margin={{left:130}}><XAxis type="number" tick={{fill:C.textDim,fontSize:11}} tickFormatter={fmt}/><YAxis type="category" dataKey="name" tick={{fill:C.textMuted,fontSize:12}} width={130}/><Tooltip formatter={v=>`CHF ${fmtD(v)}/mo`} contentStyle={{background:C.card,border:`1px solid ${C.border}`,borderRadius:8,color:C.text,fontSize:13}} labelStyle={{color:C.textMuted}} itemStyle={{color:C.text}}/><Bar dataKey="value" radius={[0,6,6,0]}>{allSubs.map((_,i)=><Cell key={i} fill={pieColors()[i%pieColors().length]}/>)}</Bar></BarChart></ResponsiveContainer>
           </Card>
           <Card title="Share of Total">
-            <ResponsiveContainer width="100%" height={200}><PieChart><Pie data={allSubs.map(s=>({name:s.name,value:s.effective}))} cx="50%" cy="50%" outerRadius={80} innerRadius={45} dataKey="value" paddingAngle={2} stroke="none">{allSubs.map((_,i)=><Cell key={i} fill={PIE_COLORS[i%PIE_COLORS.length]}/>)}</Pie><Tooltip formatter={v=>`CHF ${fmtD(v)}/mo`} contentStyle={{background:C.card,border:`1px solid ${C.border}`,borderRadius:8,color:C.text,fontSize:13}} labelStyle={{color:C.textMuted}} itemStyle={{color:C.text}}/></PieChart></ResponsiveContainer>
+            <ResponsiveContainer width="100%" height={200}><PieChart><Pie data={allSubs.map(s=>({name:s.name,value:s.effective}))} cx="50%" cy="50%" outerRadius={80} innerRadius={45} dataKey="value" paddingAngle={2} stroke="none">{allSubs.map((_,i)=><Cell key={i} fill={pieColors()[i%pieColors().length]}/>)}</Pie><Tooltip formatter={v=>`CHF ${fmtD(v)}/mo`} contentStyle={{background:C.card,border:`1px solid ${C.border}`,borderRadius:8,color:C.text,fontSize:13}} labelStyle={{color:C.textMuted}} itemStyle={{color:C.text}}/></PieChart></ResponsiveContainer>
             {allSubs.map((s,i)=><div key={i} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"4px 0",borderBottom:i<allSubs.length-1?`1px solid ${C.border}22`:"none"}}>
-              <div style={{display:"flex",alignItems:"center",gap:8}}><div style={{width:8,height:8,borderRadius:3,background:PIE_COLORS[i%PIE_COLORS.length],flexShrink:0}}/><span style={{fontSize:11,color:C.textMuted}}>{s.name}</span></div>
+              <div style={{display:"flex",alignItems:"center",gap:8}}><div style={{width:8,height:8,borderRadius:3,background:pieColors()[i%pieColors().length],flexShrink:0}}/><span style={{fontSize:11,color:C.textMuted}}>{s.name}</span></div>
               <div style={{display:"flex",alignItems:"center",gap:6}}><span style={{fontSize:11,fontWeight:600,color:C.text,fontVariantNumeric:"tabular-nums"}}>CHF {mask(fmtD(s.effective))}</span><span style={{fontSize:10,color:C.textDim,width:36,textAlign:"right"}}>{subTotal>0?(s.effective/subTotal*100).toFixed(0):0}%</span></div>
             </div>)}
           </Card>
@@ -2818,12 +2818,12 @@ function ExpensesPage({ subsP, setSubsP, subsPInScenario, setSubsPInScenario, ye
       <ImportBar section="recurring" color={C.blue}/>
       {yearly.filter(e=>recMonthly(e)>0).length > 0 && <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:16}}>
         <Card title="Cost Breakdown (effective/mo)">
-          <ResponsiveContainer width="100%" height={Math.max(180, yearly.filter(e=>recMonthly(e)>0).length*28)}><BarChart data={yearly.filter(e=>recMonthly(e)>0).map(e=>({name:e.name,value:recMonthly(e)}))} layout="vertical" margin={{left:130}}><XAxis type="number" tick={{fill:C.textDim,fontSize:11}} tickFormatter={fmt}/><YAxis type="category" dataKey="name" tick={{fill:C.textMuted,fontSize:12}} width={130}/><Tooltip formatter={v=>`CHF ${fmtD(v)}/mo`} contentStyle={{background:C.card,border:`1px solid ${C.border}`,borderRadius:8,color:C.text,fontSize:13}} labelStyle={{color:C.textMuted}} itemStyle={{color:C.text}}/><Bar dataKey="value" radius={[0,6,6,0]}>{yearly.filter(e=>recMonthly(e)>0).map((_,i)=><Cell key={i} fill={PIE_COLORS[i%PIE_COLORS.length]}/>)}</Bar></BarChart></ResponsiveContainer>
+          <ResponsiveContainer width="100%" height={Math.max(180, yearly.filter(e=>recMonthly(e)>0).length*28)}><BarChart data={yearly.filter(e=>recMonthly(e)>0).map(e=>({name:e.name,value:recMonthly(e)}))} layout="vertical" margin={{left:130}}><XAxis type="number" tick={{fill:C.textDim,fontSize:11}} tickFormatter={fmt}/><YAxis type="category" dataKey="name" tick={{fill:C.textMuted,fontSize:12}} width={130}/><Tooltip formatter={v=>`CHF ${fmtD(v)}/mo`} contentStyle={{background:C.card,border:`1px solid ${C.border}`,borderRadius:8,color:C.text,fontSize:13}} labelStyle={{color:C.textMuted}} itemStyle={{color:C.text}}/><Bar dataKey="value" radius={[0,6,6,0]}>{yearly.filter(e=>recMonthly(e)>0).map((_,i)=><Cell key={i} fill={pieColors()[i%pieColors().length]}/>)}</Bar></BarChart></ResponsiveContainer>
         </Card>
         <Card title="Share of Total">
-          <ResponsiveContainer width="100%" height={200}><PieChart><Pie data={yearly.filter(e=>recMonthly(e)>0).map(e=>({name:e.name,value:recMonthly(e)}))} cx="50%" cy="50%" outerRadius={80} innerRadius={45} dataKey="value" paddingAngle={2} stroke="none">{yearly.filter(e=>recMonthly(e)>0).map((_,i)=><Cell key={i} fill={PIE_COLORS[i%PIE_COLORS.length]}/>)}</Pie><Tooltip formatter={v=>`CHF ${fmtD(v)}/mo`} contentStyle={{background:C.card,border:`1px solid ${C.border}`,borderRadius:8,color:C.text,fontSize:13}} labelStyle={{color:C.textMuted}} itemStyle={{color:C.text}}/></PieChart></ResponsiveContainer>
+          <ResponsiveContainer width="100%" height={200}><PieChart><Pie data={yearly.filter(e=>recMonthly(e)>0).map(e=>({name:e.name,value:recMonthly(e)}))} cx="50%" cy="50%" outerRadius={80} innerRadius={45} dataKey="value" paddingAngle={2} stroke="none">{yearly.filter(e=>recMonthly(e)>0).map((_,i)=><Cell key={i} fill={pieColors()[i%pieColors().length]}/>)}</Pie><Tooltip formatter={v=>`CHF ${fmtD(v)}/mo`} contentStyle={{background:C.card,border:`1px solid ${C.border}`,borderRadius:8,color:C.text,fontSize:13}} labelStyle={{color:C.textMuted}} itemStyle={{color:C.text}}/></PieChart></ResponsiveContainer>
           {yearly.filter(e=>recMonthly(e)>0).map((e,i)=><div key={i} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"4px 0",borderBottom:i<yearly.filter(x=>recMonthly(x)>0).length-1?`1px solid ${C.border}22`:"none"}}>
-            <div style={{display:"flex",alignItems:"center",gap:8}}><div style={{width:8,height:8,borderRadius:3,background:PIE_COLORS[i%PIE_COLORS.length],flexShrink:0}}/><span style={{fontSize:11,color:C.textMuted}}>{e.name}</span></div>
+            <div style={{display:"flex",alignItems:"center",gap:8}}><div style={{width:8,height:8,borderRadius:3,background:pieColors()[i%pieColors().length],flexShrink:0}}/><span style={{fontSize:11,color:C.textMuted}}>{e.name}</span></div>
             <div style={{display:"flex",alignItems:"center",gap:6}}><span style={{fontSize:11,fontWeight:600,color:C.text,fontVariantNumeric:"tabular-nums"}}>CHF {mask(fmtD(recMonthly(e)))}</span><span style={{fontSize:10,color:C.textDim,width:36,textAlign:"right"}}>{yTotal>0?(recMonthly(e)/yTotal*100).toFixed(0):0}%</span></div>
           </div>)}
         </Card>
@@ -2886,12 +2886,12 @@ function ExpensesPage({ subsP, setSubsP, subsPInScenario, setSubsPInScenario, ye
       <ImportBar section="insurance" color={C.green}/>
       <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:16}}>
         <Card title="Cost Breakdown (effective/mo)">
-          <ResponsiveContainer width="100%" height={260}><BarChart data={insurance.map(p=>({name:p.name,monthly:insMonthlyCalc(p)}))} layout="vertical" margin={{left:130}}><XAxis type="number" tick={{fill:C.textDim,fontSize:11}} tickFormatter={fmt}/><YAxis type="category" dataKey="name" tick={{fill:C.textMuted,fontSize:12}} width={130}/><Tooltip formatter={v=>`CHF ${fmtD(v)}/mo`} contentStyle={{background:C.card,border:`1px solid ${C.border}`,borderRadius:8,color:C.text,fontSize:13}} labelStyle={{color:C.textMuted}} itemStyle={{color:C.text}}/><Bar dataKey="monthly" radius={[0,6,6,0]}>{insurance.map((_,i)=><Cell key={i} fill={PIE_COLORS[i%PIE_COLORS.length]}/>)}</Bar></BarChart></ResponsiveContainer>
+          <ResponsiveContainer width="100%" height={260}><BarChart data={insurance.map(p=>({name:p.name,monthly:insMonthlyCalc(p)}))} layout="vertical" margin={{left:130}}><XAxis type="number" tick={{fill:C.textDim,fontSize:11}} tickFormatter={fmt}/><YAxis type="category" dataKey="name" tick={{fill:C.textMuted,fontSize:12}} width={130}/><Tooltip formatter={v=>`CHF ${fmtD(v)}/mo`} contentStyle={{background:C.card,border:`1px solid ${C.border}`,borderRadius:8,color:C.text,fontSize:13}} labelStyle={{color:C.textMuted}} itemStyle={{color:C.text}}/><Bar dataKey="monthly" radius={[0,6,6,0]}>{insurance.map((_,i)=><Cell key={i} fill={pieColors()[i%pieColors().length]}/>)}</Bar></BarChart></ResponsiveContainer>
         </Card>
         <Card title="Share of Total">
-          <ResponsiveContainer width="100%" height={200}><PieChart><Pie data={insurance.map(p=>({name:p.name,value:insMonthlyCalc(p)}))} cx="50%" cy="50%" outerRadius={80} innerRadius={45} dataKey="value" paddingAngle={2} stroke="none">{insurance.map((_,i)=><Cell key={i} fill={PIE_COLORS[i%PIE_COLORS.length]}/>)}</Pie><Tooltip formatter={v=>`CHF ${fmtD(v)}/mo`} contentStyle={{background:C.card,border:`1px solid ${C.border}`,borderRadius:8,color:C.text,fontSize:13}} labelStyle={{color:C.textMuted}} itemStyle={{color:C.text}}/></PieChart></ResponsiveContainer>
+          <ResponsiveContainer width="100%" height={200}><PieChart><Pie data={insurance.map(p=>({name:p.name,value:insMonthlyCalc(p)}))} cx="50%" cy="50%" outerRadius={80} innerRadius={45} dataKey="value" paddingAngle={2} stroke="none">{insurance.map((_,i)=><Cell key={i} fill={pieColors()[i%pieColors().length]}/>)}</Pie><Tooltip formatter={v=>`CHF ${fmtD(v)}/mo`} contentStyle={{background:C.card,border:`1px solid ${C.border}`,borderRadius:8,color:C.text,fontSize:13}} labelStyle={{color:C.textMuted}} itemStyle={{color:C.text}}/></PieChart></ResponsiveContainer>
           {insurance.map((p,i)=>{const total=insurance.reduce((s,x)=>s+insMonthlyCalc(x),0); return <div key={i} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"4px 0",borderBottom:i<insurance.length-1?`1px solid ${C.border}22`:"none"}}>
-            <div style={{display:"flex",alignItems:"center",gap:8}}><div style={{width:8,height:8,borderRadius:3,background:PIE_COLORS[i%PIE_COLORS.length],flexShrink:0}}/><span style={{fontSize:11,color:C.textMuted}}>{p.name}</span></div>
+            <div style={{display:"flex",alignItems:"center",gap:8}}><div style={{width:8,height:8,borderRadius:3,background:pieColors()[i%pieColors().length],flexShrink:0}}/><span style={{fontSize:11,color:C.textMuted}}>{p.name}</span></div>
             <div style={{display:"flex",alignItems:"center",gap:6}}><span style={{fontSize:11,fontWeight:600,color:C.text,fontVariantNumeric:"tabular-nums"}}>CHF {mask(fmtD(insMonthlyCalc(p)))}</span><span style={{fontSize:10,color:C.textDim,width:36,textAlign:"right"}}>{total>0?(insMonthlyCalc(p)/total*100).toFixed(0):0}%</span></div>
           </div>})}
         </Card>
@@ -2900,7 +2900,7 @@ function ExpensesPage({ subsP, setSubsP, subsPInScenario, setSubsPInScenario, ye
         {(()=>{const insGetVal=(p,k)=>k==='name'?p.name:k==='insurer'?p.insurer:k==='amount'?p.amount:k==='frequency'?p.frequency:k==='effective'?insMonthlyCalc(p):k==='notes'?p.notes:'';const sorted=sortItems(insurance,insGetVal);return <div style={{overflowX:"auto"}}><table style={{width:"100%",borderCollapse:"collapse",minWidth:isMobile?560:undefined}}><thead><tr><SortTH field="name">Policy</SortTH><SortTH field="insurer">Insurer</SortTH><SortTH field="amount">Amount</SortTH><SortTH field="frequency">Frequency</SortTH><SortTH field="effective">Effective/mo</SortTH><SortTH field="notes">Notes</SortTH><TH w={30}></TH></tr></thead>
         <tbody>
           {sorted.map((p,i)=><tr key={p.id} onMouseEnter={e=>e.currentTarget.style.background=C.cardHover} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-            <td style={{padding:"10px 12px",fontSize:13,borderBottom:`1px solid ${C.border}11`}}><div style={{display:"flex",alignItems:"center",gap:8}}><div style={{width:8,height:8,borderRadius:4,background:PIE_COLORS[i]}}/><InlineEdit value={p.name} onChange={v=>insEdit(p.id,"name",v)} inputWidth={150}/></div></td>
+            <td style={{padding:"10px 12px",fontSize:13,borderBottom:`1px solid ${C.border}11`}}><div style={{display:"flex",alignItems:"center",gap:8}}><div style={{width:8,height:8,borderRadius:4,background:pieColors()[i]}}/><InlineEdit value={p.name} onChange={v=>insEdit(p.id,"name",v)} inputWidth={150}/></div></td>
             <td style={{padding:"10px 12px",fontSize:13,borderBottom:`1px solid ${C.border}11`}}><InlineEdit value={p.insurer} onChange={v=>insEdit(p.id,"insurer",v)} inputWidth={110}/></td>
             <td style={{padding:"10px 12px",fontSize:13,fontWeight:600,fontVariantNumeric:"tabular-nums",borderBottom:`1px solid ${C.border}11`}}>{hideBalances ? <span style={{color:C.text}}>••••</span> : <InlineNum value={p.amount} onChange={v=>insEdit(p.id,"amount",v??0)} width={70}/>}</td>
             <td style={{padding:"10px 12px",fontSize:13,borderBottom:`1px solid ${C.border}11`}}><select value={p.frequency||12} onChange={e=>insEdit(p.id,"frequency",Number(e.target.value))} style={{padding:"3px 6px",borderRadius:6,border:`1px solid ${C.border}`,background:C.bg,color:C.text,fontSize:12,cursor:"pointer"}}>{FREQ_OPTIONS.map(o=><option key={o.value} value={o.value}>{o.label}</option>)}</select></td>
@@ -2933,17 +2933,17 @@ function InsurancePage({ insurance, setInsurance }) {
     </div>
     <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:16,marginBottom:20}}>
       <Card title="Cost Breakdown">
-        <ResponsiveContainer width="100%" height={260}><BarChart data={insurance} layout="vertical" margin={{left:130}}><XAxis type="number" tick={{fill:C.textDim,fontSize:11}} tickFormatter={fmt}/><YAxis type="category" dataKey="name" tick={{fill:C.textMuted,fontSize:12}} width={130}/><Tooltip formatter={v=>`CHF ${fmtD(v)}`} contentStyle={{background:C.card,border:`1px solid ${C.border}`,borderRadius:8,color:C.text,fontSize:13}} labelStyle={{color:C.textMuted}} itemStyle={{color:C.text}}/><Bar dataKey="yearly" radius={[0,6,6,0]}>{insurance.map((_,i)=><Cell key={i} fill={PIE_COLORS[i%PIE_COLORS.length]}/>)}</Bar></BarChart></ResponsiveContainer>
+        <ResponsiveContainer width="100%" height={260}><BarChart data={insurance} layout="vertical" margin={{left:130}}><XAxis type="number" tick={{fill:C.textDim,fontSize:11}} tickFormatter={fmt}/><YAxis type="category" dataKey="name" tick={{fill:C.textMuted,fontSize:12}} width={130}/><Tooltip formatter={v=>`CHF ${fmtD(v)}`} contentStyle={{background:C.card,border:`1px solid ${C.border}`,borderRadius:8,color:C.text,fontSize:13}} labelStyle={{color:C.textMuted}} itemStyle={{color:C.text}}/><Bar dataKey="yearly" radius={[0,6,6,0]}>{insurance.map((_,i)=><Cell key={i} fill={pieColors()[i%pieColors().length]}/>)}</Bar></BarChart></ResponsiveContainer>
       </Card>
       <Card title="Share of Total">
-        <ResponsiveContainer width="100%" height={260}><PieChart><Pie data={insurance.map(p=>({name:p.name,value:p.yearly}))} cx="50%" cy="50%" outerRadius={90} innerRadius={50} dataKey="value" paddingAngle={2} stroke="none">{insurance.map((_,i)=><Cell key={i} fill={PIE_COLORS[i%PIE_COLORS.length]}/>)}</Pie><Tooltip formatter={v=>`CHF ${fmtD(v)}`} contentStyle={{background:C.card,border:`1px solid ${C.border}`,borderRadius:8,color:C.text,fontSize:13}} labelStyle={{color:C.textMuted}} itemStyle={{color:C.text}}/></PieChart></ResponsiveContainer>
+        <ResponsiveContainer width="100%" height={260}><PieChart><Pie data={insurance.map(p=>({name:p.name,value:p.yearly}))} cx="50%" cy="50%" outerRadius={90} innerRadius={50} dataKey="value" paddingAngle={2} stroke="none">{insurance.map((_,i)=><Cell key={i} fill={pieColors()[i%pieColors().length]}/>)}</Pie><Tooltip formatter={v=>`CHF ${fmtD(v)}`} contentStyle={{background:C.card,border:`1px solid ${C.border}`,borderRadius:8,color:C.text,fontSize:13}} labelStyle={{color:C.textMuted}} itemStyle={{color:C.text}}/></PieChart></ResponsiveContainer>
       </Card>
     </div>
     <Card title="All Policies">
       <table style={{width:"100%",borderCollapse:"collapse"}}><thead><tr><TH>Policy</TH><TH>Insurer</TH><TH>Yearly (CHF)</TH><TH>Effective/mo</TH><TH>Billing Period</TH><TH w={30}></TH></tr></thead>
       <tbody>
         {insurance.map((p,i)=><tr key={p.id} onMouseEnter={e=>e.currentTarget.style.background=C.cardHover} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-          <td style={{padding:"10px 12px",fontSize:13,borderBottom:`1px solid ${C.border}11`}}><div style={{display:"flex",alignItems:"center",gap:8}}><div style={{width:8,height:8,borderRadius:4,background:PIE_COLORS[i]}}/><InlineEdit value={p.name} onChange={v=>edit(p.id,"name",v)} inputWidth={180}/></div></td>
+          <td style={{padding:"10px 12px",fontSize:13,borderBottom:`1px solid ${C.border}11`}}><div style={{display:"flex",alignItems:"center",gap:8}}><div style={{width:8,height:8,borderRadius:4,background:pieColors()[i]}}/><InlineEdit value={p.name} onChange={v=>edit(p.id,"name",v)} inputWidth={180}/></div></td>
           <td style={{padding:"10px 12px",fontSize:13,borderBottom:`1px solid ${C.border}11`}}><InlineEdit value={p.insurer} onChange={v=>edit(p.id,"insurer",v)} inputWidth={120}/></td>
           <td style={{padding:"10px 12px",fontSize:13,fontWeight:600,fontVariantNumeric:"tabular-nums",borderBottom:`1px solid ${C.border}11`}}><InlineNum value={p.yearly} onChange={v=>edit(p.id,"yearly",v??0)} width={70}/></td>
           <td style={{padding:"10px 12px",fontSize:13,fontVariantNumeric:"tabular-nums",color:C.textMuted,borderBottom:`1px solid ${C.border}11`}}>{fmtD(p.yearly/12)}</td>
@@ -3101,8 +3101,8 @@ function PillarPage({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes
       <Card style={{gridColumn:isMobile?"1":"1/3"}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:12,flexWrap:"wrap",gap:12}}>
           <div>
-            <div style={{fontSize:11,color:C.textMuted,marginBottom:4,textTransform:"uppercase",letterSpacing:.5}}>Money System Target</div>
-            <div style={{fontSize:28,fontWeight:700,color:C.accent}}>CHF {mask(fmt(Math.round(moneySystemTarget)))}</div>
+            <div style={{fontSize:11,fontFamily:"'DM Mono',monospace",color:C.textMuted,marginBottom:4,textTransform:"uppercase",letterSpacing:"0.08em"}}>Money System Target</div>
+            <div style={{fontSize:28,fontWeight:300,fontFamily:"'Fraunces',serif",color:C.accent}}>CHF {mask(fmt(Math.round(moneySystemTarget)))}</div>
             <div style={{fontSize:12,color:C.textDim,marginTop:2}}>Capital needed so {effectiveYield.toFixed(1)}% net yield/yr covers all essential costs</div>
           </div>
           <div style={{textAlign:"right"}}>
@@ -3144,8 +3144,8 @@ function PillarPage({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes
 
       {/* Business System */}
       <Card>
-        <div style={{fontSize:11,color:C.textMuted,marginBottom:4,textTransform:"uppercase",letterSpacing:.5}}>Business System Target</div>
-        <div style={{fontSize:24,fontWeight:700,color:C.teal,marginBottom:2}}>CHF {mask(fmt(Math.round(businessTargetGross)))}/mo</div>
+        <div style={{fontSize:11,fontFamily:"'DM Mono',monospace",color:C.textMuted,marginBottom:4,textTransform:"uppercase",letterSpacing:"0.08em"}}>Business System Target</div>
+        <div style={{fontSize:24,fontWeight:300,fontFamily:"'Fraunces',serif",color:C.teal,marginBottom:2}}>CHF {mask(fmt(Math.round(businessTargetGross)))}/mo</div>
         <div style={{fontSize:11,color:C.textDim,marginBottom:12}}>Gross revenue needed (self-employed, pre-tax)</div>
         <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:12}}>
           <div style={{padding:"8px 12px",borderRadius:6,background:C.teal+"0d",border:`1px solid ${C.teal}22`}}>
@@ -3175,7 +3175,7 @@ function PillarPage({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes
         <div style={{display:"flex",flexDirection:"column",gap:16}}>
           <div>
             <div style={{fontSize:12,color:C.textMuted,marginBottom:6}}>Your net hourly rate</div>
-            <div style={{fontSize:28,fontWeight:700,color:C.yellow}}>CHF {mask(fmtD(hourlyRate))}/h</div>
+            <div style={{fontSize:28,fontWeight:300,fontFamily:"'Fraunces',serif",color:C.yellow}}>CHF {mask(fmtD(hourlyRate))}/h</div>
             <div style={{fontSize:11,color:C.textDim,marginTop:2}}>{sc?`CHF ${mask(fmt(Math.round(inc*12)))}/yr net ÷ ${Math.round(annualHours)}h/yr (${hoursPerWeek}h × ${workingWeeks} weeks)`:"No active scenario"}</div>
           </div>
           <div>
@@ -3757,7 +3757,7 @@ function PortfolioPage({ accounts, setAccounts, hideBalances, setChatOpen, setCh
       <ResponsiveContainer width="100%" height={260}>
         <PieChart>
           <Pie data={pieData} cx="50%" cy="50%" outerRadius={90} innerRadius={50} dataKey="value" paddingAngle={2} stroke="none">
-            {pieData.map((_,i)=><Cell key={i} fill={PIE_COLORS[i%PIE_COLORS.length]}/>)}
+            {pieData.map((_,i)=><Cell key={i} fill={pieColors()[i%pieColors().length]}/>)}
           </Pie>
           <Tooltip formatter={v=>`CHF ${fmt(v)}`} contentStyle={{background:C.card,border:`1px solid ${C.border}`,borderRadius:8,color:C.text,fontSize:13}}/>
         </PieChart>
@@ -3766,7 +3766,7 @@ function PortfolioPage({ accounts, setAccounts, hideBalances, setChatOpen, setCh
         {pieData.map((d,i)=>{
           const total=pieData.reduce((s,x)=>s+x.value,0);
           return <div key={i} style={{display:'flex',alignItems:'center',gap:6,fontSize:12}}>
-            <div style={{width:10,height:10,borderRadius:2,background:PIE_COLORS[i%PIE_COLORS.length],flexShrink:0}}/>
+            <div style={{width:10,height:10,borderRadius:2,background:pieColors()[i%pieColors().length],flexShrink:0}}/>
             <span style={{color:C.textMuted}}>{d.name}</span>
             <span style={{color:C.textDim}}>({total>0?(d.value/total*100).toFixed(1):0}%)</span>
           </div>;
@@ -3897,16 +3897,16 @@ export default function FinanceApp() {
   useEffect(() => { save('profile', profile); }, [profile, save]);
   useEffect(() => { save('settings', { subsPInScenario, promptTemplate, extractionPrompt, payrollExtractionPrompt, insPrompt, taxPrompt, recPrompt, subPrompt, onboarding }); }, [subsPInScenario, promptTemplate, extractionPrompt, payrollExtractionPrompt, insPrompt, taxPrompt, recPrompt, subPrompt, onboarding, save]);
 
-  if (loading) return <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", background: darkMode ? "#0f1117" : "#f5f5f7", color: "#a1a1aa", fontSize: 15, fontFamily: "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif" }}>Loading…</div>;
+  if (loading) return <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", background: darkMode ? "#141310" : "#f5f3ee", color: darkMode ? "#9a9688" : "#7a7a72", fontSize: 15, fontFamily: "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif" }}>Loading…</div>;
 
-  return <div style={{display:"flex",height:"100vh",background:C.bg,fontFamily:"-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif",color:C.text,position:"relative",overflow:"hidden"}}>
+  return <div style={{display:"flex",height:"100vh",background:C.bg,fontFamily:"'Instrument Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif",color:C.text,position:"relative",overflow:"hidden"}}>
     {/* Mobile overlay backdrop */}
     {isMobile && sidebarOpen && <div onClick={()=>setSidebarOpen(false)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",zIndex:49}}/>}
     <div style={{width:sidebarOpen?220:60,background:C.card,borderRight:`1px solid ${C.border}`,padding:sidebarOpen?"20px 12px":"20px 8px",display:"flex",flexDirection:"column",transition:"width .2s ease",overflow:"hidden",flexShrink:0,
       ...(isMobile ? {position:"fixed",top:0,left:0,height:"100%",zIndex:50,width:220,transform:sidebarOpen?"translateX(0)":"translateX(-100%)",transition:"transform .25s ease"} : {})}}>
       {/* Logo + collapse */}
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:sidebarOpen?"8px 12px":"8px 4px",marginBottom:20}}>
-        {sidebarOpen && <div><div style={{fontSize:18,fontWeight:700,color:C.accent}}>FinanceHub</div><div style={{fontSize:11,color:C.textDim,marginTop:2}}>Personal Finance</div></div>}
+        {sidebarOpen && <div><div style={{fontSize:18,fontWeight:300,fontFamily:"'Fraunces',serif",letterSpacing:"0.04em",color:C.text}}>Finance<span style={{fontStyle:"italic",color:C.accent}}>Hub</span></div><div style={{fontSize:9,color:C.textDim,marginTop:2,fontFamily:"'DM Mono',monospace",letterSpacing:"0.06em",textTransform:"uppercase"}}>Personal Finance</div></div>}
         {!isMobile && <button onClick={()=>setSidebarOpen(o=>!o)} style={{background:"transparent",border:"none",cursor:"pointer",color:C.textDim,padding:4,borderRadius:6,display:"flex",alignItems:"center"}} title={sidebarOpen?"Collapse":"Expand"}>
           {sidebarOpen ? <ChevronLeft size={18}/> : <ChevronRight size={18}/>}
         </button>}
@@ -3976,7 +3976,7 @@ export default function FinanceApp() {
           <h1 style={{fontSize:20,fontWeight:700,margin:0}}>{NAV.find(n=>n.id===page)?.label}</h1>
         </div>}
         {!isMobile && <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:24}}>
-          <h1 style={{fontSize:24,fontWeight:700,margin:0}}>{NAV.find(n=>n.id===page)?.label}</h1>
+          <h1 style={{fontSize:24,fontWeight:300,fontFamily:"'Fraunces',serif",margin:0}}>{NAV.find(n=>n.id===page)?.label}</h1>
         </div>}
         {page==="dashboard" && <>
           <OnboardingChecklist accounts={accounts} scenarios={scenarios} subsP={subsP} yearly={yearly} profile={profile} onboarding={onboarding} setOnboarding={setOnboarding} setPage={setPage} setProfileOpen={setProfileOpen} setPromptOpen={setPromptOpen} onClearAll={(skipConfirm)=>{ if(skipConfirm !== 'skip' && !window.confirm('Clear all data and start fresh? This cannot be undone.')) return; setAccounts([]); setScenarios([]); setSubsP([]); setYearly([]); setTaxes([]); setInsurance([]); setTracker({2026:[]}); setProfile({firstName:'',lastName:'',gender:'',birthDate:'',address:'',postalCode:'',city:'',canton:'',phone:'',maritalStatus:'',religion:'',children:'',ahvNumber:'',company:'',jobTitle:'',businessName:'',businessType:'',businessProjects:'',notes:''}); setOnboarding(o=>({...o,dataCleared:true})); }}/>
@@ -4141,7 +4141,7 @@ export default function FinanceApp() {
           placeholder="Leave blank to use the built-in default prompt…"
           rows={28}
           style={{width:'100%',padding:'10px 12px',borderRadius:8,border:`1px solid ${C.border}`,background:C.bg,color:C.text,
-            fontSize:12,outline:'none',resize:'vertical',boxSizing:'border-box',fontFamily:'monospace',lineHeight:1.5}}
+            fontSize:12,outline:'none',resize:'vertical',boxSizing:'border-box',fontFamily:"'DM Mono',monospace",lineHeight:1.5}}
         />
         {promptTemplate && <div style={{marginTop:6,fontSize:11,color:C.green}}>✓ Custom prompt active — will be used instead of the default.</div>}
         <button onClick={()=>setPromptOpen(false)} style={{width:'100%',padding:'11px',borderRadius:8,border:'none',background:C.accent,color:'#fff',fontSize:14,fontWeight:600,cursor:'pointer',marginTop:12}}>
