@@ -514,8 +514,8 @@ function AccountsPage({ accounts, setAccounts, hideBalances, onAccountsUpdated, 
           <td style={{padding:"10px 12px",fontSize:13,textAlign:"right",fontWeight:600,fontVariantNumeric:"tabular-nums",borderBottom:`1px solid ${C.border}11`}}>{hideBalances ? <span style={{color:C.textDim}}>••••</span> : <InlineNum value={a.balance} onChange={v=>editAcct(a.id,"balance",v??0)} width={80}/>}</td>
           <td style={{padding:"8px 12px",borderBottom:`1px solid ${C.border}11`}}>
             <div style={{display:'flex',gap:6,alignItems:'center'}}>
-              <button onClick={e=>{e.stopPropagation();if(a.loginUrl){window.open(a.loginUrl,'_blank','noopener');}else{toggleNotes(a.id);}}}
-                title={a.loginUrl ? `Go to ${a.loginUrl}` : 'Add login URL (expand notes)'}
+              <button onClick={e=>{e.stopPropagation();toggleNotes(a.id);}}
+                title={a.loginUrl ? `Login URL: ${a.loginUrl}` : 'Add login URL'}
                 style={{background:'transparent',border:'none',cursor:'pointer',padding:3,display:'flex',alignItems:'center',
                   color:a.loginUrl ? C.accentLight : C.textDim}}>
                 <ExternalLink size={13}/>
