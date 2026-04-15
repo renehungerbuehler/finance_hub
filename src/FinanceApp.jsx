@@ -3232,19 +3232,27 @@ function ChatPanel({ accounts, scenarios, subsP, yearly, taxes, insurance, profi
     const inv = sc ? sc.investments.reduce((s,x)=>s+getA(x),0) : 0;
     const essentialCosts = sc ? sc.expenses.filter(e=>e.essential!==false).reduce((s,x)=>s+getA(x),0) + sc.savings.filter(e=>e.essential!==false).reduce((s,x)=>s+getA(x),0) : 0;
     return {
+      today: new Date().toISOString().slice(0, 10),
       totalWealth, liquidTotal,
       lockedTotal: totalWealth - liquidTotal,
       survivalMonths: essentialCosts > 0 ? Math.floor(liquidTotal / essentialCosts) : 0,
-      activeScenario: sc ? { name: sc.name, income: inc, expenses: exp, savings: sav, investments: inv, essentialCosts } : null,
+      activeScenario: sc ? {
+        name: sc.name,
+        incomes:     sc.incomes.map(x => ({ label: x.label, amount: Math.round(getA(x)) })),
+        expenses:    sc.expenses.map(x => ({ label: x.label, amount: Math.round(getA(x)), essential: x.essential !== false })),
+        savings:     sc.savings.map(x => ({ label: x.label, amount: Math.round(getA(x)) })),
+        investments: sc.investments.map(x => ({ label: x.label, amount: Math.round(getA(x)) })),
+        totals: { income: Math.round(inc), expenses: Math.round(exp), savings: Math.round(sav), investments: Math.round(inv), unallocated: Math.round(inc - exp - sav - inv) },
+      } : null,
       accounts: accounts.map(a => ({
         name: a.name, type: a.type, balance: a.balance,
         ...(a.interestRate!=null && { interestRate: a.interestRate }),
         ...(a.positions?.length && { positions: a.positions.map(p=>({ ticker:p.ticker, shares:p.shares, avgBuyPrice:p.avgBuyPrice })) }),
         ...(a.instructions && { instructions: a.instructions }),
       })),
-      monthlySubscriptions: subsP.reduce((s,x)=>s+subMonthly(x),0),
+      subscriptions: subsP.map(x => ({ name: x.name, monthly: Math.round(subMonthly(x)) })),
       yearlyExpenses: yearly,
-      insuranceTotal: insurance.reduce((s,i)=>s+i.yearly,0),
+      insurance: insurance.map(i => ({ name: i.name, insurer: i.insurer || '', monthly: Math.round(insMonthlyCalc(i)) })),
       latestTax: taxes[taxes.length-1] || null,
       _profile: profile || null,
     };
