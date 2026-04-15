@@ -22,6 +22,7 @@ function detectProvider() {
 }
 
 function buildSystem(context, base = SYSTEM_BASE) {
+  const todayStr = context.today || new Date().toISOString().slice(0, 10);
   const profile = context._profile || null;
   const age = profile?.birthDate
     ? Math.floor((Date.now() - new Date(profile.birthDate.split('.').reverse().join('-'))) / (365.25 * 24 * 3600 * 1000))
@@ -40,7 +41,7 @@ function buildSystem(context, base = SYSTEM_BASE) {
     profile.businessName ? `\n## Side Business\n- **Name:** ${profile.businessName} (${profile.businessType || 'Einzelfirma'})\n- **Active projects:** ${profile.businessProjects || '—'}` : '',
     profile.notes ? `\n## Personal Notes\n${profile.notes}` : '',
   ].filter(Boolean).join('\n') : '';
-  return `${base}${profileSection}\n\n## Current Financial Snapshot\n\`\`\`json\n${JSON.stringify(context, null, 2)}\n\`\`\``;
+  return `Today's date: ${todayStr}\n\n${base}${profileSection}\n\n## Current Financial Snapshot\n\`\`\`json\n${JSON.stringify(context, null, 2)}\n\`\`\``;
 }
 
 async function handleAnthropic(res, system, messages) {
