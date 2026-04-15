@@ -1141,6 +1141,17 @@ function AiWealthCard({ accounts, scenarios, yearly, taxes, insurance, subsP, pr
     const inv = sc ? sc.investments.reduce((s,x)=>s+getA(x),0) : 0;
     const essentialCosts = sc ? sc.expenses.filter(e=>e.essential!==false).reduce((s,x)=>s+getA(x),0) + sc.savings.filter(e=>e.essential!==false).reduce((s,x)=>s+getA(x),0) : 0;
     const latestTax = taxes[taxes.length-1];
+    const ov = sc?.linkedOverrides || {};
+    const effL = (key, raw) => ov[key] != null ? ov[key] : raw;
+    const rawLinkedSubsP = subsPInScenario ? subsP.reduce((s,x)=>s+subMonthly(x),0) : 0;
+    const rawLinkedRecurring = yearly.reduce((s,e)=>s+recMonthly(e),0);
+    const rawLinkedInsurance = insurance.reduce((s,p)=>s+insMonthlyCalc(p),0);
+    const rawLinkedTax = latestTax ? latestTax.lines.reduce((s,l)=>s+l.amount,0)/12 : 0;
+    const linkedSubsP = effL('subsP', rawLinkedSubsP);
+    const linkedRecurring = effL('recurring', rawLinkedRecurring);
+    const linkedInsurance = effL('insurance', rawLinkedInsurance);
+    const linkedTax = effL('tax', rawLinkedTax);
+    const linkedTotal = linkedSubsP + linkedRecurring + linkedInsurance + linkedTax;
     return { today: new Date().toISOString().slice(0, 10),
       totalWealth, liquidTotal, lockedTotal: totalWealth - liquidTotal,
       survivalMonths: essentialCosts > 0 ? Math.floor(liquidTotal / essentialCosts) : 0,
@@ -1150,7 +1161,15 @@ function AiWealthCard({ accounts, scenarios, yearly, taxes, insurance, subsP, pr
         expenses:    (sc.expenses||[]).map(x => ({ label: x.label, amount: Math.round(getA(x)||0), essential: x.essential !== false })),
         savings:     (sc.savings||[]).map(x => ({ label: x.label, amount: Math.round(getA(x)||0) })),
         investments: (sc.investments||[]).map(x => ({ label: x.label, amount: Math.round(getA(x)||0) })),
-        totals: { income: Math.round(inc), expenses: Math.round(exp), savings: Math.round(sav), investments: Math.round(inv), unallocated: Math.round(inc - exp - sav - inv) },
+        provisions: {
+          subscriptions: Math.round(linkedSubsP),
+          recurring: Math.round(linkedRecurring),
+          insurance: Math.round(linkedInsurance),
+          tax: Math.round(linkedTax),
+          total: Math.round(linkedTotal),
+          note: 'Linked external expenses — part of total monthly outflow',
+        },
+        totals: { income: Math.round(inc), expenses: Math.round(exp), provisions: Math.round(linkedTotal), savings: Math.round(sav), investments: Math.round(inv), unallocated: Math.round(inc - exp - linkedTotal - sav - inv) },
       } : null,
       accounts: accounts.map(a=>({name:a.name,type:a.type,balance:a.balance})),
       subscriptions: subsP.map(x => ({ name: x.name, monthly: Math.round(subMonthly(x)) })),
@@ -3184,7 +3203,7 @@ function PillarPage({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes
 // ───────────────────────────────────────────────────────────────
 // AI CHAT PANEL
 // ───────────────────────────────────────────────────────────────
-function ChatPanel({ accounts, scenarios, subsP, yearly, taxes, insurance, profile, open, setOpen, externalInput, setExternalInput, promptTemplate, onPinned }) {
+function ChatPanel({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes, insurance, profile, open, setOpen, externalInput, setExternalInput, promptTemplate, onPinned }) {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
@@ -3261,6 +3280,19 @@ function ChatPanel({ accounts, scenarios, subsP, yearly, taxes, insurance, profi
     const sav = sc ? sc.savings.reduce((s,x)=>s+getA(x),0) : 0;
     const inv = sc ? sc.investments.reduce((s,x)=>s+getA(x),0) : 0;
     const essentialCosts = sc ? sc.expenses.filter(e=>e.essential!==false).reduce((s,x)=>s+getA(x),0) + sc.savings.filter(e=>e.essential!==false).reduce((s,x)=>s+getA(x),0) : 0;
+    // Linked provisions — external expenses linked into the scenario
+    const latestTax = taxes[taxes.length - 1];
+    const ov = sc?.linkedOverrides || {};
+    const effL = (key, raw) => ov[key] != null ? ov[key] : raw;
+    const rawLinkedSubsP = subsPInScenario ? subsP.reduce((s,x)=>s+subMonthly(x),0) : 0;
+    const rawLinkedRecurring = yearly.reduce((s,e)=>s+recMonthly(e),0);
+    const rawLinkedInsurance = insurance.reduce((s,p)=>s+insMonthlyCalc(p),0);
+    const rawLinkedTax = latestTax ? latestTax.lines.reduce((s,l)=>s+l.amount,0)/12 : 0;
+    const linkedSubsP = effL('subsP', rawLinkedSubsP);
+    const linkedRecurring = effL('recurring', rawLinkedRecurring);
+    const linkedInsurance = effL('insurance', rawLinkedInsurance);
+    const linkedTax = effL('tax', rawLinkedTax);
+    const linkedTotal = linkedSubsP + linkedRecurring + linkedInsurance + linkedTax;
     return {
       today: new Date().toISOString().slice(0, 10),
       totalWealth, liquidTotal,
@@ -3272,7 +3304,15 @@ function ChatPanel({ accounts, scenarios, subsP, yearly, taxes, insurance, profi
         expenses:    (sc.expenses||[]).map(x => ({ label: x.label, amount: Math.round(getA(x)||0), essential: x.essential !== false })),
         savings:     (sc.savings||[]).map(x => ({ label: x.label, amount: Math.round(getA(x)||0) })),
         investments: (sc.investments||[]).map(x => ({ label: x.label, amount: Math.round(getA(x)||0) })),
-        totals: { income: Math.round(inc), expenses: Math.round(exp), savings: Math.round(sav), investments: Math.round(inv), unallocated: Math.round(inc - exp - sav - inv) },
+        provisions: {
+          subscriptions: Math.round(linkedSubsP),
+          recurring: Math.round(linkedRecurring),
+          insurance: Math.round(linkedInsurance),
+          tax: Math.round(linkedTax),
+          total: Math.round(linkedTotal),
+          note: 'Linked external expenses — part of total monthly outflow',
+        },
+        totals: { income: Math.round(inc), expenses: Math.round(exp), provisions: Math.round(linkedTotal), savings: Math.round(sav), investments: Math.round(inv), unallocated: Math.round(inc - exp - linkedTotal - sav - inv) },
       } : null,
       accounts: accounts.map(a => ({
         name: a.name, type: a.type, balance: a.balance,
@@ -3922,7 +3962,7 @@ export default function FinanceApp() {
         {page==="pillars" && <PillarPage accounts={accounts} scenarios={scenarios} subsP={subsP} subsPInScenario={subsPInScenario} yearly={yearly} taxes={taxes} insurance={insurance} hideBalances={hideBalances}/>}
       </div>
     </div>
-    <ChatPanel accounts={accounts} scenarios={scenarios} subsP={subsP} yearly={yearly} taxes={taxes} insurance={insurance} profile={profile} open={chatOpen} setOpen={setChatOpen} externalInput={chatInput} setExternalInput={setChatInput} promptTemplate={promptTemplate} onPinned={() => setNotesVersion(v => v + 1)}/>
+    <ChatPanel accounts={accounts} scenarios={scenarios} subsP={subsP} subsPInScenario={subsPInScenario} yearly={yearly} taxes={taxes} insurance={insurance} profile={profile} open={chatOpen} setOpen={setChatOpen} externalInput={chatInput} setExternalInput={setChatInput} promptTemplate={promptTemplate} onPinned={() => setNotesVersion(v => v + 1)}/>
     {profileOpen && <div onClick={()=>setProfileOpen(false)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.7)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:24}}>
       <div onClick={e=>e.stopPropagation()} style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:16,width:"100%",maxWidth:1140,maxHeight:"84vh",overflowY:"auto",padding:28,boxShadow:"0 24px 80px rgba(0,0,0,0.6)"}}>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:24}}>
