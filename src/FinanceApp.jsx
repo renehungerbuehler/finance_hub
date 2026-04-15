@@ -83,7 +83,7 @@ const Badge = ({ children, color = C.accent, bg, onRemove }) => (
 const Card = ({ title, subtitle, children, style: s, headerRight }) => (
   <div style={{ background: C.card, borderRadius: 12, border: `1px solid ${C.border}`, padding: "20px 24px", ...s }}>
     {(title || headerRight) && <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: subtitle ? 4 : 16 }}>
-      {title && <h3 style={{ margin: 0, fontSize: 16, fontWeight: 400, fontFamily:"'Fraunces',serif", color: C.text }}>{title}</h3>}
+      {title && <h3 style={{ margin: 0, fontSize: 16, fontWeight: 400, fontFamily:"'Fraunces',serif", fontWeight:400, color: C.text }}>{title}</h3>}
       {headerRight}
     </div>}
     {subtitle && <p style={{ margin: "0 0 16px", fontSize: 14, color: C.textMuted }}>{subtitle}</p>}
@@ -96,7 +96,7 @@ const StatCard = ({ label, value, sub, icon: Icon, color = C.accent, iconColor, 
     <div style={{ width: compact?34:44, height: compact?34:44, borderRadius: 10, background: (iconColor||color) + "1a", display: "flex", alignItems: "center", justifyContent: "center", flexShrink:0 }}><Icon size={compact?17:22} color={iconColor||color} /></div>
     <div style={{minWidth:0}}>
       <div style={{ fontSize: compact?12:13, fontFamily:"'DM Mono',monospace", letterSpacing:"0.06em", textTransform:"uppercase", color: C.textMuted, marginBottom: 2 }}>{label}</div>
-      <div style={{ fontSize: compact?16:24, fontWeight: 300, fontFamily:"'Fraunces',serif", color: C.text, lineHeight:1.2 }}>{value}</div>
+      <div style={{ fontSize: compact?16:24, fontWeight: 300, fontFamily:"'Fraunces',serif", fontWeight:400, color: C.text, lineHeight:1.2 }}>{value}</div>
       {sub && <div style={{ fontSize: compact?11:13, color: C.textDim, marginTop: 2 }}>{sub}</div>}
     </div>
   </Card>
@@ -2202,11 +2202,11 @@ function TrackerPage({ tracker, setTracker, accounts: portfolioAccounts, hideBal
 
     {view==="compound" && <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"320px 1fr",gap:16}}>
       <Card title="Parameters"><div style={{display:"flex",flexDirection:"column",gap:20}}>
-        <div><label style={{fontSize:13,color:C.textMuted}}>Starting Balance</label><div style={{fontSize:26,fontWeight:300,fontFamily:"'Fraunces',serif",color:C.accent}}>CHF {mask(fmt(currentTotal))}</div></div>
+        <div><label style={{fontSize:13,color:C.textMuted}}>Starting Balance</label><div style={{fontSize:26,fontWeight:400,fontFamily:"'Fraunces',serif",color:C.accent}}>CHF {mask(fmt(currentTotal))}</div></div>
         <div><label style={{fontSize:13,color:C.textMuted,display:"flex",justifyContent:"space-between"}}><span>Annual Growth Rate</span><span style={{color:C.accent,fontWeight:600}}>{growthRate}%</span></label><input type="range" min={0} max={15} step={0.5} value={growthRate} onChange={e=>setGrowthRate(Number(e.target.value))} style={{width:"100%",accentColor:C.accent}}/></div>
         <div><label style={{fontSize:13,color:C.textMuted,display:"flex",justifyContent:"space-between"}}><span>Monthly Contribution</span><span style={{color:C.accent,fontWeight:600}}>CHF {fmt(monthlyAdd)}</span></label><input type="range" min={0} max={8000} step={100} value={monthlyAdd} onChange={e=>setMonthlyAdd(Number(e.target.value))} style={{width:"100%",accentColor:C.accent}}/></div>
         <div><label style={{fontSize:13,color:C.textMuted,display:"flex",justifyContent:"space-between"}}><span>Time Horizon</span><span style={{color:C.accent,fontWeight:600}}>{years} years</span></label><input type="range" min={1} max={40} step={1} value={years} onChange={e=>setYears(Number(e.target.value))} style={{width:"100%",accentColor:C.accent}}/></div>
-        <div style={{padding:16,background:C.bg,borderRadius:10}}><div style={{fontSize:13,color:C.textMuted}}>Projected in {years} years</div><div style={{fontSize:30,fontWeight:300,fontFamily:"'Fraunces',serif",color:C.green}}>CHF {mask(fmt(proj[proj.length-1].balance))}</div><div style={{fontSize:13,color:C.textDim,marginTop:4}}>Contributed: CHF {mask(fmt(proj[proj.length-1].contributed))}</div><div style={{fontSize:13,color:C.accentLight}}>Growth: CHF {mask(fmt(proj[proj.length-1].balance-proj[proj.length-1].contributed))}</div></div>
+        <div style={{padding:16,background:C.bg,borderRadius:10}}><div style={{fontSize:13,color:C.textMuted}}>Projected in {years} years</div><div style={{fontSize:30,fontWeight:400,fontFamily:"'Fraunces',serif",color:C.green}}>CHF {mask(fmt(proj[proj.length-1].balance))}</div><div style={{fontSize:13,color:C.textDim,marginTop:4}}>Contributed: CHF {mask(fmt(proj[proj.length-1].contributed))}</div><div style={{fontSize:13,color:C.accentLight}}>Growth: CHF {mask(fmt(proj[proj.length-1].balance-proj[proj.length-1].contributed))}</div></div>
       </div></Card>
       <Card title="Compound Growth Projection">
         <ResponsiveContainer width="100%" height={isMobile?250:400}><AreaChart data={proj}><CartesianGrid strokeDasharray="3 3" stroke={C.border}/><XAxis dataKey="year" tick={{fill:C.textDim,fontSize:11}}/><YAxis tick={{fill:C.textDim,fontSize:11}} tickFormatter={v=>v>=1e6?`${(v/1e6).toFixed(1)}M`:`${Math.round(v/1000)}k`}/><Tooltip formatter={v=>`CHF ${fmt(v)}`} contentStyle={{background:C.card,border:`1px solid ${C.border}`,borderRadius:8,color:C.text,fontSize:13}} labelStyle={{color:C.textMuted}} itemStyle={{color:C.text}}/><Legend/><Area type="monotone" dataKey="contributed" fill={C.blue+"33"} stroke={C.blue} strokeWidth={1.5} name="Contributed"/><Area type="monotone" dataKey="balance" fill={C.green+"33"} stroke={C.green} strokeWidth={2} name="With Growth"/></AreaChart></ResponsiveContainer>
@@ -3102,7 +3102,7 @@ function PillarPage({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:12,flexWrap:"wrap",gap:12}}>
           <div>
             <div style={{fontSize:12,fontFamily:"'DM Mono',monospace",color:C.textMuted,marginBottom:4,textTransform:"uppercase",letterSpacing:"0.08em"}}>Money System Target</div>
-            <div style={{fontSize:30,fontWeight:300,fontFamily:"'Fraunces',serif",color:C.accent}}>CHF {mask(fmt(Math.round(moneySystemTarget)))}</div>
+            <div style={{fontSize:30,fontWeight:400,fontFamily:"'Fraunces',serif",color:C.accent}}>CHF {mask(fmt(Math.round(moneySystemTarget)))}</div>
             <div style={{fontSize:13,color:C.textDim,marginTop:2}}>Capital needed so {effectiveYield.toFixed(1)}% net yield/yr covers all essential costs</div>
           </div>
           <div style={{textAlign:"right"}}>
@@ -3145,7 +3145,7 @@ function PillarPage({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes
       {/* Business System */}
       <Card>
         <div style={{fontSize:12,fontFamily:"'DM Mono',monospace",color:C.textMuted,marginBottom:4,textTransform:"uppercase",letterSpacing:"0.08em"}}>Business System Target</div>
-        <div style={{fontSize:26,fontWeight:300,fontFamily:"'Fraunces',serif",color:C.teal,marginBottom:2}}>CHF {mask(fmt(Math.round(businessTargetGross)))}/mo</div>
+        <div style={{fontSize:26,fontWeight:400,fontFamily:"'Fraunces',serif",color:C.teal,marginBottom:2}}>CHF {mask(fmt(Math.round(businessTargetGross)))}/mo</div>
         <div style={{fontSize:12,color:C.textDim,marginBottom:12}}>Gross revenue needed (self-employed, pre-tax)</div>
         <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:12}}>
           <div style={{padding:"8px 12px",borderRadius:6,background:C.teal+"0d",border:`1px solid ${C.teal}22`}}>
@@ -3175,7 +3175,7 @@ function PillarPage({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes
         <div style={{display:"flex",flexDirection:"column",gap:16}}>
           <div>
             <div style={{fontSize:13,color:C.textMuted,marginBottom:6}}>Your net hourly rate</div>
-            <div style={{fontSize:30,fontWeight:300,fontFamily:"'Fraunces',serif",color:C.yellow}}>CHF {mask(fmtD(hourlyRate))}/h</div>
+            <div style={{fontSize:30,fontWeight:400,fontFamily:"'Fraunces',serif",color:C.yellow}}>CHF {mask(fmtD(hourlyRate))}/h</div>
             <div style={{fontSize:12,color:C.textDim,marginTop:2}}>{sc?`CHF ${mask(fmt(Math.round(inc*12)))}/yr net ÷ ${Math.round(annualHours)}h/yr (${hoursPerWeek}h × ${workingWeeks} weeks)`:"No active scenario"}</div>
           </div>
           <div>
@@ -3906,7 +3906,7 @@ export default function FinanceApp() {
       ...(isMobile ? {position:"fixed",top:0,left:0,height:"100%",zIndex:50,width:220,transform:sidebarOpen?"translateX(0)":"translateX(-100%)",transition:"transform .25s ease"} : {})}}>
       {/* Logo + collapse */}
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:sidebarOpen?"8px 12px":"8px 4px",marginBottom:20}}>
-        {sidebarOpen && <div><div style={{fontSize:18,fontWeight:300,fontFamily:"'Fraunces',serif",letterSpacing:"0.04em",color:C.text}}>Finance<span style={{fontStyle:"italic",color:C.accent}}>Hub</span></div><div style={{fontSize:9,color:C.textDim,marginTop:2,fontFamily:"'DM Mono',monospace",letterSpacing:"0.06em",textTransform:"uppercase"}}>Personal Finance</div></div>}
+        {sidebarOpen && <div><div style={{fontSize:18,fontWeight:400,fontFamily:"'Fraunces',serif",letterSpacing:"0.04em",color:C.text}}>Finance<span style={{fontStyle:"italic",color:C.accent}}>Hub</span></div><div style={{fontSize:9,color:C.textDim,marginTop:2,fontFamily:"'DM Mono',monospace",letterSpacing:"0.06em",textTransform:"uppercase"}}>Personal Finance</div></div>}
         {!isMobile && <button onClick={()=>setSidebarOpen(o=>!o)} style={{background:"transparent",border:"none",cursor:"pointer",color:C.textDim,padding:4,borderRadius:6,display:"flex",alignItems:"center"}} title={sidebarOpen?"Collapse":"Expand"}>
           {sidebarOpen ? <ChevronLeft size={18}/> : <ChevronRight size={18}/>}
         </button>}
@@ -3976,7 +3976,7 @@ export default function FinanceApp() {
           <h1 style={{fontSize:20,fontWeight:700,margin:0}}>{NAV.find(n=>n.id===page)?.label}</h1>
         </div>}
         {!isMobile && <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:24}}>
-          <h1 style={{fontSize:26,fontWeight:300,fontFamily:"'Fraunces',serif",margin:0}}>{NAV.find(n=>n.id===page)?.label}</h1>
+          <h1 style={{fontSize:26,fontWeight:400,fontFamily:"'Fraunces',serif",margin:0}}>{NAV.find(n=>n.id===page)?.label}</h1>
         </div>}
         {page==="dashboard" && <>
           <OnboardingChecklist accounts={accounts} scenarios={scenarios} subsP={subsP} yearly={yearly} profile={profile} onboarding={onboarding} setOnboarding={setOnboarding} setPage={setPage} setProfileOpen={setProfileOpen} setPromptOpen={setPromptOpen} onClearAll={(skipConfirm)=>{ if(skipConfirm !== 'skip' && !window.confirm('Clear all data and start fresh? This cannot be undone.')) return; setAccounts([]); setScenarios([]); setSubsP([]); setYearly([]); setTaxes([]); setInsurance([]); setTracker({2026:[]}); setProfile({firstName:'',lastName:'',gender:'',birthDate:'',address:'',postalCode:'',city:'',canton:'',phone:'',maritalStatus:'',religion:'',children:'',ahvNumber:'',company:'',jobTitle:'',businessName:'',businessType:'',businessProjects:'',notes:''}); setOnboarding(o=>({...o,dataCleared:true})); }}/>
