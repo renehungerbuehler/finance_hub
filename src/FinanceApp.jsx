@@ -1148,7 +1148,7 @@ function AiWealthCard({ accounts, scenarios, yearly, taxes, insurance, subsP, pr
       yearlyExpenses: yearly,
       insurance: insurance.map(i => ({ name: i.name, insurer: i.insurer || '', monthly: Math.round(insMonthlyCalc(i)) })),
       latestTaxYear: latestTax ? { year: latestTax.year, total: latestTax.lines.reduce((s,l)=>s+l.amount,0) } : null,
-      _profile: profile,
+      _profile: profile || null,
     };
   };
 
