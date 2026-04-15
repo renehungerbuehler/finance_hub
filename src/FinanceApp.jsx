@@ -796,6 +796,13 @@ function Dashboard({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes,
       </div>
     </Card>
 
+    {/* Row 1: Income & Scenario overview */}
+    <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))", gap:16, marginBottom:16 }}>
+      <StatCard label="Total Monthly Income" value={`CHF ${mask(fmt(Math.round(inc)))}`} sub={sc?`from ${sc.name}`:"no active scenario"} icon={DollarSign} color={C.green}/>
+      <StatCard label="Savings Rate" value={inc>0?`${Math.round((sav+inv)/inc*100)}%`:"—"} sub={inc>0?`CHF ${mask(fmt(Math.round(sav+inv)))}/mo saved`:"no active scenario"} icon={PiggyBank} color={C.teal}/>
+      <StatCard label="Active Scenario" value={sc?sc.name:"None"} sub={sc?`${sc.incomes.length} income${sc.incomes.length!==1?'s':''} · ${sc.expenses.length} expense${sc.expenses.length!==1?'s':''}`:"set a scenario active"} icon={Activity} color={C.accent}/>
+    </div>
+
     <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))", gap:16, marginBottom:24 }}>
       <StatCard label="Monthly Savings + Invest" value={`CHF ${mask(fmt(Math.round(sav+inv)))}`} sub={sc?`from ${sc.name}`:"no active scenario"} icon={TrendingUp} color={C.teal}/>
       <StatCard label="Monthly Fixed Costs" value={`CHF ${mask(fmt(Math.round(essentialTotal)))}`} sub={sc?`Essential expenses + savings (excl. investments)`:"no active scenario"} icon={CreditCard} color={C.red}/>
