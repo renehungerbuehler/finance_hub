@@ -514,16 +514,17 @@ function AccountsPage({ accounts, setAccounts, hideBalances, onAccountsUpdated, 
           <td style={{padding:"10px 12px",fontSize:13,textAlign:"right",fontWeight:600,fontVariantNumeric:"tabular-nums",borderBottom:`1px solid ${C.border}11`}}>{hideBalances ? <span style={{color:C.textDim}}>••••</span> : <InlineNum value={a.balance} onChange={v=>editAcct(a.id,"balance",v??0)} width={80}/>}</td>
           <td style={{padding:"8px 12px",borderBottom:`1px solid ${C.border}11`}}>
             <div style={{display:'flex',gap:6,alignItems:'center'}}>
-              <button onClick={e=>{e.stopPropagation();toggleNotes(a.id);}}
-                title={a.loginUrl ? `Login URL: ${a.loginUrl}` : 'Add login URL'}
+              <button
+                onClick={e=>{e.stopPropagation();if(a.loginUrl){window.open(a.loginUrl,'_blank','noopener');}else{toggleNotes(a.id);}}}
+                title={a.loginUrl ? `Open: ${a.loginUrl}` : 'Add login URL'}
                 style={{background:'transparent',border:'none',cursor:'pointer',padding:3,display:'flex',alignItems:'center',
                   color:a.loginUrl ? C.accentLight : C.textDim}}>
                 <ExternalLink size={13}/>
               </button>
               <button onClick={e=>{e.stopPropagation();toggleNotes(a.id);}}
-                title={`AI instructions for this account\n\nTell the AI how to interpret this account — e.g. "ESPP with 15% discount", "ETF-based 3a fund, no public ticker", "joint account with partner".\nAlso used as context when importing files for this account.`}
+                title="Edit login URL and AI notes"
                 style={{background:'transparent',border:'none',cursor:'pointer',padding:3,display:'flex',alignItems:'center',
-                  color:a.instructions ? C.accentLight : C.textDim}}>
+                  color:(a.instructions||a.loginUrl) ? C.accentLight : C.textDim}}>
                 <MessageSquarePlus size={13}/>
               </button>
               <button onClick={()=>triggerAcctImport(a.id)} disabled={importingAcctId===a.id}
@@ -538,29 +539,37 @@ function AccountsPage({ accounts, setAccounts, hideBalances, onAccountsUpdated, 
           </td>
         </tr>
         {notesOpen.has(a.id) && <tr key={`${a.id}-notes`}>
-          <td colSpan={isMobile?4:5} style={{padding:'0 12px 10px',borderBottom:`1px solid ${C.border}11`}}>
-            <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:8}}>
-              <ExternalLink size={12} style={{color:C.textDim,flexShrink:0}}/>
-              <input
-                value={a.loginUrl||''}
-                onChange={e=>editAcct(a.id,'loginUrl',e.target.value)}
-                placeholder="Login URL — e.g. https://www.ubs.com/login"
-                style={{flex:1,padding:'6px 10px',borderRadius:8,border:`1px solid ${C.border}`,background:C.bg,color:C.textMuted,
-                  fontSize:12,outline:'none',boxSizing:'border-box',fontFamily:'inherit'}}
-              />
-              {a.loginUrl && <a href={a.loginUrl} target="_blank" rel="noopener noreferrer"
-                style={{fontSize:11,color:C.accentLight,whiteSpace:'nowrap'}}>Open ↗</a>}
-            </div>
-            <textarea
-              value={a.instructions||''}
-              onChange={e=>editAcct(a.id,'instructions',e.target.value)}
-              placeholder="Instructions for the AI — e.g. 'ESPP: 15% discount applied, real cost basis = purchase price × 0.85' or 'ETF-based 3a fund, proprietary, no public ticker'"
-              rows={2}
-              style={{width:'100%',padding:'8px 10px',borderRadius:8,border:`1px solid ${C.border}`,background:C.bg,color:C.textMuted,
-                fontSize:12,outline:'none',resize:'vertical',boxSizing:'border-box',fontFamily:'inherit'}}
-            />
-            <div style={{fontSize:10,color:C.textDim,marginTop:3}}>
-              These notes are included in every AI advisor conversation and file import for this account.
+          <td colSpan={isMobile?4:5} style={{padding:'0 12px 12px',borderBottom:`1px solid ${C.border}11`}}>
+            <div style={{display:'grid',gridTemplateColumns:isMobile?'1fr':'1fr 1fr',gap:10}}>
+              <div>
+                <div style={{fontSize:10,fontWeight:600,color:C.textDim,textTransform:'uppercase',letterSpacing:'0.05em',marginBottom:4}}>Login URL</div>
+                <div style={{display:'flex',alignItems:'center',gap:6}}>
+                  <input
+                    value={a.loginUrl||''}
+                    onChange={e=>editAcct(a.id,'loginUrl',e.target.value)}
+                    placeholder="https://…"
+                    style={{flex:1,padding:'6px 10px',borderRadius:8,border:`1px solid ${C.border}`,background:C.bg,color:C.text,
+                      fontSize:12,outline:'none',boxSizing:'border-box',fontFamily:'inherit',minWidth:0}}
+                  />
+                  {a.loginUrl && <a href={a.loginUrl} target="_blank" rel="noopener noreferrer"
+                    style={{display:'flex',alignItems:'center',gap:3,padding:'6px 10px',borderRadius:8,border:`1px solid ${C.accentLight}44`,
+                      background:C.accentLight+'15',color:C.accentLight,fontSize:11,fontWeight:600,textDecoration:'none',whiteSpace:'nowrap',flexShrink:0}}>
+                    <ExternalLink size={11}/>Open
+                  </a>}
+                </div>
+              </div>
+              <div>
+                <div style={{fontSize:10,fontWeight:600,color:C.textDim,textTransform:'uppercase',letterSpacing:'0.05em',marginBottom:4}}>AI Notes</div>
+                <textarea
+                  value={a.instructions||''}
+                  onChange={e=>editAcct(a.id,'instructions',e.target.value)}
+                  placeholder="e.g. 'ESPP: 15% discount applied' or 'ETF-based 3a, no public ticker'"
+                  rows={2}
+                  style={{width:'100%',padding:'6px 10px',borderRadius:8,border:`1px solid ${C.border}`,background:C.bg,color:C.text,
+                    fontSize:12,outline:'none',resize:'vertical',boxSizing:'border-box',fontFamily:'inherit'}}
+                />
+                <div style={{fontSize:10,color:C.textDim,marginTop:2}}>Included in every AI conversation and file import for this account.</div>
+              </div>
             </div>
           </td>
         </tr>}
