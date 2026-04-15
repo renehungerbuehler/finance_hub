@@ -1132,12 +1132,21 @@ function AiWealthCard({ accounts, scenarios, yearly, taxes, insurance, subsP, pr
     const inv = sc ? sc.investments.reduce((s,x)=>s+getA(x),0) : 0;
     const essentialCosts = sc ? sc.expenses.filter(e=>e.essential!==false).reduce((s,x)=>s+getA(x),0) + sc.savings.filter(e=>e.essential!==false).reduce((s,x)=>s+getA(x),0) : 0;
     const latestTax = taxes[taxes.length-1];
-    return { totalWealth, liquidTotal, lockedTotal: totalWealth - liquidTotal,
+    return { today: new Date().toISOString().slice(0, 10),
+      totalWealth, liquidTotal, lockedTotal: totalWealth - liquidTotal,
       survivalMonths: essentialCosts > 0 ? Math.floor(liquidTotal / essentialCosts) : 0,
-      activeScenario: sc ? { name:sc.name, income:inc, expenses:exp, savings:sav, investments:inv, essentialCosts } : null,
+      activeScenario: sc ? {
+        name: sc.name,
+        incomes:     (sc.incomes||[]).map(x => ({ label: x.label, amount: Math.round(getA(x)||0) })),
+        expenses:    (sc.expenses||[]).map(x => ({ label: x.label, amount: Math.round(getA(x)||0), essential: x.essential !== false })),
+        savings:     (sc.savings||[]).map(x => ({ label: x.label, amount: Math.round(getA(x)||0) })),
+        investments: (sc.investments||[]).map(x => ({ label: x.label, amount: Math.round(getA(x)||0) })),
+        totals: { income: Math.round(inc), expenses: Math.round(exp), savings: Math.round(sav), investments: Math.round(inv), unallocated: Math.round(inc - exp - sav - inv) },
+      } : null,
       accounts: accounts.map(a=>({name:a.name,type:a.type,balance:a.balance})),
-      monthlySubscriptions: subsP.reduce((s,x)=>s+subMonthly(x),0),
-      yearlyExpenses: yearly, insuranceYearly: insurance.reduce((s,i)=>s+insMonthlyCalc(i)*12,0),
+      subscriptions: subsP.map(x => ({ name: x.name, monthly: Math.round(subMonthly(x)) })),
+      yearlyExpenses: yearly,
+      insurance: insurance.map(i => ({ name: i.name, insurer: i.insurer || '', monthly: Math.round(insMonthlyCalc(i)) })),
       latestTaxYear: latestTax ? { year: latestTax.year, total: latestTax.lines.reduce((s,l)=>s+l.amount,0) } : null,
       _profile: profile,
     };
