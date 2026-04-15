@@ -3046,6 +3046,34 @@ function PillarPage({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes
       </Card>)}
     </div>
 
+    {/* Pillar 1 vs 2: Demographic Risk */}
+    <Card style={{marginBottom:20,borderLeft:`3px solid ${C.red}`}}>
+      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}>
+        <div style={{fontSize:13,fontWeight:700,color:C.text}}>The "Pyramid" / Demographic Risk — Will You Lose It All?</div>
+      </div>
+      <div style={{display:"flex",flexDirection:"column",gap:10}}>
+        <div style={{padding:"10px 14px",borderRadius:8,background:C.red+"0d",border:`1px solid ${C.red}22`}}>
+          <div style={{fontSize:12,fontWeight:700,color:C.red,marginBottom:4}}>🔴 Pillar 1 (AHV) — YES, pay-as-you-go (Umlageverfahren)</div>
+          <div style={{fontSize:11,color:C.textMuted,lineHeight:1.7}}>
+            Today's workers pay for today's retirees — <strong style={{color:C.text}}>this IS the pyramid</strong> you should worry about. Fewer young workers supporting more retirees = demographic pressure.<br/>
+            AHV is under continuous reform (AHV 21 raised women's retirement age, future reforms will raise contributions, lower payouts, or push retirement age further).<br/>
+            <strong style={{color:C.text}}>BUT:</strong> AHV is federally guaranteed — the government will adjust the rules rather than let it collapse. Your contributions are <strong>not "your money"</strong> — they go into a communal pool.
+          </div>
+        </div>
+        <div style={{padding:"10px 14px",borderRadius:8,background:C.green+"0d",border:`1px solid ${C.green}22`}}>
+          <div style={{fontSize:12,fontWeight:700,color:C.green,marginBottom:4}}>🟢 Pillar 2 (BVG / Pensionskasse) — NOT a pyramid, funded system (Kapitaldeckungsverfahren)</div>
+          <div style={{fontSize:11,color:C.textMuted,lineHeight:1.7}}>
+            Your money is <strong style={{color:C.text}}>actually set aside and invested</strong> in your personal account at your Pensionskasse (e.g. SwissLife). It is not redistributed to current retirees.<br/>
+            <strong style={{color:C.text}}>Your voluntary buy-in (Einkauf) goes into YOUR account</strong> — it's legally protected and belongs to you, not a pool.<br/>
+            Risk: conversion rate (Umwandlungssatz) may be reduced in future (currently ~6.8% for mandatory portion), but the capital itself is yours. Think of it as a forced savings account with tax-deductible contributions.
+          </div>
+        </div>
+        <div style={{padding:"8px 12px",borderRadius:8,background:C.accent+"0a",border:`1px solid ${C.accent}15`,fontSize:11,color:C.textDim,lineHeight:1.7}}>
+          <strong style={{color:C.accentLight}}>Bottom line:</strong> Worry about Pillar 1 (state pension erosion) — don't rely on AHV alone. Don't worry about Pillar 2 capital disappearing — your BVG balance is yours. Max out voluntary buy-ins (Einkauf) when you have the Einkaufspotenzial — they're tax-deductible and the capital is safe.
+        </div>
+      </div>
+    </Card>
+
     {/* Personal extension pillars */}
     <div style={{fontSize:11,color:C.yellow,fontWeight:700,textTransform:"uppercase",letterSpacing:0.5,marginBottom:8}}>Personal Extension Pillars (Wealth Building)</div>
     <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"repeat(2,1fr)",gap:12,marginBottom:24}}>
