@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useCallback, useEffect, useRef } from "react";
-import { PieChart, Pie, Cell, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, BarChart, Bar, ResponsiveContainer, AreaChart, Area, ComposedChart } from "recharts";
+import { PieChart, Pie, Cell, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, BarChart, Bar, ResponsiveContainer, AreaChart, Area, ComposedChart, ReferenceLine } from "recharts";
 import { LayoutDashboard, Target, TrendingUp, Activity, CreditCard, Shield, Plus, Pencil, Trash2, Check, X, DollarSign, Wallet, PiggyBank, BarChart3, GripVertical, Power, Sparkles, AlertTriangle, ArrowUpRight, Info, Lightbulb, ShieldCheck, Landmark, Paperclip, Upload, Download, Sun, Moon, ChevronLeft, ChevronRight, User, Building2, Eye, EyeOff, RefreshCw, ChevronDown, MessageSquarePlus, ExternalLink, Maximize2, Minimize2, BookOpen } from "lucide-react";
 import { jsPDF } from "jspdf";
 
@@ -1973,6 +1973,43 @@ function TrackerPage({ tracker, setTracker, accounts: portfolioAccounts, hideBal
   const currentTotal = portfolioAccounts.reduce((s,a)=>s+a.balance,0);
   const proj = useMemo(()=>{ const d=[]; let b=currentTotal; for(let y=0;y<=years;y++){ d.push({year:selYear+y,balance:Math.round(b),contributed:currentTotal+monthlyAdd*12*y}); b=(b+monthlyAdd*12)*(1+growthRate/100); } return d; },[growthRate,monthlyAdd,years,currentTotal,selYear]);
 
+  const multiYearData = useMemo(() => {
+    const trackedYears = Object.keys(tracker).map(Number).sort((a,b)=>a-b);
+    const historical = trackedYears.map(yr => {
+      const rows = tracker[yr] || [];
+      const activeRows = rows.filter(r => r.active !== false);
+      const withForecast = activeRows.map(a => {
+        const f = [];
+        for (let m = 0; m < 12; m++) {
+          if (m === 0) f.push(a.startBal);
+          else if (m < (a.activeUntil ?? 12)) f.push(f[m-1] + (a.recurring ?? 0));
+          else f.push(f[m-1]);
+        }
+        return { ...a, values: f };
+      });
+      const allHaveDecActual = withForecast.length > 0 && withForecast.every(r => r.results[11] !== null && r.results[11] !== undefined);
+      const decActual = allHaveDecActual ? withForecast.reduce((s, r) => s + (r.results[11] ?? 0), 0) : null;
+      const decForecast = withForecast.reduce((s, r) => s + r.values[11], 0);
+      return { year: yr, actual: decActual, forecast: decForecast };
+    });
+    const projYears = [];
+    let bal = currentTotal;
+    const startYear = new Date().getFullYear();
+    for (let y = 0; y <= years; y++) {
+      for (let m = 0; m < 12; m++) {
+        bal = (bal + monthlyAdd) * (1 + growthRate / 100 / 12);
+      }
+      projYears.push({ year: startYear + y + 1, projected: Math.round(bal) });
+    }
+    const allYears = new Map();
+    historical.forEach(h => allYears.set(h.year, { year: h.year, actual: h.actual, forecast: h.forecast }));
+    projYears.forEach(p => {
+      const existing = allYears.get(p.year) || { year: p.year };
+      allYears.set(p.year, { ...existing, projected: p.projected });
+    });
+    return Array.from(allYears.values()).sort((a,b) => a.year - b.year);
+  }, [tracker, currentTotal, growthRate, monthlyAdd, years]);
+
   return <div>
     {/* Year selector */}
     <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:16,flexWrap:"wrap"}}>
@@ -1985,6 +2022,7 @@ function TrackerPage({ tracker, setTracker, accounts: portfolioAccounts, hideBal
       <Tab active={view==="grid"} onClick={()=>setView("grid")}>{selYear} Tracker Grid</Tab>
       <Tab active={view==="chart"} onClick={()=>setView("chart")}>Forecast vs Result</Tab>
       <Tab active={view==="compound"} onClick={()=>setView("compound")}>Compound Interest</Tab>
+      <Tab active={view==="multiyear"} onClick={()=>setView("multiyear")}>Multi-Year Trend</Tab>
     </div>
 
     {view==="grid" && <Card headerRight={
@@ -2123,6 +2161,42 @@ function TrackerPage({ tracker, setTracker, accounts: portfolioAccounts, hideBal
       </div></Card>
       <Card title="Compound Growth Projection">
         <ResponsiveContainer width="100%" height={isMobile?250:400}><AreaChart data={proj}><CartesianGrid strokeDasharray="3 3" stroke={C.border}/><XAxis dataKey="year" tick={{fill:C.textDim,fontSize:11}}/><YAxis tick={{fill:C.textDim,fontSize:11}} tickFormatter={v=>v>=1e6?`${(v/1e6).toFixed(1)}M`:`${Math.round(v/1000)}k`}/><Tooltip formatter={v=>`CHF ${fmt(v)}`} contentStyle={{background:C.card,border:`1px solid ${C.border}`,borderRadius:8,color:C.text,fontSize:13}} labelStyle={{color:C.textMuted}} itemStyle={{color:C.text}}/><Legend/><Area type="monotone" dataKey="contributed" fill={C.blue+"33"} stroke={C.blue} strokeWidth={1.5} name="Contributed"/><Area type="monotone" dataKey="balance" fill={C.green+"33"} stroke={C.green} strokeWidth={2} name="With Growth"/></AreaChart></ResponsiveContainer>
+      </Card>
+    </div>}
+    {view==="multiyear" && <div>
+      <div style={{display:"flex",gap:16,flexWrap:"wrap",marginBottom:16,padding:"16px 20px",background:C.card,borderRadius:12,border:`1px solid ${C.border}`}}>
+        <div style={{flex:1,minWidth:160}}>
+          <label style={{fontSize:12,color:C.textMuted,display:"flex",justifyContent:"space-between"}}><span>Annual Growth Rate</span><span style={{color:C.accent,fontWeight:600}}>{growthRate}%</span></label>
+          <input type="range" min={0} max={15} step={0.5} value={growthRate} onChange={e=>setGrowthRate(Number(e.target.value))} style={{width:"100%",accentColor:C.accent}}/>
+        </div>
+        <div style={{flex:1,minWidth:160}}>
+          <label style={{fontSize:12,color:C.textMuted,display:"flex",justifyContent:"space-between"}}><span>Monthly Contribution</span><span style={{color:C.accent,fontWeight:600}}>CHF {fmt(monthlyAdd)}</span></label>
+          <input type="range" min={0} max={8000} step={100} value={monthlyAdd} onChange={e=>setMonthlyAdd(Number(e.target.value))} style={{width:"100%",accentColor:C.accent}}/>
+        </div>
+        <div style={{flex:1,minWidth:160}}>
+          <label style={{fontSize:12,color:C.textMuted,display:"flex",justifyContent:"space-between"}}><span>Projection Horizon</span><span style={{color:C.accent,fontWeight:600}}>{years} years</span></label>
+          <input type="range" min={1} max={40} step={1} value={years} onChange={e=>setYears(Number(e.target.value))} style={{width:"100%",accentColor:C.accent}}/>
+        </div>
+      </div>
+      <Card title="Multi-Year Net Worth Trend">
+        <ResponsiveContainer width="100%" height={isMobile?260:420}>
+          <ComposedChart data={multiYearData} margin={{top:8,right:16,bottom:8,left:8}}>
+            <CartesianGrid strokeDasharray="3 3" stroke={C.border}/>
+            <XAxis dataKey="year" tick={{fill:C.textDim,fontSize:11}}/>
+            <YAxis tick={{fill:C.textDim,fontSize:11}} tickFormatter={v=>v>=1e6?`${(v/1e6).toFixed(1)}M`:`${Math.round(v/1000)}k`}/>
+            <Tooltip formatter={v=>`CHF ${fmt(v)}`} contentStyle={{background:C.card,border:`1px solid ${C.border}`,borderRadius:8,color:C.text,fontSize:13}} labelStyle={{color:C.textMuted}} itemStyle={{color:C.text}}/>
+            <Legend/>
+            <ReferenceLine x={new Date().getFullYear()} stroke={C.accent} strokeDasharray="4 4" label={{value:"Today",fill:C.accentLight,fontSize:11}}/>
+            <Area type="monotone" dataKey="projected" fill={C.blue+"33"} stroke={C.blue} strokeWidth={1.5} name="Projected" connectNulls/>
+            <Line type="monotone" dataKey="forecast" stroke={C.accent} strokeWidth={2} strokeDasharray="5 3" dot={false} name="Tracker Forecast" connectNulls/>
+            <Line type="monotone" dataKey="actual" stroke={C.green} strokeWidth={2.5} dot={{fill:C.green,r:4}} name="Actual" connectNulls={false}/>
+          </ComposedChart>
+        </ResponsiveContainer>
+        <div style={{display:"flex",gap:16,marginTop:12,flexWrap:"wrap"}}>
+          <div style={{fontSize:12,color:C.textDim}}><span style={{color:C.green,fontWeight:600}}>● Actual</span> — verified Dec balances from tracker</div>
+          <div style={{fontSize:12,color:C.textDim}}><span style={{color:C.accent,fontWeight:600}}>– – Tracker Forecast</span> — Dec forecast from tracker rows</div>
+          <div style={{fontSize:12,color:C.textDim}}><span style={{color:C.blue,fontWeight:600}}>▐ Projected</span> — compound growth from today</div>
+        </div>
       </Card>
     </div>}
   </div>;
