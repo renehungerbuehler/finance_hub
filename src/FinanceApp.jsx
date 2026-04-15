@@ -813,6 +813,7 @@ function Dashboard({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes,
         return <StatCard label="Unallocated" value={`CHF ${mask(fmt(Math.abs(rem)))}${over?" over":""}`} sub={subText} icon={Target} color={C.yellow}/>;
       })() : <StatCard label="Unallocated" value="—" sub="no active scenario" icon={Target} color={C.yellow}/>}
       <StatCard label="Survival Runway" value={sc?`${survivalMonths} months`:"—"} sub={sc?`Liquid CHF ${mask(fmt(liquidTotal))} ÷ CHF ${mask(fmt(Math.round(essentialTotal)))}/mo`:"no active scenario"} icon={Shield} color={survivalMonths>=6?C.green:survivalMonths>=3?C.yellow:C.red} iconColor={C.cyan}/>
+      <StatCard label="Tax + Insurance" value={`CHF ${mask(fmt(Math.round(linkedTax+linkedInsurance)))}/mo`} sub={`CHF ${mask(fmt(Math.round((linkedTax+linkedInsurance)*12)))}/yr`} icon={ShieldCheck} color={C.red}/>
     </div>
 
     <div style={{ display:"grid", gridTemplateColumns:isMobile?"1fr":"repeat(auto-fit,minmax(300px,1fr))", gap:16, marginBottom:24 }}>
