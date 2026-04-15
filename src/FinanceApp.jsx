@@ -497,7 +497,6 @@ function AccountsPage({ accounts, setAccounts, hideBalances, onAccountsUpdated, 
         <SortTH col="name">Account</SortTH>
         {!isMobile && <SortTH col="institution">Institution</SortTH>}
         <SortTH col="type">Type</SortTH>
-        {!isMobile && <TH>Rate %</TH>}
         <SortTH col="balance">Balance</SortTH>
         <TH w={isMobile?60:110}></TH>
       </tr></thead>
@@ -512,14 +511,15 @@ function AccountsPage({ accounts, setAccounts, hideBalances, onAccountsUpdated, 
               {ACCT_TYPES.map(t=><option key={t} value={t}>{t}</option>)}
             </select>
           </td>
-          {!isMobile && <td style={{padding:"10px 12px",borderBottom:`1px solid ${C.border}11`,textAlign:"right"}}>
-            {RATE_TYPES.includes(a.type)
-              ? <InlineNum value={a.interestRate} onChange={v=>editAcct(a.id,"interestRate",v)} width={55} placeholder="—"/>
-              : <span style={{color:C.textDim,fontSize:12}}>—</span>}
-          </td>}
           <td style={{padding:"10px 12px",fontSize:13,textAlign:"right",fontWeight:600,fontVariantNumeric:"tabular-nums",borderBottom:`1px solid ${C.border}11`}}>{hideBalances ? <span style={{color:C.textDim}}>••••</span> : <InlineNum value={a.balance} onChange={v=>editAcct(a.id,"balance",v??0)} width={80}/>}</td>
           <td style={{padding:"8px 12px",borderBottom:`1px solid ${C.border}11`}}>
             <div style={{display:'flex',gap:6,alignItems:'center'}}>
+              <button onClick={e=>{e.stopPropagation();if(a.loginUrl){window.open(a.loginUrl,'_blank','noopener');}else{toggleNotes(a.id);}}}
+                title={a.loginUrl ? `Go to ${a.loginUrl}` : 'Add login URL (expand notes)'}
+                style={{background:'transparent',border:'none',cursor:'pointer',padding:3,display:'flex',alignItems:'center',
+                  color:a.loginUrl ? C.accentLight : C.textDim}}>
+                <ExternalLink size={13}/>
+              </button>
               <button onClick={e=>{e.stopPropagation();toggleNotes(a.id);}}
                 title={`AI instructions for this account\n\nTell the AI how to interpret this account — e.g. "ESPP with 15% discount", "ETF-based 3a fund, no public ticker", "joint account with partner".\nAlso used as context when importing files for this account.`}
                 style={{background:'transparent',border:'none',cursor:'pointer',padding:3,display:'flex',alignItems:'center',
@@ -538,7 +538,19 @@ function AccountsPage({ accounts, setAccounts, hideBalances, onAccountsUpdated, 
           </td>
         </tr>
         {notesOpen.has(a.id) && <tr key={`${a.id}-notes`}>
-          <td colSpan={isMobile?4:6} style={{padding:'0 12px 10px',borderBottom:`1px solid ${C.border}11`}}>
+          <td colSpan={isMobile?4:5} style={{padding:'0 12px 10px',borderBottom:`1px solid ${C.border}11`}}>
+            <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:8}}>
+              <ExternalLink size={12} style={{color:C.textDim,flexShrink:0}}/>
+              <input
+                value={a.loginUrl||''}
+                onChange={e=>editAcct(a.id,'loginUrl',e.target.value)}
+                placeholder="Login URL — e.g. https://www.ubs.com/login"
+                style={{flex:1,padding:'6px 10px',borderRadius:8,border:`1px solid ${C.border}`,background:C.bg,color:C.textMuted,
+                  fontSize:12,outline:'none',boxSizing:'border-box',fontFamily:'inherit'}}
+              />
+              {a.loginUrl && <a href={a.loginUrl} target="_blank" rel="noopener noreferrer"
+                style={{fontSize:11,color:C.accentLight,whiteSpace:'nowrap'}}>Open ↗</a>}
+            </div>
             <textarea
               value={a.instructions||''}
               onChange={e=>editAcct(a.id,'instructions',e.target.value)}
@@ -554,8 +566,8 @@ function AccountsPage({ accounts, setAccounts, hideBalances, onAccountsUpdated, 
         </tr>}
         </React.Fragment>;
       })}
-      <tr style={{background:C.bg}}><td style={{padding:"10px 12px",fontWeight:700}} colSpan={isMobile?2:4}>Total</td><td style={{padding:"10px 12px",textAlign:"right",fontWeight:700,fontSize:15,color:C.accent}}>{mask(fmt(totalWealth))}</td><td/></tr>
-      <AddRow onClick={addAcct} label="Add account" colSpan={isMobile?4:6}/>
+      <tr style={{background:C.bg}}><td style={{padding:"10px 12px",fontWeight:700}} colSpan={isMobile?2:3}>Total</td><td style={{padding:"10px 12px",textAlign:"right",fontWeight:700,fontSize:15,color:C.accent}}>{mask(fmt(totalWealth))}</td><td/></tr>
+      <AddRow onClick={addAcct} label="Add account" colSpan={isMobile?4:5}/>
       </tbody></table></div>
     </Card>
   </div>;
@@ -3238,10 +3250,10 @@ function ChatPanel({ accounts, scenarios, subsP, yearly, taxes, insurance, profi
       survivalMonths: essentialCosts > 0 ? Math.floor(liquidTotal / essentialCosts) : 0,
       activeScenario: sc ? {
         name: sc.name,
-        incomes:     sc.incomes.map(x => ({ label: x.label, amount: Math.round(getA(x)) })),
-        expenses:    sc.expenses.map(x => ({ label: x.label, amount: Math.round(getA(x)), essential: x.essential !== false })),
-        savings:     sc.savings.map(x => ({ label: x.label, amount: Math.round(getA(x)) })),
-        investments: sc.investments.map(x => ({ label: x.label, amount: Math.round(getA(x)) })),
+        incomes:     (sc.incomes||[]).map(x => ({ label: x.label, amount: Math.round(getA(x)||0) })),
+        expenses:    (sc.expenses||[]).map(x => ({ label: x.label, amount: Math.round(getA(x)||0), essential: x.essential !== false })),
+        savings:     (sc.savings||[]).map(x => ({ label: x.label, amount: Math.round(getA(x)||0) })),
+        investments: (sc.investments||[]).map(x => ({ label: x.label, amount: Math.round(getA(x)||0) })),
         totals: { income: Math.round(inc), expenses: Math.round(exp), savings: Math.round(sav), investments: Math.round(inv), unallocated: Math.round(inc - exp - sav - inv) },
       } : null,
       accounts: accounts.map(a => ({
