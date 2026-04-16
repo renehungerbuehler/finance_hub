@@ -307,10 +307,11 @@ router.post('/chat', async (req, res) => {
   const config = getProviderConfig(provider, providerConfig);
 
   // ── PII redaction ────────────────────────────────────────────────────────
-  // Default on for all cloud providers; disabled for ollama (local anyway).
-  // The client can override via providerConfig.redactPII = false.
+  // Always on for cloud providers; skipped for Ollama because the data never
+  // leaves the user's machine anyway. Not user-configurable — privacy is a
+  // guarantee, not a preference.
   const providerIsLocal = provider === 'ollama';
-  const redactEnabled = providerConfig?.redactPII !== false && !providerIsLocal;
+  const redactEnabled = !providerIsLocal;
 
   let workingContext = context;
   let workingMessage = message;

@@ -3501,13 +3501,16 @@ function ChatPanel({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes,
     {open && <div style={maximized?{position:"fixed",top:"50%",left:"50%",transform:"translate(-50%,-50%)",width:"min(92vw,1140px)",height:"84vh",background:C.card,border:`1px solid ${C.border}`,borderRadius:16,display:"flex",flexDirection:"column",zIndex:1002,boxShadow:"0 24px 80px rgba(0,0,0,0.6)",overflow:"hidden"}:{position:"fixed",bottom:btnPos.bottom+64,right:btnPos.right,width:panelW,height:typeof window !== 'undefined' && window.innerWidth < 768 ? 'calc(100vh - 120px)' : 520,background:C.card,border:`1px solid ${C.border}`,borderRadius:16,display:"flex",flexDirection:"column",zIndex:1000,boxShadow:"0 8px 40px rgba(0,0,0,0.5)",overflow:"hidden"}}>
       {/* Consent modal */}
       {pendingConsent && <div style={{position:'absolute',inset:0,background:'rgba(0,0,0,0.75)',zIndex:10,display:'flex',alignItems:'center',justifyContent:'center',padding:20,borderRadius:16}}>
-        <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:14,padding:24,maxWidth:360,width:'100%',boxShadow:'0 8px 40px rgba(0,0,0,0.5)'}}>
+        <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:14,padding:24,maxWidth:380,width:'100%',boxShadow:'0 8px 40px rgba(0,0,0,0.5)'}}>
           <div style={{fontSize:20,marginBottom:12}}>☁️ Cloud AI Privacy Notice</div>
-          <div style={{fontSize:13,color:C.text,lineHeight:1.7,marginBottom:16}}>
-            You are using <strong style={{color:C.accent}}>{aiProvider?.label || 'a cloud AI provider'}</strong>. Your financial data — account balances, income, expenses, and profile — will be sent to a <strong>third-party server</strong> with each message.
+          <div style={{fontSize:13,color:C.text,lineHeight:1.7,marginBottom:12}}>
+            You are using <strong style={{color:C.accent}}>{aiProvider?.label || 'a cloud AI provider'}</strong>. Your financial context — balances, income, expenses, and scenarios — is sent with each message.
           </div>
-          <div style={{fontSize:12,color:C.textDim,lineHeight:1.7,marginBottom:20,padding:'10px 14px',background:C.bg,borderRadius:9}}>
-            To keep your data 100% local, switch to <strong>Ollama</strong> in <em>AI Settings</em>. This notice appears once per browser session.
+          <div style={{fontSize:12,color:C.green,lineHeight:1.6,marginBottom:14,padding:'10px 14px',background:C.green+'15',borderRadius:9,border:`1px solid ${C.green}33`}}>
+            🛡 <strong>PII masked automatically.</strong> Names, AHV, IBAN, email, phone, and addresses are replaced with placeholders (PERSON_1, AHV_1…) before leaving this server. The provider never sees your identity. Real values are restored in the response shown to you.
+          </div>
+          <div style={{fontSize:11,color:C.textDim,lineHeight:1.6,marginBottom:18}}>
+            Canton, marital status, age, and children are <em>not</em> masked — they shape tax advice and aren't identifying alone. To keep 100% of data local, switch to <strong>Ollama</strong> in AI Settings.
           </div>
           <div style={{display:'flex',gap:10}}>
             <button onClick={handleConsentAccept} style={{flex:1,padding:'10px 0',borderRadius:8,border:'none',background:C.accent,color:'#fff',fontWeight:700,fontSize:14,cursor:'pointer'}}>I understand — continue</button>
@@ -3523,7 +3526,10 @@ function ChatPanel({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes,
           <span style={{fontSize:14,fontWeight:600,color:C.text}}>AI Finance Advisor</span>
           {providerIsLocal
             ? <span style={{fontSize:10,padding:'1px 7px',borderRadius:9,background:C.green+'22',color:C.green,fontWeight:700}}>🔒 Local</span>
-            : aiProvider?.provider && <span style={{fontSize:10,padding:'1px 7px',borderRadius:9,background:C.orange+'22',color:C.orange,fontWeight:700}}>☁ {aiProvider.label}</span>
+            : aiProvider?.provider && <>
+                <span style={{fontSize:10,padding:'1px 7px',borderRadius:9,background:C.orange+'22',color:C.orange,fontWeight:700}}>☁ {aiProvider.label}</span>
+                <span title="Names, AHV, IBAN, email, phone and addresses are replaced with placeholders before leaving this server. The cloud provider never sees your real identity." style={{fontSize:10,padding:'1px 7px',borderRadius:9,background:C.green+'22',color:C.green,fontWeight:700,cursor:'help'}}>🛡 PII masked</span>
+              </>
           }
         </div>
         <div style={{display:"flex",gap:6,alignItems:'center'}}>
