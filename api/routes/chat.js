@@ -28,18 +28,18 @@ function getProviderConfig(provider, bodyConfig) {
     case 'anthropic':
       return {
         apiKey: bodyConfig?.apiKey || process.env.ANTHROPIC_API_KEY,
-        model:  bodyConfig?.model  || 'claude-opus-4-6',
+        model:  bodyConfig?.model  || process.env.ANTHROPIC_MODEL || 'claude-opus-4-6',
       };
     case 'openai':
       return {
         apiKey:  bodyConfig?.apiKey  || process.env.OPENAI_API_KEY,
-        model:   bodyConfig?.model   || 'gpt-4o',
-        baseUrl: bodyConfig?.baseUrl || null,
+        model:   bodyConfig?.model   || process.env.OPENAI_MODEL    || 'gpt-4o',
+        baseUrl: bodyConfig?.baseUrl || process.env.OPENAI_BASE_URL || null,
       };
     case 'gemini':
       return {
         apiKey: bodyConfig?.apiKey || process.env.GEMINI_API_KEY,
-        model:  bodyConfig?.model  || 'gemini-2.0-flash',
+        model:  bodyConfig?.model  || process.env.GEMINI_MODEL || 'gemini-2.0-flash',
       };
     case 'ollama':
       return {

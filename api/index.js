@@ -20,10 +20,22 @@ app.use(express.json({ limit: '10mb' }));
 app.get('/api/health', (_req, res) => res.json({ ok: true }));
 
 app.get('/api/provider', (_req, res) => {
-  if (process.env.ANTHROPIC_API_KEY) return res.json({ provider: 'anthropic', label: 'Claude Opus 4.6',    description: 'Personalised strategy · multi-turn · web-researched · powered by Claude' });
-  if (process.env.OPENAI_API_KEY)    return res.json({ provider: 'openai',    label: 'GPT-4o',             description: 'Personalised strategy · multi-turn · powered by OpenAI' });
-  if (process.env.GEMINI_API_KEY)    return res.json({ provider: 'gemini',    label: 'Gemini 2.0 Flash',   description: 'Personalised strategy · multi-turn · powered by Google Gemini' });
-  if (process.env.OLLAMA_MODEL)      return res.json({ provider: 'ollama',    label: process.env.OLLAMA_MODEL, description: `100% local · no data leaves your machine · powered by Ollama` });
+  if (process.env.ANTHROPIC_API_KEY) {
+    const model = process.env.ANTHROPIC_MODEL || 'claude-opus-4-6';
+    return res.json({ provider: 'anthropic', model, label: model, description: `Personalised strategy · multi-turn · web-researched · powered by Claude (${model})` });
+  }
+  if (process.env.OPENAI_API_KEY) {
+    const model = process.env.OPENAI_MODEL || 'gpt-4o';
+    return res.json({ provider: 'openai', model, label: model, description: `Personalised strategy · multi-turn · powered by OpenAI (${model})` });
+  }
+  if (process.env.GEMINI_API_KEY) {
+    const model = process.env.GEMINI_MODEL || 'gemini-2.0-flash';
+    return res.json({ provider: 'gemini', model, label: model, description: `Personalised strategy · multi-turn · powered by Google Gemini (${model})` });
+  }
+  if (process.env.OLLAMA_MODEL) {
+    const model = process.env.OLLAMA_MODEL;
+    return res.json({ provider: 'ollama', model, label: model, description: `100% local · no data leaves your machine · powered by Ollama (${model})` });
+  }
   return res.json({ provider: null, label: 'No AI configured', description: 'Set ANTHROPIC_API_KEY, OPENAI_API_KEY, GEMINI_API_KEY, or OLLAMA_MODEL in your .env file' });
 });
 app.use('/api', chatRouter);
@@ -38,11 +50,12 @@ app.post('/api/provider/test', async (req, res) => {
     if (provider === 'anthropic') {
       const key = apiKey || process.env.ANTHROPIC_API_KEY;
       if (!key) return res.json({ ok: false, error: 'No API key provided' });
+      const useModel = model || process.env.ANTHROPIC_MODEL || 'claude-opus-4-6';
       const anthropicModule = require('@anthropic-ai/sdk');
       const Anthropic = anthropicModule.default || anthropicModule;
       const client = new Anthropic({ apiKey: key });
       const msg = await client.messages.create({
-        model: model || 'claude-haiku-4-5-20251001',
+        model: useModel,
         max_tokens: 8,
         messages: [{ role: 'user', content: 'hi' }],
       });
@@ -52,13 +65,15 @@ app.post('/api/provider/test', async (req, res) => {
     if (provider === 'openai') {
       const key = apiKey || process.env.OPENAI_API_KEY;
       if (!key) return res.json({ ok: false, error: 'No API key provided' });
+      const useModel = model || process.env.OPENAI_MODEL || 'gpt-4o';
       const openaiModule = require('openai');
       const OpenAI = openaiModule.default || openaiModule.OpenAI || openaiModule;
       const opts = { apiKey: key };
-      if (baseUrl) opts.baseURL = baseUrl;
+      const useBase = baseUrl || process.env.OPENAI_BASE_URL;
+      if (useBase) opts.baseURL = useBase;
       const client = new OpenAI(opts);
       const resp = await client.chat.completions.create({
-        model: model || 'gpt-4o-mini',
+        model: useModel,
         max_tokens: 8,
         messages: [{ role: 'user', content: 'hi' }],
       });
@@ -68,12 +83,13 @@ app.post('/api/provider/test', async (req, res) => {
     if (provider === 'gemini') {
       const key = apiKey || process.env.GEMINI_API_KEY;
       if (!key) return res.json({ ok: false, error: 'No API key provided' });
+      const useModel = model || process.env.GEMINI_MODEL || 'gemini-2.0-flash';
       const { GoogleGenerativeAI } = require('@google/generative-ai');
       const genAI = new GoogleGenerativeAI(key);
-      const m = genAI.getGenerativeModel({ model: model || 'gemini-2.0-flash' });
+      const m = genAI.getGenerativeModel({ model: useModel });
       const result = await m.generateContent('hi');
       const text = result.response.text();
-      return res.json({ ok: true, model: model || 'gemini-2.0-flash', preview: text.slice(0, 40) });
+      return res.json({ ok: true, model: useModel, preview: text.slice(0, 40) });
     }
 
     if (provider === 'ollama') {
