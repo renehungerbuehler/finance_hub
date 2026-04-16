@@ -1,6 +1,7 @@
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
+const { redactContext, redactMessage, redactHistory, StreamRehydrator } = require('../lib/redact');
 
 const router = express.Router();
 
@@ -8,6 +9,26 @@ const SYSTEM_BASE = fs.readFileSync(
   path.join(__dirname, '../prompts/finance-advisor.md'),
   'utf8'
 );
+
+/**
+ * Build a delta-writer that handles SSE framing, optional stream re-hydration
+ * (swap placeholders back to real PII values), and the empty-delta edge case.
+ * Provider handlers call writeDelta(text) instead of res.write(...) for every
+ * text chunk the model produces.
+ */
+function makeWriteDelta(res, rehydrator) {
+  return (text) => {
+    if (!text) return;
+    const out = rehydrator ? rehydrator.push(text) : text;
+    if (out) res.write(`data: ${JSON.stringify({ text: out })}\n\n`);
+  };
+}
+
+function flushRehydrator(res, rehydrator) {
+  if (!rehydrator) return;
+  const tail = rehydrator.flush();
+  if (tail) res.write(`data: ${JSON.stringify({ text: tail })}\n\n`);
+}
 
 // Anthropic server-side tools (only sent with Anthropic provider)
 const ANTHROPIC_TOOLS = [
@@ -98,7 +119,7 @@ function buildAttachmentBlocks(att, provider) {
   return [];
 }
 
-async function handleAnthropic(res, system, messages, config) {
+async function handleAnthropic(res, system, messages, config, writeDelta) {
   const anthropicModule = require('@anthropic-ai/sdk');
   const Anthropic = anthropicModule.default || anthropicModule;
   const client = new Anthropic({ apiKey: config.apiKey });
@@ -125,7 +146,7 @@ async function handleAnthropic(res, system, messages, config) {
       } else if (event.type === 'content_block_delta') {
         if (event.delta.type === 'text_delta' && currentBlock) {
           currentBlock.text += event.delta.text;
-          res.write(`data: ${JSON.stringify({ text: event.delta.text })}\n\n`);
+          writeDelta(event.delta.text);
         } else if (event.delta.type === 'input_json_delta' && currentBlock) {
           currentBlock.partial_json = (currentBlock.partial_json || '') + event.delta.partial_json;
         }
@@ -146,7 +167,7 @@ async function handleAnthropic(res, system, messages, config) {
 
     if (finalMsg.stop_reason === 'tool_use' || finalMsg.stop_reason === 'pause_turn') {
       messages.push({ role: 'assistant', content: finalMsg.content });
-      res.write(`data: ${JSON.stringify({ text: '\n' })}\n\n`);
+      writeDelta('\n');
       continue;
     }
 
@@ -154,7 +175,7 @@ async function handleAnthropic(res, system, messages, config) {
   }
 }
 
-async function handleOpenAI(res, system, messages, config) {
+async function handleOpenAI(res, system, messages, config, writeDelta) {
   const openaiModule = require('openai');
   const OpenAI = openaiModule.default || openaiModule.OpenAI || openaiModule;
   const clientOpts = { apiKey: config.apiKey };
@@ -189,13 +210,11 @@ async function handleOpenAI(res, system, messages, config) {
 
   for await (const chunk of stream) {
     const delta = chunk.choices[0]?.delta?.content || '';
-    if (delta) {
-      res.write(`data: ${JSON.stringify({ text: delta })}\n\n`);
-    }
+    if (delta) writeDelta(delta);
   }
 }
 
-async function handleGemini(res, system, messages, config) {
+async function handleGemini(res, system, messages, config, writeDelta) {
   const { GoogleGenerativeAI } = require('@google/generative-ai');
   const genAI = new GoogleGenerativeAI(config.apiKey);
   const model = genAI.getGenerativeModel({
@@ -238,16 +257,14 @@ async function handleGemini(res, system, messages, config) {
     const result = await model.generateContentStream({ contents: geminiMessages });
     for await (const chunk of result.stream) {
       const text = chunk.text();
-      if (text) {
-        res.write(`data: ${JSON.stringify({ text })}\n\n`);
-      }
+      if (text) writeDelta(text);
     }
   } catch (err) {
     throw new Error(`Gemini error: ${err.message}`);
   }
 }
 
-async function handleOllama(res, system, messages, config) {
+async function handleOllama(res, system, messages, config, writeDelta) {
   const openaiModule = require('openai');
   const OpenAI = openaiModule.default || openaiModule.OpenAI || openaiModule;
   const baseURL = `${config.baseUrl || 'http://host.docker.internal:11434'}/v1`;
@@ -273,7 +290,7 @@ async function handleOllama(res, system, messages, config) {
 
   for await (const chunk of stream) {
     const delta = chunk.choices[0]?.delta?.content || '';
-    if (delta) res.write(`data: ${JSON.stringify({ text: delta })}\n\n`);
+    if (delta) writeDelta(delta);
   }
 }
 
@@ -288,19 +305,41 @@ router.post('/chat', async (req, res) => {
   }
 
   const config = getProviderConfig(provider, providerConfig);
-  const system = buildSystem(context, systemOverride?.trim() || SYSTEM_BASE);
 
-  // Build user content — text + optional file attachment(s)
+  // ── PII redaction ────────────────────────────────────────────────────────
+  // Default on for all cloud providers; disabled for ollama (local anyway).
+  // The client can override via providerConfig.redactPII = false.
+  const providerIsLocal = provider === 'ollama';
+  const redactEnabled = providerConfig?.redactPII !== false && !providerIsLocal;
+
+  let workingContext = context;
+  let workingMessage = message;
+  let workingHistory = history;
+  let rehydrator = null;
+
+  if (redactEnabled) {
+    const ctxResult = redactContext(context);
+    workingContext = ctxResult.redacted;
+    workingMessage = redactMessage(message, ctxResult.map, ctxResult.counter);
+    workingHistory = redactHistory(history, ctxResult.map, ctxResult.counter);
+    rehydrator = new StreamRehydrator(ctxResult.map);
+  }
+
+  const system = buildSystem(workingContext, systemOverride?.trim() || SYSTEM_BASE);
+
+  // Build user content — text + optional file attachment(s).
+  // Attachments (images/PDFs) are NOT redacted — they're opaque binary data.
+  // Users who want redacted attachments should sanitize before upload.
   let userContent;
   const allAtts = attachments && Array.isArray(attachments) && attachments.length
     ? attachments
     : (attachment && attachment.data ? [attachment] : []);
   if (allAtts.length > 0) {
     const blocks = allAtts.flatMap(att => buildAttachmentBlocks(att, provider));
-    blocks.push({ type: 'text', text: message });
+    blocks.push({ type: 'text', text: workingMessage });
     userContent = blocks;
   } else {
-    userContent = message;
+    userContent = workingMessage;
   }
 
   // SSE headers
@@ -308,19 +347,22 @@ router.post('/chat', async (req, res) => {
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
 
+  const writeDelta = makeWriteDelta(res, rehydrator);
+
   try {
-    const messages = [...history, { role: 'user', content: userContent }];
+    const messages = [...workingHistory, { role: 'user', content: userContent }];
 
     if (provider === 'anthropic') {
-      await handleAnthropic(res, system, messages, config);
+      await handleAnthropic(res, system, messages, config, writeDelta);
     } else if (provider === 'openai') {
-      await handleOpenAI(res, system, messages, config);
+      await handleOpenAI(res, system, messages, config, writeDelta);
     } else if (provider === 'gemini') {
-      await handleGemini(res, system, messages, config);
+      await handleGemini(res, system, messages, config, writeDelta);
     } else if (provider === 'ollama') {
-      await handleOllama(res, system, messages, config);
+      await handleOllama(res, system, messages, config, writeDelta);
     }
 
+    flushRehydrator(res, rehydrator);
     res.write('data: [DONE]\n\n');
     res.end();
   } catch (err) {
