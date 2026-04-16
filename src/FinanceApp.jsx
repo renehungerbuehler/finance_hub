@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { PieChart, Pie, Cell, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, BarChart, Bar, ResponsiveContainer, AreaChart, Area, ComposedChart, ReferenceLine } from "recharts";
-import { LayoutDashboard, Target, TrendingUp, Activity, CreditCard, Shield, Plus, Pencil, Trash2, Check, X, DollarSign, Wallet, PiggyBank, BarChart3, GripVertical, Power, Sparkles, AlertTriangle, ArrowUpRight, Info, Lightbulb, ShieldCheck, Landmark, Paperclip, Upload, Download, Sun, Moon, ChevronLeft, ChevronRight, User, Building2, Eye, EyeOff, RefreshCw, ChevronDown, MessageSquarePlus, ExternalLink, Maximize2, Minimize2, BookOpen } from "lucide-react";
+import { LayoutDashboard, Target, TrendingUp, Activity, CreditCard, Shield, Plus, Pencil, Trash2, Check, X, DollarSign, Wallet, PiggyBank, BarChart3, GripVertical, Power, Sparkles, AlertTriangle, ArrowUpRight, Info, Lightbulb, ShieldCheck, Landmark, Paperclip, Upload, Download, Sun, Moon, ChevronLeft, ChevronRight, User, Building2, Eye, EyeOff, RefreshCw, ChevronDown, MessageSquarePlus, ExternalLink, Maximize2, Minimize2, BookOpen, Settings, Key, Bot, WifiOff } from "lucide-react";
 import { jsPDF } from "jspdf";
 
 const API_URL = `http://${window.location.hostname}:3003/api`;
@@ -3259,6 +3259,7 @@ function ChatPanel({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes,
   const [btnPos, setBtnPos] = useState({ right: 24, bottom: 24 });
   const [saved, setSaved] = useState(false);
   const [pinPending, setPinPending] = useState(false);
+  const [pendingConsent, setPendingConsent] = useState(null); // { question, sentAttachment }
   const pendingPin = useRef(false);
   const messagesRef = useRef([]);
   const fileInputRef = useRef(null);
@@ -3281,8 +3282,15 @@ function ChatPanel({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes,
   };
 
   useEffect(() => {
-    fetch(`${API_URL}/provider`).then(r => r.json()).then(d => setAiProvider(d)).catch(() => {});
-  }, []);
+    const stored = getStoredProviderConfig();
+    if (stored?.provider && stored.provider !== 'auto') {
+      // User has a custom provider — show its label without hitting /api/provider
+      const labels = { anthropic: 'Claude (Anthropic)', openai: 'GPT-4o (OpenAI)', gemini: 'Gemini (Google)', ollama: stored.model || 'Ollama (local)' };
+      setAiProvider({ provider: stored.provider, label: labels[stored.provider] || stored.provider, description: stored.provider === 'ollama' ? '100% local · no data leaves your machine' : 'Custom provider configured in AI Settings' });
+    } else {
+      fetch(`${API_URL}/provider`).then(r => r.json()).then(d => setAiProvider(d)).catch(() => {});
+    }
+  }, [open]); // re-check each time panel opens in case settings changed
 
   // Pre-seed input from external callers (e.g. Portfolio page quick-actions)
   useEffect(() => {
@@ -3393,13 +3401,7 @@ function ChatPanel({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes,
     doSavePin(messages);
   };
 
-  const sendMessage = async () => {
-    if ((!input.trim() && !attachment) || streaming) return;
-    const question = input.trim() || (attachment ? `Please analyse this file: ${attachment.name}` : "");
-    const sentAttachment = attachment;
-    setInput("");
-    setAttachment(null);
-
+  const doSendMessage = async (question, sentAttachment) => {
     const userMsg = { role: "user", content: question, attachmentName: sentAttachment?.name };
     const assistantMsg = { role: "assistant", content: "" };
     setMessages(prev => [...prev, userMsg, assistantMsg]);
@@ -3407,12 +3409,15 @@ function ChatPanel({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes,
 
     // Build history (all messages except the new ones we just added)
     const history = messages.map(m => ({ role: m.role, content: m.content }));
+    const storedConfig = getStoredProviderConfig();
 
     try {
+      const body = { message: question, context: buildContext(), history, attachment: sentAttachment, systemOverride: promptTemplate || undefined };
+      if (storedConfig && storedConfig.provider && storedConfig.provider !== 'auto') body.providerConfig = storedConfig;
       const resp = await fetch(`${API_URL}/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: question, context: buildContext(), history, attachment: sentAttachment, systemOverride: promptTemplate || undefined }),
+        body: JSON.stringify(body),
       });
 
       const reader = resp.body.getReader();
@@ -3450,7 +3455,43 @@ function ChatPanel({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes,
     setStreaming(false); setChatStatus("");
   };
 
+  const sendMessage = async () => {
+    if ((!input.trim() && !attachment) || streaming) return;
+    const question = input.trim() || (attachment ? `Please analyse this file: ${attachment.name}` : "");
+    const sentAttachment = attachment;
+    setInput(""); setAttachment(null);
+
+    // Check consent for cloud providers (one-time per session per provider)
+    const storedConfig = getStoredProviderConfig();
+    const provId = (storedConfig?.provider && storedConfig.provider !== 'auto') ? storedConfig.provider : aiProvider?.provider;
+    if (provId && provId !== 'ollama') {
+      const consentKey = `ai_consent_${provId}`;
+      if (!sessionStorage.getItem(consentKey)) {
+        // Pause sending — show consent modal first
+        setPendingConsent({ question, sentAttachment });
+        return;
+      }
+    }
+    doSendMessage(question, sentAttachment);
+  };
+
+  const handleConsentAccept = () => {
+    const storedConfig = getStoredProviderConfig();
+    const provId = (storedConfig?.provider && storedConfig.provider !== 'auto') ? storedConfig.provider : aiProvider?.provider;
+    if (provId) sessionStorage.setItem(`ai_consent_${provId}`, 'true');
+    const { question, sentAttachment } = pendingConsent;
+    setPendingConsent(null);
+    doSendMessage(question, sentAttachment);
+  };
+
+  const handleConsentDecline = () => {
+    setInput(pendingConsent?.question || '');
+    setPendingConsent(null);
+  };
+
   const panelW = typeof window !== 'undefined' && window.innerWidth < 768 ? window.innerWidth - 24 : 420;
+  const providerIsLocal = aiProvider?.provider === 'ollama' || (() => { const sc = getStoredProviderConfig(); return sc?.provider === 'ollama'; })();
+
   return <>
     {/* Floating button */}
     <button onMouseDown={startDrag} onClick={()=>{ if(!isDragging.current) setOpen(o=>!o); }} title="AI Finance Advisor" style={{position:"fixed",bottom:btnPos.bottom,right:btnPos.right,width:52,height:52,borderRadius:26,background:C.accent,border:"none",cursor:"grab",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 4px 20px rgba(37,99,235,0.5)",zIndex:1000,userSelect:"none"}}>
@@ -3460,11 +3501,32 @@ function ChatPanel({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes,
     {/* Panel */}
     {open && maximized && <div onClick={()=>setMaximized(false)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.7)",zIndex:1001,display:"flex",alignItems:"center",justifyContent:"center",padding:24}}/>}
     {open && <div style={maximized?{position:"fixed",top:"50%",left:"50%",transform:"translate(-50%,-50%)",width:"min(92vw,1140px)",height:"84vh",background:C.card,border:`1px solid ${C.border}`,borderRadius:16,display:"flex",flexDirection:"column",zIndex:1002,boxShadow:"0 24px 80px rgba(0,0,0,0.6)",overflow:"hidden"}:{position:"fixed",bottom:btnPos.bottom+64,right:btnPos.right,width:panelW,height:typeof window !== 'undefined' && window.innerWidth < 768 ? 'calc(100vh - 120px)' : 520,background:C.card,border:`1px solid ${C.border}`,borderRadius:16,display:"flex",flexDirection:"column",zIndex:1000,boxShadow:"0 8px 40px rgba(0,0,0,0.5)",overflow:"hidden"}}>
+      {/* Consent modal */}
+      {pendingConsent && <div style={{position:'absolute',inset:0,background:'rgba(0,0,0,0.75)',zIndex:10,display:'flex',alignItems:'center',justifyContent:'center',padding:20,borderRadius:16}}>
+        <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:14,padding:24,maxWidth:360,width:'100%',boxShadow:'0 8px 40px rgba(0,0,0,0.5)'}}>
+          <div style={{fontSize:20,marginBottom:12}}>☁️ Cloud AI Privacy Notice</div>
+          <div style={{fontSize:13,color:C.text,lineHeight:1.7,marginBottom:16}}>
+            You are using <strong style={{color:C.accent}}>{aiProvider?.label || 'a cloud AI provider'}</strong>. Your financial data — account balances, income, expenses, and profile — will be sent to a <strong>third-party server</strong> with each message.
+          </div>
+          <div style={{fontSize:12,color:C.textDim,lineHeight:1.7,marginBottom:20,padding:'10px 14px',background:C.bg,borderRadius:9}}>
+            To keep your data 100% local, switch to <strong>Ollama</strong> in <em>AI Settings</em>. This notice appears once per browser session.
+          </div>
+          <div style={{display:'flex',gap:10}}>
+            <button onClick={handleConsentAccept} style={{flex:1,padding:'10px 0',borderRadius:8,border:'none',background:C.accent,color:'#fff',fontWeight:700,fontSize:14,cursor:'pointer'}}>I understand — continue</button>
+            <button onClick={handleConsentDecline} style={{padding:'10px 16px',borderRadius:8,border:`1px solid ${C.border}`,background:'transparent',color:C.textMuted,fontSize:14,cursor:'pointer'}}>Cancel</button>
+          </div>
+        </div>
+      </div>}
+
       {/* Header */}
       <div style={{padding:"14px 18px",borderBottom:`1px solid ${C.border}`,display:"flex",alignItems:"center",justifyContent:"space-between",background:C.bg}}>
         <div style={{display:"flex",alignItems:"center",gap:10}}>
           <Sparkles size={16} color={C.accentLight}/>
           <span style={{fontSize:14,fontWeight:600,color:C.text}}>AI Finance Advisor</span>
+          {providerIsLocal
+            ? <span style={{fontSize:10,padding:'1px 7px',borderRadius:9,background:C.green+'22',color:C.green,fontWeight:700}}>🔒 Local</span>
+            : aiProvider?.provider && <span style={{fontSize:10,padding:'1px 7px',borderRadius:9,background:C.orange+'22',color:C.orange,fontWeight:700}}>☁ {aiProvider.label}</span>
+          }
         </div>
         <div style={{display:"flex",gap:6,alignItems:'center'}}>
           {messages.length>0 && <button onClick={()=>setMessages([])} title="Clear chat" style={{padding:"4px 8px",borderRadius:6,border:`1px solid ${C.border}`,background:"transparent",color:C.textDim,fontSize:12,cursor:"pointer"}}>Clear</button>}
@@ -3811,6 +3873,210 @@ function PortfolioPage({ accounts, setAccounts, hideBalances, setChatOpen, setCh
 
 // APP SHELL
 // ───────────────────────────────────────────────────────────────
+// ─── Provider Config (localStorage) ───────────────────────────────────────────
+function getStoredProviderConfig() {
+  try { return JSON.parse(localStorage.getItem('finance_hub_provider_config') || 'null'); } catch { return null; }
+}
+
+// ───────────────────────────────────────────────────────────────────────────────
+// AI SETTINGS PAGE
+// ───────────────────────────────────────────────────────────────────────────────
+function AISettingsPage() {
+  const PROVIDERS = [
+    { id: 'auto',      label: 'Auto (server)',        desc: 'Use whichever provider the server has configured via .env',       cloud: false },
+    { id: 'anthropic', label: 'Anthropic (Claude)',   desc: 'claude-opus-4-6 · web-search capable · data sent to Anthropic',  cloud: true  },
+    { id: 'openai',    label: 'OpenAI (GPT-4o)',      desc: 'gpt-4o · powerful · data sent to OpenAI',                        cloud: true  },
+    { id: 'gemini',    label: 'Google Gemini',        desc: 'gemini-2.0-flash · fast · data sent to Google',                  cloud: true  },
+    { id: 'ollama',    label: 'Ollama (local)',        desc: '100% local · no data leaves your machine · requires Ollama',     cloud: false },
+  ];
+
+  const [serverProvider, setServerProvider] = useState(null);
+  const [ollamaModels, setOllamaModels] = useState(null); // null = loading, [] = none found
+  const [storedConfig] = useState(() => getStoredProviderConfig());
+  const [editConfig, setEditConfig] = useState(() => {
+    const s = getStoredProviderConfig();
+    return { provider: s?.provider || 'auto', apiKey: s?.apiKey || '', model: s?.model || '', baseUrl: s?.baseUrl || '' };
+  });
+  const [testResult, setTestResult] = useState(null);
+  const [testing, setTesting]       = useState(false);
+  const [saved, setSaved]           = useState(false);
+
+  useEffect(() => {
+    fetch(`${API_URL}/provider`).then(r => r.json()).then(setServerProvider).catch(() => {});
+    fetch('http://localhost:11434/api/tags', { signal: AbortSignal.timeout(2000) })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => setOllamaModels(d ? (d.models || []).map(m => m.name) : []))
+      .catch(() => setOllamaModels([]));
+  }, []);
+
+  const effectiveProvId = editConfig.provider === 'auto' ? (serverProvider?.provider || 'auto') : editConfig.provider;
+  const selectedProv = PROVIDERS.find(p => p.id === effectiveProvId) || PROVIDERS[0];
+
+  const handleSave = () => {
+    if (!editConfig.provider || editConfig.provider === 'auto') {
+      localStorage.removeItem('finance_hub_provider_config');
+    } else {
+      const cfg = { provider: editConfig.provider };
+      if (editConfig.apiKey.trim()) cfg.apiKey = editConfig.apiKey.trim();
+      if (editConfig.model.trim())  cfg.model  = editConfig.model.trim();
+      if (editConfig.baseUrl.trim()) cfg.baseUrl = editConfig.baseUrl.trim();
+      localStorage.setItem('finance_hub_provider_config', JSON.stringify(cfg));
+    }
+    setSaved(true); setTimeout(() => setSaved(false), 2000);
+    setTestResult(null);
+  };
+
+  const handleTest = async () => {
+    if (!editConfig.provider || editConfig.provider === 'auto') return;
+    setTesting(true); setTestResult(null);
+    try {
+      const body = { provider: editConfig.provider };
+      if (editConfig.apiKey.trim())  body.apiKey  = editConfig.apiKey.trim();
+      if (editConfig.model.trim())   body.model   = editConfig.model.trim();
+      if (editConfig.baseUrl.trim()) body.baseUrl = editConfig.baseUrl.trim();
+      const r = await fetch(`${API_URL}/provider/test`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      const d = await r.json();
+      setTestResult(d);
+    } catch (err) {
+      setTestResult({ ok: false, error: err.message });
+    }
+    setTesting(false);
+  };
+
+  const inp = (val, onChange, placeholder, type='text') => (
+    <input type={type} value={val} onChange={e => onChange(e.target.value)} placeholder={placeholder}
+      style={{width:'100%',padding:'9px 12px',borderRadius:8,border:`1px solid ${C.border}`,background:C.bg,color:C.text,fontSize:14,outline:'none',boxSizing:'border-box',fontFamily:'inherit'}}/>
+  );
+
+  const activeLocal = storedConfig && storedConfig.provider !== 'auto';
+
+  return (
+    <div style={{maxWidth:720}}>
+      {/* Status banner */}
+      <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:'16px 20px',marginBottom:20,display:'flex',alignItems:'center',gap:12}}>
+        <Bot size={20} color={C.accentLight}/>
+        <div style={{flex:1}}>
+          <div style={{fontSize:13,fontWeight:600,color:C.text}}>
+            Currently active: <span style={{color:C.accent}}>
+              {activeLocal ? (PROVIDERS.find(p => p.id === storedConfig.provider)?.label || storedConfig.provider) : (serverProvider?.label || '…')}
+            </span>
+            {activeLocal && <span style={{fontSize:11,color:C.blue,marginLeft:8,padding:'1px 7px',borderRadius:10,background:C.blue+'22'}}>custom (localStorage)</span>}
+            {!activeLocal && serverProvider && <span style={{fontSize:11,color:C.textDim,marginLeft:8,padding:'1px 7px',borderRadius:10,background:C.border}}>.env</span>}
+          </div>
+          {serverProvider?.description && !activeLocal && <div style={{fontSize:12,color:C.textDim,marginTop:2}}>{serverProvider.description}</div>}
+          {activeLocal && <div style={{fontSize:12,color:C.textDim,marginTop:2}}>Your custom override — set below. Clear to revert to server .env config.</div>}
+        </div>
+        <div style={{display:'flex',alignItems:'center',gap:6}}>
+          {ollamaModels === null && <span style={{fontSize:12,color:C.textDim}}>Checking Ollama…</span>}
+          {ollamaModels !== null && ollamaModels.length > 0 && <span style={{fontSize:12,color:C.green,display:'flex',alignItems:'center',gap:4}}><div style={{width:7,height:7,borderRadius:'50%',background:C.green}}/> Ollama detected ({ollamaModels.length} model{ollamaModels.length>1?'s':''})</span>}
+          {ollamaModels !== null && ollamaModels.length === 0 && <span style={{fontSize:12,color:C.textMuted,display:'flex',alignItems:'center',gap:4}}><WifiOff size={12}/> Ollama not detected</span>}
+        </div>
+      </div>
+
+      <Card title="Configure AI Provider">
+        {/* Provider selector */}
+        <div style={{marginBottom:20}}>
+          <div style={{fontSize:12,color:C.textDim,fontWeight:600,textTransform:'uppercase',letterSpacing:0.5,marginBottom:10}}>Provider</div>
+          <div style={{display:'flex',flexDirection:'column',gap:8}}>
+            {PROVIDERS.map(p => (
+              <label key={p.id} style={{display:'flex',alignItems:'flex-start',gap:10,padding:'10px 14px',borderRadius:9,border:`1px solid ${editConfig.provider===p.id?C.accent:C.border}`,background:editConfig.provider===p.id?C.accent+'0d':C.bg,cursor:'pointer',transition:'border-color .15s'}}>
+                <input type="radio" name="provider" value={p.id} checked={editConfig.provider===p.id} onChange={()=>setEditConfig(c=>({...c,provider:p.id,model:'',apiKey:'',baseUrl:''}))} style={{marginTop:2,accentColor:C.accent,flexShrink:0}}/>
+                <div style={{flex:1}}>
+                  <div style={{fontSize:13,fontWeight:600,color:C.text,display:'flex',alignItems:'center',gap:8}}>
+                    {p.label}
+                    {p.cloud && <span style={{fontSize:10,padding:'1px 6px',borderRadius:8,background:C.orange+'22',color:C.orange,fontWeight:700}}>☁ Cloud</span>}
+                    {!p.cloud && p.id!=='auto' && <span style={{fontSize:10,padding:'1px 6px',borderRadius:8,background:C.green+'22',color:C.green,fontWeight:700}}>🔒 Local</span>}
+                    {p.id==='ollama' && ollamaModels !== null && ollamaModels.length > 0 && <span style={{fontSize:10,padding:'1px 6px',borderRadius:8,background:C.green+'22',color:C.green}}>● running</span>}
+                    {p.id==='ollama' && ollamaModels !== null && ollamaModels.length === 0 && <span style={{fontSize:10,padding:'1px 6px',borderRadius:8,background:C.red+'22',color:C.red}}>not detected</span>}
+                  </div>
+                  <div style={{fontSize:12,color:C.textDim,marginTop:2}}>{p.desc}</div>
+                </div>
+              </label>
+            ))}
+          </div>
+        </div>
+
+        {/* Fields — only shown when not Auto */}
+        {editConfig.provider !== 'auto' && (
+          <div style={{display:'flex',flexDirection:'column',gap:14,borderTop:`1px solid ${C.border}`,paddingTop:18,marginBottom:4}}>
+            {editConfig.provider !== 'ollama' && (
+              <div>
+                <label style={{fontSize:12,color:C.accent,fontWeight:600,textTransform:'uppercase',letterSpacing:0.5,display:'flex',alignItems:'center',gap:6,marginBottom:6}}>
+                  <Key size={12}/> API Key
+                </label>
+                {inp(editConfig.apiKey, v => setEditConfig(c=>({...c,apiKey:v})), 'Paste your API key here (stored in browser localStorage only)', 'password')}
+                <div style={{fontSize:11,color:C.textDim,marginTop:4}}>Stored locally in your browser — never sent to the server unless actively used for a chat or test.</div>
+              </div>
+            )}
+            <div>
+              <label style={{fontSize:12,color:C.accent,fontWeight:600,textTransform:'uppercase',letterSpacing:0.5,display:'block',marginBottom:6}}>Model (optional)</label>
+              {inp(editConfig.model, v => setEditConfig(c=>({...c,model:v})),
+                editConfig.provider==='anthropic'?'claude-opus-4-6 (default)':editConfig.provider==='openai'?'gpt-4o (default)':editConfig.provider==='gemini'?'gemini-2.0-flash (default)':'llama3.2 (default)')}
+            </div>
+            {(editConfig.provider==='ollama'||editConfig.provider==='openai') && (
+              <div>
+                <label style={{fontSize:12,color:C.accent,fontWeight:600,textTransform:'uppercase',letterSpacing:0.5,display:'block',marginBottom:6}}>
+                  {editConfig.provider==='ollama'?'Ollama Base URL':'Custom Base URL (optional)'}
+                </label>
+                {inp(editConfig.baseUrl, v => setEditConfig(c=>({...c,baseUrl:v})),
+                  editConfig.provider==='ollama'?'http://localhost:11434 (default: host.docker.internal)':'Leave blank for default OpenAI endpoint')}
+                {editConfig.provider==='ollama' && <div style={{fontSize:11,color:C.textDim,marginTop:4}}>Set to http://localhost:11434 if running Ollama on the same machine as your browser (not in Docker).</div>}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Ollama model list */}
+        {editConfig.provider==='ollama' && ollamaModels && ollamaModels.length > 0 && (
+          <div style={{marginTop:10,padding:'10px 14px',background:C.green+'0d',borderRadius:9,border:`1px solid ${C.green+'44'}`}}>
+            <div style={{fontSize:12,fontWeight:600,color:C.green,marginBottom:6}}>Ollama models available locally:</div>
+            <div style={{display:'flex',flexWrap:'wrap',gap:6}}>
+              {ollamaModels.map(m => (
+                <button key={m} onClick={()=>setEditConfig(c=>({...c,model:m}))} style={{padding:'3px 10px',borderRadius:6,border:`1px solid ${editConfig.model===m?C.green:C.border}`,background:editConfig.model===m?C.green+'22':'transparent',color:editConfig.model===m?C.green:C.textMuted,fontSize:12,cursor:'pointer'}}>
+                  {m}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+        {editConfig.provider==='ollama' && ollamaModels !== null && ollamaModels.length === 0 && (
+          <div style={{marginTop:10,padding:'10px 14px',background:C.orange+'0d',borderRadius:9,border:`1px solid ${C.orange}44`,fontSize:12,color:C.orange}}>
+            Ollama not detected at the default URL. Make sure Ollama is running: <code style={{background:C.bg,padding:'1px 5px',borderRadius:4}}>ollama serve</code>. For Docker setups, use <code style={{background:C.bg,padding:'1px 5px',borderRadius:4}}>host.docker.internal:11434</code>.
+          </div>
+        )}
+
+        {/* Actions */}
+        <div style={{display:'flex',gap:10,marginTop:20,alignItems:'center'}}>
+          <button onClick={handleSave} style={{padding:'9px 22px',borderRadius:8,border:'none',background:C.accent,color:'#fff',fontSize:14,fontWeight:600,cursor:'pointer'}}>
+            {saved ? '✓ Saved' : 'Save'}
+          </button>
+          {editConfig.provider !== 'auto' && (
+            <button onClick={handleTest} disabled={testing} style={{padding:'9px 18px',borderRadius:8,border:`1px solid ${C.border}`,background:'transparent',color:C.text,fontSize:14,cursor:testing?'not-allowed':'pointer',opacity:testing?0.6:1}}>
+              {testing ? 'Testing…' : 'Test Connection'}
+            </button>
+          )}
+          {storedConfig && (
+            <button onClick={()=>{ localStorage.removeItem('finance_hub_provider_config'); setEditConfig({provider:'auto',apiKey:'',model:'',baseUrl:''}); setSaved(false); setTestResult({ok:true,msg:'Cleared — reverted to server config.'}); }} style={{padding:'9px 16px',borderRadius:8,border:`1px solid ${C.red+'55'}`,background:'transparent',color:C.red,fontSize:14,cursor:'pointer'}}>
+              Clear override
+            </button>
+          )}
+        </div>
+
+        {testResult && (
+          <div style={{marginTop:14,padding:'10px 14px',borderRadius:9,background:testResult.ok?C.green+'0d':C.red+'0d',border:`1px solid ${testResult.ok?C.green+'44':C.red+'44'}`,fontSize:13,color:testResult.ok?C.green:C.red}}>
+            {testResult.ok ? `✓ Connection successful${testResult.model?` — model: ${testResult.model}`:''}${testResult.msg?' — '+testResult.msg:''}` : `✗ ${testResult.error || 'Test failed'}`}
+          </div>
+        )}
+      </Card>
+
+      {/* Privacy note */}
+      <div style={{marginTop:16,padding:'14px 18px',borderRadius:10,background:C.card,border:`1px solid ${C.border}`,fontSize:13,color:C.textMuted,lineHeight:1.7}}>
+        <strong style={{color:C.text}}>Privacy note:</strong> API keys are stored in your browser's <code style={{background:C.bg,padding:'1px 5px',borderRadius:4}}>localStorage</code> only. They are sent to your self-hosted backend server solely when you use the AI chat or run a connection test. Cloud providers (Anthropic, OpenAI, Gemini) receive your financial context with each message — switch to Ollama for full local privacy.
+      </div>
+    </div>
+  );
+}
+
 const NAV = [
   { id:"dashboard", label:"Dashboard", icon:LayoutDashboard },
   { id:"accounts", label:"Accounts", icon:Landmark },
@@ -3819,6 +4085,7 @@ const NAV = [
   { id:"tracker", label:"Tracker", icon:Activity },
   { id:"expenses", label:"Expenses", icon:CreditCard },
   { id:"pillars", label:"Strategy", icon:PiggyBank },
+  { id:"ai-settings", label:"AI Settings", icon:Settings },
 ];
 
 export default function FinanceApp() {
@@ -3853,6 +4120,9 @@ export default function FinanceApp() {
   const [chatOpen, setChatOpen] = useState(false);
   const [chatInput, setChatInput] = useState("");
   const [notesVersion, setNotesVersion] = useState(0);
+  const [ollamaDetected, setOllamaDetected] = useState(false);
+  const [serverProviderLabel, setServerProviderLabel] = useState('');
+  const [ollamaBannerDismissed, setOllamaBannerDismissed] = useState(() => sessionStorage.getItem('ollama_banner_dismissed') === 'true');
   const importJsonRef = useRef(null);
   C = darkMode ? DARK : LIGHT;
 
@@ -3896,6 +4166,15 @@ export default function FinanceApp() {
         console.error('Failed to load from API — auto-save disabled to protect data:', err);
       })
       .finally(() => { setLoading(false); });
+  }, []);
+
+  // Ollama auto-detection + server provider fetch (for banner)
+  useEffect(() => {
+    fetch(`${API_URL}/provider`).then(r => r.json()).then(d => setServerProviderLabel(d?.provider || '')).catch(() => {});
+    fetch('http://localhost:11434/api/tags', { signal: AbortSignal.timeout(2000) })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d) setOllamaDetected(true); })
+      .catch(() => {});
   }, []);
 
   // Auto-save on change (skips initial load)
@@ -4039,6 +4318,22 @@ export default function FinanceApp() {
         {!isMobile && <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:24}}>
           <h1 style={{fontSize:26,fontWeight:400,fontFamily:"'Fraunces',serif",margin:0}}>{NAV.find(n=>n.id===page)?.label}</h1>
         </div>}
+
+        {/* Ollama detection banner */}
+        {ollamaDetected && serverProviderLabel !== 'ollama' && !ollamaBannerDismissed && (() => {
+          const storedConf = getStoredProviderConfig();
+          const usingOllama = storedConf?.provider === 'ollama';
+          if (usingOllama) return null;
+          return <div style={{marginBottom:18,padding:'12px 18px',borderRadius:10,background:C.green+'11',border:`1px solid ${C.green+'44'}`,display:'flex',alignItems:'center',gap:12}}>
+            <div style={{width:8,height:8,borderRadius:'50%',background:C.green,flexShrink:0,boxShadow:`0 0 6px ${C.green}`}}/>
+            <div style={{flex:1,fontSize:13,color:C.text}}>
+              <strong>Ollama detected!</strong> You have a local AI running on this machine — switch to it for 100% private, zero-cost AI.
+              <button onClick={()=>setPage('ai-settings')} style={{marginLeft:10,padding:'2px 10px',borderRadius:6,border:`1px solid ${C.green}`,background:'transparent',color:C.green,fontSize:12,cursor:'pointer',fontWeight:600}}>Configure →</button>
+            </div>
+            <button onClick={()=>{ setOllamaBannerDismissed(true); sessionStorage.setItem('ollama_banner_dismissed','true'); }} style={{background:'transparent',border:'none',color:C.textDim,cursor:'pointer',padding:4,flexShrink:0}}><X size={14}/></button>
+          </div>;
+        })()}
+
         {page==="dashboard" && <>
           <OnboardingChecklist accounts={accounts} scenarios={scenarios} subsP={subsP} yearly={yearly} profile={profile} onboarding={onboarding} setOnboarding={setOnboarding} setPage={setPage} setProfileOpen={setProfileOpen} setPromptOpen={setPromptOpen} onClearAll={(skipConfirm)=>{ if(skipConfirm !== 'skip' && !window.confirm('Clear all data and start fresh? This cannot be undone.')) return; setAccounts([]); setScenarios([]); setSubsP([]); setYearly([]); setTaxes([]); setInsurance([]); setTracker({2026:[]}); setProfile({firstName:'',lastName:'',gender:'',birthDate:'',address:'',postalCode:'',city:'',canton:'',phone:'',maritalStatus:'',religion:'',children:'',ahvNumber:'',company:'',jobTitle:'',businessName:'',businessType:'',businessProjects:'',notes:''}); setOnboarding(o=>({...o,dataCleared:true})); }}/>
           <Dashboard accounts={accounts} scenarios={scenarios} subsP={subsP} subsPInScenario={subsPInScenario} yearly={yearly} taxes={taxes} insurance={insurance} profile={profile} hideBalances={hideBalances} setChatOpen={setChatOpen} setChatInput={setChatInput} notesVersion={notesVersion}/>
@@ -4049,6 +4344,7 @@ export default function FinanceApp() {
         {page==="tracker" && <TrackerPage tracker={tracker} setTracker={setTracker} accounts={accounts} hideBalances={hideBalances} onTrackerSynced={() => setOnboarding(o => ({...o, lastTrackerSync: new Date().toISOString()}))}/>}
         {page==="expenses" && <ExpensesPage subsP={subsP} setSubsP={setSubsP} subsPInScenario={subsPInScenario} setSubsPInScenario={setSubsPInScenario} yearly={yearly} setYearly={setYearly} taxes={taxes} setTaxes={setTaxes} insurance={insurance} setInsurance={setInsurance} hideBalances={hideBalances} profile={profile} accounts={accounts} scenarios={scenarios} darkMode={darkMode} insPrompt={insPrompt} setInsPrompt={setInsPrompt} taxPrompt={taxPrompt} setTaxPrompt={setTaxPrompt} recPrompt={recPrompt} setRecPrompt={setRecPrompt} subPrompt={subPrompt} setSubPrompt={setSubPrompt}/>}
         {page==="pillars" && <PillarPage accounts={accounts} scenarios={scenarios} subsP={subsP} subsPInScenario={subsPInScenario} yearly={yearly} taxes={taxes} insurance={insurance} hideBalances={hideBalances}/>}
+        {page==="ai-settings" && <AISettingsPage/>}
       </div>
     </div>
     <ChatPanel accounts={accounts} scenarios={scenarios} subsP={subsP} subsPInScenario={subsPInScenario} yearly={yearly} taxes={taxes} insurance={insurance} profile={profile} open={chatOpen} setOpen={setChatOpen} externalInput={chatInput} setExternalInput={setChatInput} promptTemplate={promptTemplate} onPinned={() => setNotesVersion(v => v + 1)}/>

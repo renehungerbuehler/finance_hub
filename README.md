@@ -263,6 +263,76 @@ Use the **Export** / **Import** buttons in the sidebar to download/restore a ful
 
 ---
 
+## Privacy & AI
+
+Finance Hub is a **100% self-hosted** application. All your financial data lives in a PostgreSQL database running on your own machine — nothing is ever synced to an external server by the app itself.
+
+### AI Provider Options
+
+The AI advisor works with four different providers. Choose based on your privacy needs:
+
+| Provider | Privacy | Cost | Quality | Notes |
+|----------|---------|------|---------|-------|
+| **Ollama** (local) | ✅ 100% local — no data leaves your machine | Free | Depends on model | Requires [Ollama](https://ollama.com) installed locally |
+| **Anthropic Claude** | ☁ Data sent to Anthropic's API | Pay-per-use | Excellent | `claude-opus-4-6` default |
+| **OpenAI GPT-4o** | ☁ Data sent to OpenAI's API | Pay-per-use | Excellent | `gpt-4o` default |
+| **Google Gemini** | ☁ Data sent to Google's API | Free tier / pay-per-use | Good | `gemini-2.0-flash` default |
+
+**When using a cloud provider, each chat message sends your full financial snapshot** — account balances, income, expenses, profile, and the conversation history — to that provider's API. The Finance Hub app has a one-time privacy consent prompt per session to make this explicit.
+
+### Configuring Ollama (100% local, recommended)
+
+```bash
+# 1. Install Ollama
+brew install ollama   # macOS
+# or: curl -fsSL https://ollama.com/install.sh | sh   # Linux
+
+# 2. Pull a model
+ollama pull llama3.2         # fast, general purpose
+ollama pull mistral          # strong reasoning
+ollama pull qwen2.5:14b      # Swiss German capable
+
+# 3. Start Ollama
+ollama serve
+
+# 4. In Finance Hub → AI Settings, select Ollama
+#    Set base URL to http://localhost:11434 (or leave default for Docker)
+```
+
+### Configuring a Cloud Provider
+
+```bash
+# .env file (server-side — API keys never exposed to the browser)
+ANTHROPIC_API_KEY=sk-ant-...
+# or
+OPENAI_API_KEY=sk-...
+# or
+GEMINI_API_KEY=AIza...
+```
+
+Alternatively, use the in-app **AI Settings** page to enter an API key that is stored only in your browser's `localStorage` — never on the server unless actively used for a request.
+
+### What data is sent to cloud AI providers?
+
+With each chat message, the following is included in the API request:
+
+- Account balances, types, and interest rates
+- Active budget scenario (incomes, expenses, savings, investments)
+- Monthly expense summary (subscriptions, recurring, insurance, taxes)
+- Your profile (name, canton, marital status, job — used for personalised Swiss tax advice)
+- Conversation history for the current session
+
+No data is sent without your action (clicking "Send"). Nothing is ever sent to Anthropic/OpenAI/Google by Finance Hub passively in the background.
+
+### No Telemetry
+
+Finance Hub collects **zero telemetry**. There are no analytics, no usage tracking, no crash reporting, and no external calls beyond:
+- Market data quotes (Yahoo Finance) for the Portfolio page
+- AI provider API (only when you send a chat message)
+- Google Fonts (optional, for the landing page only)
+
+---
+
 ## Author
 
 Self-hosted personal finance tool — runs in Docker Container

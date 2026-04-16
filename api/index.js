@@ -29,6 +29,72 @@ app.get('/api/provider', (_req, res) => {
 app.use('/api', chatRouter);
 app.use('/api/market', marketRouter);
 
+// Provider connection test — makes a minimal real API call
+app.post('/api/provider/test', async (req, res) => {
+  const { provider, apiKey, model, baseUrl } = req.body || {};
+  if (!provider) return res.status(400).json({ ok: false, error: 'provider is required' });
+
+  try {
+    if (provider === 'anthropic') {
+      const key = apiKey || process.env.ANTHROPIC_API_KEY;
+      if (!key) return res.json({ ok: false, error: 'No API key provided' });
+      const anthropicModule = require('@anthropic-ai/sdk');
+      const Anthropic = anthropicModule.default || anthropicModule;
+      const client = new Anthropic({ apiKey: key });
+      const msg = await client.messages.create({
+        model: model || 'claude-haiku-4-5-20251001',
+        max_tokens: 8,
+        messages: [{ role: 'user', content: 'hi' }],
+      });
+      return res.json({ ok: true, model: msg.model });
+    }
+
+    if (provider === 'openai') {
+      const key = apiKey || process.env.OPENAI_API_KEY;
+      if (!key) return res.json({ ok: false, error: 'No API key provided' });
+      const openaiModule = require('openai');
+      const OpenAI = openaiModule.default || openaiModule.OpenAI || openaiModule;
+      const opts = { apiKey: key };
+      if (baseUrl) opts.baseURL = baseUrl;
+      const client = new OpenAI(opts);
+      const resp = await client.chat.completions.create({
+        model: model || 'gpt-4o-mini',
+        max_tokens: 8,
+        messages: [{ role: 'user', content: 'hi' }],
+      });
+      return res.json({ ok: true, model: resp.model });
+    }
+
+    if (provider === 'gemini') {
+      const key = apiKey || process.env.GEMINI_API_KEY;
+      if (!key) return res.json({ ok: false, error: 'No API key provided' });
+      const { GoogleGenerativeAI } = require('@google/generative-ai');
+      const genAI = new GoogleGenerativeAI(key);
+      const m = genAI.getGenerativeModel({ model: model || 'gemini-2.0-flash' });
+      const result = await m.generateContent('hi');
+      const text = result.response.text();
+      return res.json({ ok: true, model: model || 'gemini-2.0-flash', preview: text.slice(0, 40) });
+    }
+
+    if (provider === 'ollama') {
+      const base = baseUrl || process.env.OLLAMA_BASE_URL || 'http://host.docker.internal:11434';
+      const ollamaModel = model || process.env.OLLAMA_MODEL || 'llama3.2';
+      // Check if model exists via Ollama tags API
+      const tagsRes = await fetch(`${base}/api/tags`);
+      if (!tagsRes.ok) return res.json({ ok: false, error: `Ollama not reachable at ${base}` });
+      const tags = await tagsRes.json();
+      const available = (tags.models || []).map(m => m.name);
+      const found = available.some(n => n === ollamaModel || n.startsWith(ollamaModel + ':'));
+      if (!found) return res.json({ ok: false, error: `Model "${ollamaModel}" not found. Available: ${available.slice(0, 5).join(', ')}` });
+      return res.json({ ok: true, model: ollamaModel, available });
+    }
+
+    return res.status(400).json({ ok: false, error: `Unknown provider: ${provider}` });
+  } catch (err) {
+    return res.json({ ok: false, error: err.message });
+  }
+});
+
 app.get('/api/prompt', (_req, res) => {
   const fs = require('fs');
   const path = require('path');
