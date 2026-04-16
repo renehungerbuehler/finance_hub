@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { PieChart, Pie, Cell, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, BarChart, Bar, ResponsiveContainer, AreaChart, Area, ComposedChart, ReferenceLine } from "recharts";
-import { LayoutDashboard, Target, TrendingUp, Activity, CreditCard, Shield, Plus, Pencil, Trash2, Check, X, DollarSign, Wallet, PiggyBank, BarChart3, GripVertical, Power, Sparkles, AlertTriangle, ArrowUpRight, Info, Lightbulb, ShieldCheck, Landmark, Paperclip, Upload, Download, Sun, Moon, ChevronLeft, ChevronRight, User, Building2, Eye, EyeOff, RefreshCw, ChevronDown, MessageSquarePlus, ExternalLink, Maximize2, Minimize2, BookOpen } from "lucide-react";
+import { LayoutDashboard, Target, TrendingUp, Activity, CreditCard, Shield, Plus, Pencil, Trash2, Check, X, DollarSign, Wallet, PiggyBank, BarChart3, GripVertical, Power, Sparkles, AlertTriangle, ArrowUpRight, Info, Lightbulb, ShieldCheck, Landmark, Paperclip, Upload, Download, Sun, Moon, ChevronLeft, ChevronRight, User, Building2, Eye, EyeOff, RefreshCw, ChevronDown, MessageSquarePlus, ExternalLink, Maximize2, Minimize2, BookOpen, Settings, Key, Bot, WifiOff } from "lucide-react";
 import { jsPDF } from "jspdf";
 
 const API_URL = `http://${window.location.hostname}:3003/api`;
@@ -205,7 +205,7 @@ const ONBOARDING_STEPS = [
   { id: 'monthlyTracker', label: 'Sync Tracker', desc: 'Sync your tracker with current account balances.', type: 'recurring', icon: Activity, action: 'tracker' },
 ];
 
-function generateInsights({ accounts, scenarios, insurance, inc, exp, sav, inv, liquidTotal, lockedTotal, totalWealth }) {
+function generateInsights({ accounts, scenarios, insurance, inc, exp, sav, inv, liquidTotal, lockedTotal, totalWealth, debtTotal = 0 }) {
   const insights = [];
   const sc = scenarios.find(s => s.isActive);
 
@@ -289,6 +289,29 @@ function generateInsights({ accounts, scenarios, insurance, inc, exp, sav, inv, 
     insights.push({ priority: "low", category: "tax", icon: "info", title: "Wealth tax planning (Vermogenssteuer)",
       detail: `Your net worth of CHF ${fmt(totalWealth)} is subject to Kanton Zurich wealth tax (Vermogenssteuer). The rate is progressive (~0.05-0.3%). Timing matters: the tax snapshot is taken on December 31st. Strategies include: making large purchases or BVG buy-ins before year-end.`,
       action: "Consider timing of large BVG buy-ins or asset purchases near year-end", impact: "Optimise Dec 31 snapshot for lower wealth tax",
+    });
+  }
+
+  // 8. Debt load & loan interest deduction
+  if (debtTotal > 0) {
+    const grossAssets = totalWealth + debtTotal;
+    const debtRatio = grossAssets > 0 ? debtTotal / grossAssets : 1;
+    const priority = debtRatio > 0.5 ? "high" : debtRatio > 0.25 ? "medium" : "low";
+    insights.push({ priority, category: "debt", icon: "alert",
+      title: `Total debt: CHF ${fmt(debtTotal)} (${(debtRatio * 100).toFixed(0)}% of gross assets)`,
+      detail: `${debtRatio > 0.5 ? "Your debt exceeds 50% of gross assets — prioritise debt reduction to strengthen your net worth." : "Your debt-to-asset ratio is manageable."} In Switzerland, all mortgage and loan interest is fully tax-deductible (Ziffer 250 on the tax return). Attach a Schuldenverzeichnis (debt schedule) with every creditor, outstanding balance, and interest paid during the year.`,
+      action: debtRatio > 0.4 ? "Review debt repayment plan vs. investment return trade-off" : "Claim all loan/mortgage interest as a deduction (Ziffer 250)",
+      impact: "Full interest deduction reduces taxable income — commonly missed",
+    });
+  }
+
+  // 9. Withholding tax reclaim (Verrechnungssteuer / DA-1)
+  if (totalInvested > 5000) {
+    insights.push({ priority: "medium", category: "tax", icon: "tax",
+      title: "Reclaim 35% withholding tax on dividends (DA-1)",
+      detail: `You have CHF ${fmt(totalInvested)} in investment accounts. Swiss companies withhold 35% (Verrechnungssteuer) from dividends before paying them. As a Swiss resident you can reclaim 100% via form DA-1 (also partial reclaim on foreign dividends via double-taxation treaties). File the Wertschriftenverzeichnis (securities list) with your tax return — this triggers the refund automatically in ZHprivateTax.`,
+      action: "Declare all securities in Wertschriftenverzeichnis and attach DA-1 to your tax return",
+      impact: "Up to 35% of Swiss dividend income returned as a tax refund",
     });
   }
 
@@ -378,7 +401,7 @@ function AccountsPage({ accounts, setAccounts, hideBalances, onAccountsUpdated, 
   const toggleNotes = id => setNotesOpen(p => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n; });
 
   const totalWealth = accounts.reduce((s, a) => s + a.balance, 0);
-  const ACCT_TYPES = ["Checking","Savings","Investment","Crypto","Pension 2A","Pension 3A","Deposit","Lent Out"];
+  const ACCT_TYPES = ["Checking","Savings","Investment","Crypto","Pension 2A","Pension 3A","Deposit","Lent Out","Debt"];
   const [sortCol, setSortCol] = useState("institution");
   const [sortDir, setSortDir] = useState(-1);
   const handleSort = col => { if(sortCol===col) setSortDir(d=>d*-1); else { setSortCol(col); setSortDir(1); } };
@@ -501,7 +524,7 @@ function AccountsPage({ accounts, setAccounts, hideBalances, onAccountsUpdated, 
         <TH w={isMobile?60:110}></TH>
       </tr></thead>
       <tbody>{sorted.map(a=>{
-        const typeColor = ["Checking"].includes(a.type)?C.accent:["Savings"].includes(a.type)?C.yellow:["Investment","Crypto"].includes(a.type)?C.teal:a.type.includes("Pension")?C.blue:a.type==="Deposit"?C.textDim:a.type==="Lent Out"?C.orange:C.textMuted;
+        const typeColor = ["Checking"].includes(a.type)?C.accent:["Savings"].includes(a.type)?C.yellow:["Investment","Crypto"].includes(a.type)?C.teal:a.type.includes("Pension")?C.blue:a.type==="Deposit"?C.textDim:a.type==="Lent Out"?C.orange:a.type==="Debt"?C.red:C.textMuted;
         return <React.Fragment key={a.id}>
           <tr onMouseEnter={e=>e.currentTarget.style.background=C.cardHover} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
           <td style={{padding:"10px 12px",fontSize:14,color:C.text,borderBottom:`1px solid ${C.border}11`}}><div style={{display:"flex",alignItems:"center",gap:10}}><div style={{width:8,height:8,borderRadius:4,background:a.color,flexShrink:0}}/><InlineEdit value={a.name} onChange={v=>editAcct(a.id,"name",v)} inputWidth={isMobile?120:160}/></div></td>
@@ -736,14 +759,17 @@ function OnboardingChecklist({ accounts, scenarios, subsP, yearly, profile, onbo
 function Dashboard({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes, insurance, profile, hideBalances, setChatOpen, setChatInput, notesVersion }) {
   const mask = (v) => hideBalances ? "••••" : v;
   const winW = useWindowWidth(); const isMobile = winW < 768;
-  const totalWealth = accounts.reduce((s, a) => s + a.balance, 0);
+  const debtTotal = accounts.filter(a => a.type === "Debt").reduce((s,a)=>s+a.balance,0);
+  const totalAssets = accounts.filter(a => a.type !== "Debt").reduce((s, a) => s + a.balance, 0);
+  const totalWealth = totalAssets - debtTotal;
   const liquidTypes = ["Checking","Savings","Investment","Crypto"];
   const lockedTypes = ["Pension 2A","Pension 3A","Deposit"];
   const liquidTotal = accounts.filter(a => liquidTypes.includes(a.type)).reduce((s,a)=>s+a.balance,0);
   const lockedTotal = accounts.filter(a => lockedTypes.includes(a.type)).reduce((s,a)=>s+a.balance,0);
   const loanTotal = accounts.filter(a => a.type === "Lent Out").reduce((s,a)=>s+a.balance,0);
-  const liquidPct = totalWealth > 0 ? ((liquidTotal / totalWealth) * 100).toFixed(0) : 0;
-  const lockedPct = totalWealth > 0 ? ((lockedTotal / totalWealth) * 100).toFixed(0) : 0;
+  const liquidPct = totalAssets > 0 ? ((liquidTotal / totalAssets) * 100).toFixed(0) : 0;
+  const lockedPct = totalAssets > 0 ? ((lockedTotal / totalAssets) * 100).toFixed(0) : 0;
+  const debtPct = totalAssets > 0 ? ((debtTotal / totalAssets) * 100).toFixed(0) : 0;
 
   const sc = scenarios.find(s=>s.isActive);
   const getA = (item) => item.pct != null ? +(sc ? sc.incomes.reduce((s,x)=>s+x.amount,0) : 0) * item.pct / 100 : item.amount;
@@ -772,19 +798,19 @@ function Dashboard({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes,
   const rem = Math.round(inc - exp - sav - inv);
   const survivalMonths = essentialTotal > 0 ? Math.floor(liquidTotal / essentialTotal) : 0;
 
-  const pieData = accounts.filter(a=>a.balance>0).map(a=>({name:a.name,value:a.balance}));
+  const pieData = accounts.filter(a=>a.balance>0 && a.type !== "Debt").map(a=>({name:a.name,value:a.balance}));
 
   const insights = useMemo(() => generateInsights({
-    accounts, scenarios, insurance, inc, exp, sav, inv, liquidTotal, lockedTotal, totalWealth,
-  }), [accounts, scenarios, insurance, inc, exp, sav, inv, liquidTotal, lockedTotal, totalWealth]);
+    accounts, scenarios, insurance, inc, exp, sav, inv, liquidTotal, lockedTotal, totalWealth, debtTotal,
+  }), [accounts, scenarios, insurance, inc, exp, sav, inv, liquidTotal, lockedTotal, totalWealth, debtTotal]);
 
   return <div>
     {/* Net Worth headline with liquid/locked bar */}
     <Card style={{marginBottom:24,padding:"24px 28px"}}>
       <div style={{display:"flex",alignItems:isMobile?"flex-start":"center",justifyContent:"space-between",marginBottom:16,flexWrap:"wrap",gap:isMobile?12:0}}>
         <div>
-          <div style={{fontSize:14,color:C.textMuted,marginBottom:4}}>Total Net Worth</div>
-          <div style={{fontSize:isMobile?24:32,fontWeight:700,color:C.text}}>CHF {mask(fmt(totalWealth))}</div>
+          <div style={{fontSize:14,color:C.textMuted,marginBottom:4}}>Net Worth{debtTotal>0&&<span style={{fontSize:11,color:C.textDim,marginLeft:6}}>(assets − debt)</span>}</div>
+          <div style={{fontSize:isMobile?24:32,fontWeight:700,color:totalWealth>=0?C.text:C.red}}>CHF {mask(fmt(totalWealth))}</div>
         </div>
         <div style={{display:"flex",gap:isMobile?16:24,alignItems:"flex-end",flexWrap:"wrap"}}>
           <div style={{textAlign:"right"}}>
@@ -800,7 +826,12 @@ function Dashboard({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes,
           {loanTotal > 0 && <div style={{textAlign:"right"}}>
             <div style={{fontSize:12,color:C.textDim,marginBottom:2}}>Lent Out</div>
             <div style={{fontSize:20,fontWeight:700,color:C.orange}}>CHF {mask(fmt(loanTotal))}</div>
-            <div style={{fontSize:12,color:C.textDim}}>{totalWealth>0?((loanTotal/totalWealth)*100).toFixed(0):0}% of total</div>
+            <div style={{fontSize:12,color:C.textDim}}>{totalAssets>0?((loanTotal/totalAssets)*100).toFixed(0):0}% of assets</div>
+          </div>}
+          {debtTotal > 0 && <div style={{textAlign:"right"}}>
+            <div style={{fontSize:12,color:C.textDim,marginBottom:2}}>Debt</div>
+            <div style={{fontSize:20,fontWeight:700,color:C.red}}>CHF {mask(fmt(debtTotal))}</div>
+            <div style={{fontSize:12,color:C.textDim}}>{totalAssets>0?((debtTotal/totalAssets)*100).toFixed(0):0}% of assets</div>
           </div>}
         </div>
       </div>
@@ -808,12 +839,14 @@ function Dashboard({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes,
       <div style={{display:"flex",height:8,borderRadius:4,overflow:"hidden",background:C.border}}>
         {liquidTotal > 0 && <div style={{width:`${liquidPct}%`,background:C.green,transition:"width .3s"}} title={`Liquid: CHF ${fmt(liquidTotal)}`}/>}
         {lockedTotal > 0 && <div style={{width:`${lockedPct}%`,background:C.blue,transition:"width .3s"}} title={`Locked: CHF ${fmt(lockedTotal)}`}/>}
-        {loanTotal > 0 && <div style={{width:`${totalWealth>0?((loanTotal/totalWealth)*100).toFixed(0):0}%`,background:C.orange,transition:"width .3s"}} title={`Lent Out: CHF ${fmt(loanTotal)}`}/>}
+        {loanTotal > 0 && <div style={{width:`${totalAssets>0?((loanTotal/totalAssets)*100).toFixed(0):0}%`,background:C.orange,transition:"width .3s"}} title={`Lent Out: CHF ${fmt(loanTotal)}`}/>}
+        {debtTotal > 0 && <div style={{width:`${debtPct}%`,background:C.red,transition:"width .3s"}} title={`Debt: CHF ${fmt(debtTotal)}`}/>}
       </div>
       <div style={{display:"flex",gap:16,marginTop:8}}>
         <div style={{display:"flex",alignItems:"center",gap:6,fontSize:12,color:C.textDim}}><div style={{width:8,height:8,borderRadius:2,background:C.green}}/>Liquid</div>
         <div style={{display:"flex",alignItems:"center",gap:6,fontSize:12,color:C.textDim}}><div style={{width:8,height:8,borderRadius:2,background:C.blue}}/>Locked</div>
         {loanTotal > 0 && <div style={{display:"flex",alignItems:"center",gap:6,fontSize:12,color:C.textDim}}><div style={{width:8,height:8,borderRadius:2,background:C.orange}}/>Lent Out</div>}
+        {debtTotal > 0 && <div style={{display:"flex",alignItems:"center",gap:6,fontSize:12,color:C.textDim}}><div style={{width:8,height:8,borderRadius:2,background:C.red}}/>Debt</div>}
       </div>
     </Card>
 
@@ -1131,7 +1164,8 @@ function AiWealthCard({ accounts, scenarios, yearly, taxes, insurance, subsP, pr
 
   const buildContext = () => {
     const sc = scenarios.find(s=>s.isActive);
-    const totalWealth = accounts.reduce((s,a)=>s+a.balance,0);
+    const debtTotal = accounts.filter(a=>a.type==="Debt").reduce((s,a)=>s+a.balance,0);
+    const totalWealth = accounts.filter(a=>a.type!=="Debt").reduce((s,a)=>s+a.balance,0) - debtTotal;
     const liquidTypes = ["Checking","Savings","Investment","Crypto"];
     const liquidTotal = accounts.filter(a=>liquidTypes.includes(a.type)).reduce((s,a)=>s+a.balance,0);
     const getA = (item) => item.pct != null ? (sc ? sc.incomes.reduce((s,x)=>s+x.amount,0) * item.pct / 100 : 0) : item.amount;
@@ -2443,7 +2477,8 @@ function ExpensesPage({ subsP, setSubsP, subsPInScenario, setSubsPInScenario, ye
     const taxableStaat = Math.max(0, grossAnnual - ahv - bvg - pillar3a - berufsauslagen - versStaat);
     const taxableBund = Math.max(0, grossAnnual - ahv - bvg - pillar3a - berufsauslagen - versBund);
     const isPension = a => ["Pension 2A","Pension 3A"].includes(a.type)||(a.name||"").toLowerCase().includes("2a pillar")||(a.name||"").toLowerCase().includes("3a pillar")||(a.name||"").toLowerCase().includes("pillar 2")||(a.name||"").toLowerCase().includes("pillar 3");
-    const taxableWealth = accounts ? accounts.filter(a=>!isPension(a)).reduce((s,a)=>s+(a.balance||0),0) : 0;
+    const taxableDebt = accounts ? accounts.filter(a=>a.type==="Debt").reduce((s,a)=>s+(a.balance||0),0) : 0;
+    const taxableWealth = accounts ? Math.max(0, accounts.filter(a=>!isPension(a)&&a.type!=="Debt").reduce((s,a)=>s+(a.balance||0),0) - taxableDebt) : 0;
 
     // ── Document Checklist ──
     const docs = [
@@ -2457,6 +2492,8 @@ function ExpensesPage({ subsP, setSubsP, subsPInScenario, setSubsPInScenario, ye
       ["Steuerrechnungen",         "All provisional + final invoices  ->  for history"],
       ["Schuldenverzeichnis",      "Mortgage / loan statements  ->  Ziffer 470 (wealth deduction)"],
       ["AHV-Abrechnung",           "Required if self-employed or side income  ->  Ziffer 120"],
+      ["Bank Steuerausweis",        "Annual tax statement: interest + dividends received  ->  Wertschriftenverzeichnis"],
+      ["DA-1 Form",                 "Reclaim 35% withholding tax on dividends  ->  Ziffer 650 / auto in ZHprivateTax"],
     ];
     const docsHalf = Math.ceil(docs.length/2);
     const docsH = 16 + docsHalf * 8 + 4;
@@ -2503,6 +2540,11 @@ function ExpensesPage({ subsP, setSubsP, subsPInScenario, setSubsPInScenario, ye
       { label:"WEITERE ABZUGE", color:yellow, items:[
         ["Spenden  (Ziff. 324)",      "Swiss charities above CHF 100 fully deductible. Need written confirmation — no upper limit."],
         ["Schuldzinsen  (Ziff. 250)", "Mortgage & loan interest fully deductible. Attach Schuldenverzeichnis with statement."],
+      ]},
+      { label:"KAPITALANLAGEN & QUELLENSTEUER", color:blue, items:[
+        ["Wertschriftenverzeichnis  (Ziff. 400/650)", "Declare ALL securities (stocks, ETFs, funds, crypto). Triggers automatic DA-1 refund for Swiss withholding tax. Required to declare dividend/interest income."],
+        ["Verrechnungssteuer DA-1  (Ziff. 650)", "Swiss companies deduct 35% from dividends. As resident you reclaim 100% via DA-1. Foreign dividends: partial reclaim via double-taxation treaty (DA-1 / R-US / R-D etc.)"],
+        ["Quellensteuer auf Bankzins  (Ziff. 400)", "Banks deduct 35% withholding on interest income. Declare account balance — refund processed automatically by ZH tax authority."],
       ]},
     ];
     // measure total height: header 14 + per group: groupHeader 9 + items * 9
@@ -2985,7 +3027,8 @@ function PillarPage({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes
   const liquidTypes = ["Checking","Savings","Investment","Crypto"];
   const liquidTotal = accounts.filter(a=>liquidTypes.includes(a.type)).reduce((s,a)=>s+a.balance,0);
   const pensionTotal = accounts.filter(a=>a.type==="Pension 2A"||a.type==="Pension 3A").reduce((s,a)=>s+a.balance,0);
-  const totalWealth = accounts.reduce((s,a)=>s+a.balance,0);
+  const debtTotal = accounts.filter(a=>a.type==="Debt").reduce((s,a)=>s+a.balance,0);
+  const totalWealth = accounts.filter(a=>a.type!=="Debt").reduce((s,a)=>s+a.balance,0) - debtTotal;
 
   // Freedom targets
   // Money System: capital needed so (yieldRate% × capital) / 12 = essentialTotal/mo
@@ -3045,34 +3088,6 @@ function PillarPage({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes
         {p.items.map((item,i)=><div key={i} style={{fontSize:12,color:C.textDim,padding:"4px 0",borderBottom:i<p.items.length-1?`1px solid ${C.border}11`:"none"}}>{item}</div>)}
       </Card>)}
     </div>
-
-    {/* Pillar 1 vs 2: Demographic Risk */}
-    <Card style={{marginBottom:20,borderLeft:`3px solid ${C.red}`}}>
-      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}>
-        <div style={{fontSize:14,fontWeight:700,color:C.text}}>The "Pyramid" / Demographic Risk — Will You Lose It All?</div>
-      </div>
-      <div style={{display:"flex",flexDirection:"column",gap:10}}>
-        <div style={{padding:"10px 14px",borderRadius:8,background:C.red+"0d",border:`1px solid ${C.red}22`}}>
-          <div style={{fontSize:13,fontWeight:700,color:C.red,marginBottom:4}}>🔴 Pillar 1 (AHV) — YES, pay-as-you-go (Umlageverfahren)</div>
-          <div style={{fontSize:12,color:C.textMuted,lineHeight:1.7}}>
-            Today's workers pay for today's retirees — <strong style={{color:C.text}}>this IS the pyramid</strong> you should worry about. Fewer young workers supporting more retirees = demographic pressure.<br/>
-            AHV is under continuous reform (AHV 21 raised women's retirement age, future reforms will raise contributions, lower payouts, or push retirement age further).<br/>
-            <strong style={{color:C.text}}>BUT:</strong> AHV is federally guaranteed — the government will adjust the rules rather than let it collapse. Your contributions are <strong>not "your money"</strong> — they go into a communal pool.
-          </div>
-        </div>
-        <div style={{padding:"10px 14px",borderRadius:8,background:C.green+"0d",border:`1px solid ${C.green}22`}}>
-          <div style={{fontSize:13,fontWeight:700,color:C.green,marginBottom:4}}>🟢 Pillar 2 (BVG / Pensionskasse) — NOT a pyramid, funded system (Kapitaldeckungsverfahren)</div>
-          <div style={{fontSize:12,color:C.textMuted,lineHeight:1.7}}>
-            Your money is <strong style={{color:C.text}}>actually set aside and invested</strong> in your personal account at your Pensionskasse (e.g. SwissLife). It is not redistributed to current retirees.<br/>
-            <strong style={{color:C.text}}>Your voluntary buy-in (Einkauf) goes into YOUR account</strong> — it's legally protected and belongs to you, not a pool.<br/>
-            Risk: conversion rate (Umwandlungssatz) may be reduced in future (currently ~6.8% for mandatory portion), but the capital itself is yours. Think of it as a forced savings account with tax-deductible contributions.
-          </div>
-        </div>
-        <div style={{padding:"8px 12px",borderRadius:8,background:C.accent+"0a",border:`1px solid ${C.accent}15`,fontSize:12,color:C.textDim,lineHeight:1.7}}>
-          <strong style={{color:C.accentLight}}>Bottom line:</strong> Worry about Pillar 1 (state pension erosion) — don't rely on AHV alone. Don't worry about Pillar 2 capital disappearing — your BVG balance is yours. Max out voluntary buy-ins (Einkauf) when you have the Einkaufspotenzial — they're tax-deductible and the capital is safe.
-        </div>
-      </div>
-    </Card>
 
     {/* Personal extension pillars */}
     <div style={{fontSize:12,color:C.yellow,fontWeight:700,textTransform:"uppercase",letterSpacing:0.5,marginBottom:8}}>Personal Extension Pillars (Wealth Building)</div>
@@ -3242,6 +3257,7 @@ function ChatPanel({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes,
   const [btnPos, setBtnPos] = useState({ right: 24, bottom: 24 });
   const [saved, setSaved] = useState(false);
   const [pinPending, setPinPending] = useState(false);
+  const [pendingConsent, setPendingConsent] = useState(null); // { question, sentAttachment }
   const pendingPin = useRef(false);
   const messagesRef = useRef([]);
   const fileInputRef = useRef(null);
@@ -3264,8 +3280,15 @@ function ChatPanel({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes,
   };
 
   useEffect(() => {
-    fetch(`${API_URL}/provider`).then(r => r.json()).then(d => setAiProvider(d)).catch(() => {});
-  }, []);
+    const stored = getStoredProviderConfig();
+    if (stored?.provider && stored.provider !== 'auto') {
+      // User has a custom provider — show its label without hitting /api/provider
+      const labels = { anthropic: 'Claude (Anthropic)', openai: 'GPT-4o (OpenAI)', gemini: 'Gemini (Google)', ollama: stored.model || 'Ollama (local)' };
+      setAiProvider({ provider: stored.provider, label: labels[stored.provider] || stored.provider, description: stored.provider === 'ollama' ? '100% local · no data leaves your machine' : 'Custom provider configured in AI Settings' });
+    } else {
+      fetch(`${API_URL}/provider`).then(r => r.json()).then(d => setAiProvider(d)).catch(() => {});
+    }
+  }, [open]); // re-check each time panel opens in case settings changed
 
   // Pre-seed input from external callers (e.g. Portfolio page quick-actions)
   useEffect(() => {
@@ -3376,13 +3399,7 @@ function ChatPanel({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes,
     doSavePin(messages);
   };
 
-  const sendMessage = async () => {
-    if ((!input.trim() && !attachment) || streaming) return;
-    const question = input.trim() || (attachment ? `Please analyse this file: ${attachment.name}` : "");
-    const sentAttachment = attachment;
-    setInput("");
-    setAttachment(null);
-
+  const doSendMessage = async (question, sentAttachment) => {
     const userMsg = { role: "user", content: question, attachmentName: sentAttachment?.name };
     const assistantMsg = { role: "assistant", content: "" };
     setMessages(prev => [...prev, userMsg, assistantMsg]);
@@ -3390,12 +3407,15 @@ function ChatPanel({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes,
 
     // Build history (all messages except the new ones we just added)
     const history = messages.map(m => ({ role: m.role, content: m.content }));
+    const storedConfig = getStoredProviderConfig();
 
     try {
+      const body = { message: question, context: buildContext(), history, attachment: sentAttachment, systemOverride: promptTemplate || undefined };
+      if (storedConfig && storedConfig.provider && storedConfig.provider !== 'auto') body.providerConfig = storedConfig;
       const resp = await fetch(`${API_URL}/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: question, context: buildContext(), history, attachment: sentAttachment, systemOverride: promptTemplate || undefined }),
+        body: JSON.stringify(body),
       });
 
       const reader = resp.body.getReader();
@@ -3433,7 +3453,43 @@ function ChatPanel({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes,
     setStreaming(false); setChatStatus("");
   };
 
+  const sendMessage = async () => {
+    if ((!input.trim() && !attachment) || streaming) return;
+    const question = input.trim() || (attachment ? `Please analyse this file: ${attachment.name}` : "");
+    const sentAttachment = attachment;
+    setInput(""); setAttachment(null);
+
+    // Check consent for cloud providers (one-time per session per provider)
+    const storedConfig = getStoredProviderConfig();
+    const provId = (storedConfig?.provider && storedConfig.provider !== 'auto') ? storedConfig.provider : aiProvider?.provider;
+    if (provId && provId !== 'ollama') {
+      const consentKey = `ai_consent_${provId}`;
+      if (!sessionStorage.getItem(consentKey)) {
+        // Pause sending — show consent modal first
+        setPendingConsent({ question, sentAttachment });
+        return;
+      }
+    }
+    doSendMessage(question, sentAttachment);
+  };
+
+  const handleConsentAccept = () => {
+    const storedConfig = getStoredProviderConfig();
+    const provId = (storedConfig?.provider && storedConfig.provider !== 'auto') ? storedConfig.provider : aiProvider?.provider;
+    if (provId) sessionStorage.setItem(`ai_consent_${provId}`, 'true');
+    const { question, sentAttachment } = pendingConsent;
+    setPendingConsent(null);
+    doSendMessage(question, sentAttachment);
+  };
+
+  const handleConsentDecline = () => {
+    setInput(pendingConsent?.question || '');
+    setPendingConsent(null);
+  };
+
   const panelW = typeof window !== 'undefined' && window.innerWidth < 768 ? window.innerWidth - 24 : 420;
+  const providerIsLocal = aiProvider?.provider === 'ollama' || (() => { const sc = getStoredProviderConfig(); return sc?.provider === 'ollama'; })();
+
   return <>
     {/* Floating button */}
     <button onMouseDown={startDrag} onClick={()=>{ if(!isDragging.current) setOpen(o=>!o); }} title="AI Finance Advisor" style={{position:"fixed",bottom:btnPos.bottom,right:btnPos.right,width:52,height:52,borderRadius:26,background:C.accent,border:"none",cursor:"grab",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 4px 20px rgba(37,99,235,0.5)",zIndex:1000,userSelect:"none"}}>
@@ -3443,11 +3499,32 @@ function ChatPanel({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes,
     {/* Panel */}
     {open && maximized && <div onClick={()=>setMaximized(false)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.7)",zIndex:1001,display:"flex",alignItems:"center",justifyContent:"center",padding:24}}/>}
     {open && <div style={maximized?{position:"fixed",top:"50%",left:"50%",transform:"translate(-50%,-50%)",width:"min(92vw,1140px)",height:"84vh",background:C.card,border:`1px solid ${C.border}`,borderRadius:16,display:"flex",flexDirection:"column",zIndex:1002,boxShadow:"0 24px 80px rgba(0,0,0,0.6)",overflow:"hidden"}:{position:"fixed",bottom:btnPos.bottom+64,right:btnPos.right,width:panelW,height:typeof window !== 'undefined' && window.innerWidth < 768 ? 'calc(100vh - 120px)' : 520,background:C.card,border:`1px solid ${C.border}`,borderRadius:16,display:"flex",flexDirection:"column",zIndex:1000,boxShadow:"0 8px 40px rgba(0,0,0,0.5)",overflow:"hidden"}}>
+      {/* Consent modal */}
+      {pendingConsent && <div style={{position:'absolute',inset:0,background:'rgba(0,0,0,0.75)',zIndex:10,display:'flex',alignItems:'center',justifyContent:'center',padding:20,borderRadius:16}}>
+        <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:14,padding:24,maxWidth:360,width:'100%',boxShadow:'0 8px 40px rgba(0,0,0,0.5)'}}>
+          <div style={{fontSize:20,marginBottom:12}}>☁️ Cloud AI Privacy Notice</div>
+          <div style={{fontSize:13,color:C.text,lineHeight:1.7,marginBottom:16}}>
+            You are using <strong style={{color:C.accent}}>{aiProvider?.label || 'a cloud AI provider'}</strong>. Your financial data — account balances, income, expenses, and profile — will be sent to a <strong>third-party server</strong> with each message.
+          </div>
+          <div style={{fontSize:12,color:C.textDim,lineHeight:1.7,marginBottom:20,padding:'10px 14px',background:C.bg,borderRadius:9}}>
+            To keep your data 100% local, switch to <strong>Ollama</strong> in <em>AI Settings</em>. This notice appears once per browser session.
+          </div>
+          <div style={{display:'flex',gap:10}}>
+            <button onClick={handleConsentAccept} style={{flex:1,padding:'10px 0',borderRadius:8,border:'none',background:C.accent,color:'#fff',fontWeight:700,fontSize:14,cursor:'pointer'}}>I understand — continue</button>
+            <button onClick={handleConsentDecline} style={{padding:'10px 16px',borderRadius:8,border:`1px solid ${C.border}`,background:'transparent',color:C.textMuted,fontSize:14,cursor:'pointer'}}>Cancel</button>
+          </div>
+        </div>
+      </div>}
+
       {/* Header */}
       <div style={{padding:"14px 18px",borderBottom:`1px solid ${C.border}`,display:"flex",alignItems:"center",justifyContent:"space-between",background:C.bg}}>
         <div style={{display:"flex",alignItems:"center",gap:10}}>
           <Sparkles size={16} color={C.accentLight}/>
           <span style={{fontSize:14,fontWeight:600,color:C.text}}>AI Finance Advisor</span>
+          {providerIsLocal
+            ? <span style={{fontSize:10,padding:'1px 7px',borderRadius:9,background:C.green+'22',color:C.green,fontWeight:700}}>🔒 Local</span>
+            : aiProvider?.provider && <span style={{fontSize:10,padding:'1px 7px',borderRadius:9,background:C.orange+'22',color:C.orange,fontWeight:700}}>☁ {aiProvider.label}</span>
+          }
         </div>
         <div style={{display:"flex",gap:6,alignItems:'center'}}>
           {messages.length>0 && <button onClick={()=>setMessages([])} title="Clear chat" style={{padding:"4px 8px",borderRadius:6,border:`1px solid ${C.border}`,background:"transparent",color:C.textDim,fontSize:12,cursor:"pointer"}}>Clear</button>}
@@ -3794,6 +3871,256 @@ function PortfolioPage({ accounts, setAccounts, hideBalances, setChatOpen, setCh
 
 // APP SHELL
 // ───────────────────────────────────────────────────────────────
+// ─── Provider Config (localStorage) ───────────────────────────────────────────
+function getStoredProviderConfig() {
+  try { return JSON.parse(localStorage.getItem('finance_hub_provider_config') || 'null'); } catch { return null; }
+}
+
+// ───────────────────────────────────────────────────────────────────────────────
+// AI SETTINGS PAGE
+// ───────────────────────────────────────────────────────────────────────────────
+function AISettingsPage() {
+  const PROVIDERS = [
+    { id: 'auto',      label: 'Auto (server)',        desc: 'Use whichever provider the server has configured via .env',       cloud: false },
+    { id: 'anthropic', label: 'Anthropic (Claude)',   desc: 'claude-opus-4-6 · web-search capable · data sent to Anthropic',  cloud: true  },
+    { id: 'openai',    label: 'OpenAI (GPT-4o)',      desc: 'gpt-4o · powerful · data sent to OpenAI',                        cloud: true  },
+    { id: 'gemini',    label: 'Google Gemini',        desc: 'gemini-2.0-flash · fast · data sent to Google',                  cloud: true  },
+    { id: 'ollama',    label: 'Ollama (local)',        desc: '100% local · no data leaves your machine · requires Ollama',     cloud: false },
+  ];
+
+  // Curated model lists per cloud provider (latest first)
+  const CLOUD_MODELS = {
+    anthropic: [
+      { id: 'claude-opus-4-6',          label: 'Claude Opus 4.6',    note: 'most capable' },
+      { id: 'claude-sonnet-4-6',        label: 'Claude Sonnet 4.6',  note: 'balanced' },
+      { id: 'claude-haiku-4-5-20251001',label: 'Claude Haiku 4.5',   note: 'fast & cheap' },
+    ],
+    openai: [
+      { id: 'gpt-4o',       label: 'GPT-4o',      note: 'flagship' },
+      { id: 'gpt-4o-mini',  label: 'GPT-4o mini', note: 'fast & cheap' },
+      { id: 'o1-preview',   label: 'o1-preview',  note: 'reasoning' },
+      { id: 'o1-mini',      label: 'o1-mini',     note: 'reasoning · faster' },
+    ],
+    gemini: [
+      { id: 'gemini-2.0-flash',     label: 'Gemini 2.0 Flash', note: 'fast' },
+      { id: 'gemini-2.0-flash-exp', label: 'Gemini 2.0 Flash (exp)', note: 'experimental' },
+      { id: 'gemini-1.5-pro',       label: 'Gemini 1.5 Pro',   note: 'large context' },
+      { id: 'gemini-1.5-flash',     label: 'Gemini 1.5 Flash', note: 'fast' },
+    ],
+  };
+
+  const [serverProvider, setServerProvider] = useState(null);
+  const [ollamaModels, setOllamaModels] = useState(null); // null = loading, [] = none found
+  const [storedConfig] = useState(() => getStoredProviderConfig());
+  const [editConfig, setEditConfig] = useState(() => {
+    const s = getStoredProviderConfig();
+    return { provider: s?.provider || 'auto', apiKey: s?.apiKey || '', model: s?.model || '', baseUrl: s?.baseUrl || '' };
+  });
+  const [testResult, setTestResult] = useState(null);
+  const [testing, setTesting]       = useState(false);
+  const [saved, setSaved]           = useState(false);
+
+  useEffect(() => {
+    fetch(`${API_URL}/provider`).then(r => r.json()).then(setServerProvider).catch(() => {});
+    fetch('http://localhost:11434/api/tags', { signal: AbortSignal.timeout(2000) })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => setOllamaModels(d ? (d.models || []).map(m => m.name) : []))
+      .catch(() => setOllamaModels([]));
+  }, []);
+
+  const effectiveProvId = editConfig.provider === 'auto' ? (serverProvider?.provider || 'auto') : editConfig.provider;
+  const selectedProv = PROVIDERS.find(p => p.id === effectiveProvId) || PROVIDERS[0];
+
+  const handleSave = () => {
+    if (!editConfig.provider || editConfig.provider === 'auto') {
+      localStorage.removeItem('finance_hub_provider_config');
+    } else {
+      const cfg = { provider: editConfig.provider };
+      if (editConfig.apiKey.trim()) cfg.apiKey = editConfig.apiKey.trim();
+      if (editConfig.model.trim())  cfg.model  = editConfig.model.trim();
+      if (editConfig.baseUrl.trim()) cfg.baseUrl = editConfig.baseUrl.trim();
+      localStorage.setItem('finance_hub_provider_config', JSON.stringify(cfg));
+    }
+    setSaved(true); setTimeout(() => setSaved(false), 2000);
+    setTestResult(null);
+  };
+
+  const handleTest = async () => {
+    if (!editConfig.provider) return;
+    // In auto mode, test the server's currently-configured .env provider with no overrides
+    const isAuto = editConfig.provider === 'auto';
+    const providerToTest = isAuto ? serverProvider?.provider : editConfig.provider;
+    if (!providerToTest) {
+      setTestResult({ ok: false, error: 'No server provider detected — set ANTHROPIC_API_KEY, OPENAI_API_KEY, GEMINI_API_KEY, or OLLAMA_MODEL in your .env file.' });
+      return;
+    }
+    setTesting(true); setTestResult(null);
+    try {
+      const body = { provider: providerToTest };
+      if (!isAuto) {
+        if (editConfig.apiKey.trim())  body.apiKey  = editConfig.apiKey.trim();
+        if (editConfig.model.trim())   body.model   = editConfig.model.trim();
+        if (editConfig.baseUrl.trim()) body.baseUrl = editConfig.baseUrl.trim();
+      }
+      const r = await fetch(`${API_URL}/provider/test`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      const d = await r.json();
+      if (isAuto && d.ok) d.msg = `using server .env (${providerToTest})`;
+      setTestResult(d);
+    } catch (err) {
+      setTestResult({ ok: false, error: err.message });
+    }
+    setTesting(false);
+  };
+
+  const inp = (val, onChange, placeholder, type='text') => (
+    <input type={type} value={val} onChange={e => onChange(e.target.value)} placeholder={placeholder}
+      style={{width:'100%',padding:'9px 12px',borderRadius:8,border:`1px solid ${C.border}`,background:C.bg,color:C.text,fontSize:14,outline:'none',boxSizing:'border-box',fontFamily:'inherit'}}/>
+  );
+
+  const activeLocal = storedConfig && storedConfig.provider !== 'auto';
+
+  return (
+    <div style={{maxWidth:720}}>
+      {/* Status banner */}
+      <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:12,padding:'16px 20px',marginBottom:20,display:'flex',alignItems:'center',gap:12}}>
+        <Bot size={20} color={C.accentLight}/>
+        <div style={{flex:1}}>
+          <div style={{fontSize:13,fontWeight:600,color:C.text}}>
+            Currently active: <span style={{color:C.accent}}>
+              {activeLocal ? (PROVIDERS.find(p => p.id === storedConfig.provider)?.label || storedConfig.provider) : (serverProvider?.label || '…')}
+            </span>
+            {activeLocal && <span style={{fontSize:11,color:C.blue,marginLeft:8,padding:'1px 7px',borderRadius:10,background:C.blue+'22'}}>custom (localStorage)</span>}
+            {!activeLocal && serverProvider && <span style={{fontSize:11,color:C.textDim,marginLeft:8,padding:'1px 7px',borderRadius:10,background:C.border}}>.env</span>}
+          </div>
+          {serverProvider?.description && !activeLocal && <div style={{fontSize:12,color:C.textDim,marginTop:2}}>{serverProvider.description}</div>}
+          {activeLocal && <div style={{fontSize:12,color:C.textDim,marginTop:2}}>Your custom override — set below. Clear to revert to server .env config.</div>}
+        </div>
+        <div style={{display:'flex',alignItems:'center',gap:6}}>
+          {ollamaModels === null && <span style={{fontSize:12,color:C.textDim}}>Checking Ollama…</span>}
+          {ollamaModels !== null && ollamaModels.length > 0 && <span style={{fontSize:12,color:C.green,display:'flex',alignItems:'center',gap:4}}><div style={{width:7,height:7,borderRadius:'50%',background:C.green}}/> Ollama detected ({ollamaModels.length} model{ollamaModels.length>1?'s':''})</span>}
+          {ollamaModels !== null && ollamaModels.length === 0 && <span style={{fontSize:12,color:C.textMuted,display:'flex',alignItems:'center',gap:4}}><WifiOff size={12}/> Ollama not detected</span>}
+        </div>
+      </div>
+
+      <Card title="Configure AI Provider">
+        {/* Provider selector */}
+        <div style={{marginBottom:20}}>
+          <div style={{fontSize:12,color:C.textDim,fontWeight:600,textTransform:'uppercase',letterSpacing:0.5,marginBottom:10}}>Provider</div>
+          <div style={{display:'flex',flexDirection:'column',gap:8}}>
+            {PROVIDERS.map(p => (
+              <label key={p.id} style={{display:'flex',alignItems:'flex-start',gap:10,padding:'10px 14px',borderRadius:9,border:`1px solid ${editConfig.provider===p.id?C.accent:C.border}`,background:editConfig.provider===p.id?C.accent+'0d':C.bg,cursor:'pointer',transition:'border-color .15s'}}>
+                <input type="radio" name="provider" value={p.id} checked={editConfig.provider===p.id} onChange={()=>setEditConfig(c=>({...c,provider:p.id,model:'',apiKey:'',baseUrl:''}))} style={{marginTop:2,accentColor:C.accent,flexShrink:0}}/>
+                <div style={{flex:1}}>
+                  <div style={{fontSize:13,fontWeight:600,color:C.text,display:'flex',alignItems:'center',gap:8}}>
+                    {p.label}
+                    {p.cloud && <span style={{fontSize:10,padding:'1px 6px',borderRadius:8,background:C.orange+'22',color:C.orange,fontWeight:700}}>☁ Cloud</span>}
+                    {!p.cloud && p.id!=='auto' && <span style={{fontSize:10,padding:'1px 6px',borderRadius:8,background:C.green+'22',color:C.green,fontWeight:700}}>🔒 Local</span>}
+                    {p.id==='ollama' && ollamaModels !== null && ollamaModels.length > 0 && <span style={{fontSize:10,padding:'1px 6px',borderRadius:8,background:C.green+'22',color:C.green}}>● running</span>}
+                    {p.id==='ollama' && ollamaModels !== null && ollamaModels.length === 0 && <span style={{fontSize:10,padding:'1px 6px',borderRadius:8,background:C.red+'22',color:C.red}}>not detected</span>}
+                  </div>
+                  <div style={{fontSize:12,color:C.textDim,marginTop:2}}>{p.desc}</div>
+                </div>
+              </label>
+            ))}
+          </div>
+        </div>
+
+        {/* Fields — only shown when not Auto */}
+        {editConfig.provider !== 'auto' && (
+          <div style={{display:'flex',flexDirection:'column',gap:14,borderTop:`1px solid ${C.border}`,paddingTop:18,marginBottom:4}}>
+            {editConfig.provider !== 'ollama' && (
+              <div>
+                <label style={{fontSize:12,color:C.accent,fontWeight:600,textTransform:'uppercase',letterSpacing:0.5,display:'flex',alignItems:'center',gap:6,marginBottom:6}}>
+                  <Key size={12}/> API Key
+                </label>
+                {inp(editConfig.apiKey, v => setEditConfig(c=>({...c,apiKey:v})), 'Paste your API key here (stored in browser localStorage only)', 'password')}
+                <div style={{fontSize:11,color:C.textDim,marginTop:4}}>Stored locally in your browser — never sent to the server unless actively used for a chat or test.</div>
+              </div>
+            )}
+            <div>
+              <label style={{fontSize:12,color:C.accent,fontWeight:600,textTransform:'uppercase',letterSpacing:0.5,display:'block',marginBottom:6}}>Model (optional)</label>
+              {inp(editConfig.model, v => setEditConfig(c=>({...c,model:v})),
+                editConfig.provider==='anthropic'?'claude-opus-4-6 (default)':editConfig.provider==='openai'?'gpt-4o (default)':editConfig.provider==='gemini'?'gemini-2.0-flash (default)':'llama3.2 (default)')}
+              {CLOUD_MODELS[editConfig.provider] && (
+                <div style={{marginTop:8,display:'flex',flexWrap:'wrap',gap:6}}>
+                  {CLOUD_MODELS[editConfig.provider].map(m => (
+                    <button key={m.id} type="button" onClick={()=>setEditConfig(c=>({...c,model:m.id}))} title={m.id}
+                      style={{padding:'4px 10px',borderRadius:6,border:`1px solid ${editConfig.model===m.id?C.accent:C.border}`,background:editConfig.model===m.id?C.accent+'22':'transparent',color:editConfig.model===m.id?C.accentLight:C.textMuted,fontSize:12,cursor:'pointer',display:'flex',alignItems:'center',gap:6}}>
+                      <span style={{fontWeight:600}}>{m.label}</span>
+                      <span style={{fontSize:10,color:C.textDim}}>{m.note}</span>
+                    </button>
+                  ))}
+                  {editConfig.model && !CLOUD_MODELS[editConfig.provider].some(m=>m.id===editConfig.model) && (
+                    <button type="button" onClick={()=>setEditConfig(c=>({...c,model:''}))}
+                      style={{padding:'4px 10px',borderRadius:6,border:`1px dashed ${C.border}`,background:'transparent',color:C.textDim,fontSize:12,cursor:'pointer'}}>
+                      custom: {editConfig.model} ✕
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+            {(editConfig.provider==='ollama'||editConfig.provider==='openai') && (
+              <div>
+                <label style={{fontSize:12,color:C.accent,fontWeight:600,textTransform:'uppercase',letterSpacing:0.5,display:'block',marginBottom:6}}>
+                  {editConfig.provider==='ollama'?'Ollama Base URL':'Custom Base URL (optional)'}
+                </label>
+                {inp(editConfig.baseUrl, v => setEditConfig(c=>({...c,baseUrl:v})),
+                  editConfig.provider==='ollama'?'http://localhost:11434 (default: host.docker.internal)':'Leave blank for default OpenAI endpoint')}
+                {editConfig.provider==='ollama' && <div style={{fontSize:11,color:C.textDim,marginTop:4}}>Set to http://localhost:11434 if running Ollama on the same machine as your browser (not in Docker).</div>}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Ollama model list */}
+        {editConfig.provider==='ollama' && ollamaModels && ollamaModels.length > 0 && (
+          <div style={{marginTop:10,padding:'10px 14px',background:C.green+'0d',borderRadius:9,border:`1px solid ${C.green+'44'}`}}>
+            <div style={{fontSize:12,fontWeight:600,color:C.green,marginBottom:6}}>Ollama models available locally:</div>
+            <div style={{display:'flex',flexWrap:'wrap',gap:6}}>
+              {ollamaModels.map(m => (
+                <button key={m} onClick={()=>setEditConfig(c=>({...c,model:m}))} style={{padding:'3px 10px',borderRadius:6,border:`1px solid ${editConfig.model===m?C.green:C.border}`,background:editConfig.model===m?C.green+'22':'transparent',color:editConfig.model===m?C.green:C.textMuted,fontSize:12,cursor:'pointer'}}>
+                  {m}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+        {editConfig.provider==='ollama' && ollamaModels !== null && ollamaModels.length === 0 && (
+          <div style={{marginTop:10,padding:'10px 14px',background:C.orange+'0d',borderRadius:9,border:`1px solid ${C.orange}44`,fontSize:12,color:C.orange}}>
+            Ollama not detected at the default URL. Make sure Ollama is running: <code style={{background:C.bg,padding:'1px 5px',borderRadius:4}}>ollama serve</code>. For Docker setups, use <code style={{background:C.bg,padding:'1px 5px',borderRadius:4}}>host.docker.internal:11434</code>.
+          </div>
+        )}
+
+        {/* Actions */}
+        <div style={{display:'flex',gap:10,marginTop:20,alignItems:'center'}}>
+          <button onClick={handleSave} style={{padding:'9px 22px',borderRadius:8,border:'none',background:C.accent,color:'#fff',fontSize:14,fontWeight:600,cursor:'pointer'}}>
+            {saved ? '✓ Saved' : 'Save'}
+          </button>
+          <button onClick={handleTest} disabled={testing || (editConfig.provider==='auto' && !serverProvider?.provider)} title={editConfig.provider==='auto'?`Test the server's .env provider${serverProvider?.provider?` (${serverProvider.provider})`:''}`:undefined} style={{padding:'9px 18px',borderRadius:8,border:`1px solid ${C.border}`,background:'transparent',color:C.text,fontSize:14,cursor:(testing||(editConfig.provider==='auto'&&!serverProvider?.provider))?'not-allowed':'pointer',opacity:(testing||(editConfig.provider==='auto'&&!serverProvider?.provider))?0.6:1}}>
+            {testing ? 'Testing…' : (editConfig.provider==='auto' ? `Test .env Connection${serverProvider?.provider?` (${serverProvider.provider})`:''}` : 'Test Connection')}
+          </button>
+          {storedConfig && (
+            <button onClick={()=>{ localStorage.removeItem('finance_hub_provider_config'); setEditConfig({provider:'auto',apiKey:'',model:'',baseUrl:''}); setSaved(false); setTestResult({ok:true,msg:'Cleared — reverted to server config.'}); }} style={{padding:'9px 16px',borderRadius:8,border:`1px solid ${C.red+'55'}`,background:'transparent',color:C.red,fontSize:14,cursor:'pointer'}}>
+              Clear override
+            </button>
+          )}
+        </div>
+
+        {testResult && (
+          <div style={{marginTop:14,padding:'10px 14px',borderRadius:9,background:testResult.ok?C.green+'0d':C.red+'0d',border:`1px solid ${testResult.ok?C.green+'44':C.red+'44'}`,fontSize:13,color:testResult.ok?C.green:C.red}}>
+            {testResult.ok ? `✓ Connection successful${testResult.model?` — model: ${testResult.model}`:''}${testResult.msg?' — '+testResult.msg:''}` : `✗ ${testResult.error || 'Test failed'}`}
+          </div>
+        )}
+      </Card>
+
+      {/* Privacy note */}
+      <div style={{marginTop:16,padding:'14px 18px',borderRadius:10,background:C.card,border:`1px solid ${C.border}`,fontSize:13,color:C.textMuted,lineHeight:1.7}}>
+        <strong style={{color:C.text}}>Privacy note:</strong> API keys are stored in your browser's <code style={{background:C.bg,padding:'1px 5px',borderRadius:4}}>localStorage</code> only. They are sent to your self-hosted backend server solely when you use the AI chat or run a connection test. Cloud providers (Anthropic, OpenAI, Gemini) receive your financial context with each message — switch to Ollama for full local privacy.
+      </div>
+    </div>
+  );
+}
+
 const NAV = [
   { id:"dashboard", label:"Dashboard", icon:LayoutDashboard },
   { id:"accounts", label:"Accounts", icon:Landmark },
@@ -3836,6 +4163,9 @@ export default function FinanceApp() {
   const [chatOpen, setChatOpen] = useState(false);
   const [chatInput, setChatInput] = useState("");
   const [notesVersion, setNotesVersion] = useState(0);
+  const [ollamaDetected, setOllamaDetected] = useState(false);
+  const [serverProviderLabel, setServerProviderLabel] = useState('');
+  const [ollamaBannerDismissed, setOllamaBannerDismissed] = useState(() => sessionStorage.getItem('ollama_banner_dismissed') === 'true');
   const importJsonRef = useRef(null);
   C = darkMode ? DARK : LIGHT;
 
@@ -3881,6 +4211,15 @@ export default function FinanceApp() {
       .finally(() => { setLoading(false); });
   }, []);
 
+  // Ollama auto-detection + server provider fetch (for banner)
+  useEffect(() => {
+    fetch(`${API_URL}/provider`).then(r => r.json()).then(d => setServerProviderLabel(d?.provider || '')).catch(() => {});
+    fetch('http://localhost:11434/api/tags', { signal: AbortSignal.timeout(2000) })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d) setOllamaDetected(true); })
+      .catch(() => {});
+  }, []);
+
   // Auto-save on change (skips initial load)
   const save = useCallback((key, value) => {
     if (!loaded.current) return;
@@ -3902,58 +4241,103 @@ export default function FinanceApp() {
   return <div style={{display:"flex",height:"100vh",background:C.bg,fontFamily:"'Instrument Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif",color:C.text,position:"relative",overflow:"hidden"}}>
     {/* Mobile overlay backdrop */}
     {isMobile && sidebarOpen && <div onClick={()=>setSidebarOpen(false)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",zIndex:49}}/>}
-    <div style={{width:sidebarOpen?220:60,background:C.card,borderRight:`1px solid ${C.border}`,padding:sidebarOpen?"20px 12px":"20px 8px",display:"flex",flexDirection:"column",transition:"width .2s ease",overflow:"hidden",flexShrink:0,
-      ...(isMobile ? {position:"fixed",top:0,left:0,height:"100%",zIndex:50,width:220,transform:sidebarOpen?"translateX(0)":"translateX(-100%)",transition:"transform .25s ease"} : {})}}>
+    <div style={{width:sidebarOpen?200:52,background:C.card,borderRight:`1px solid ${C.border}`,padding:sidebarOpen?"16px 10px 14px":"16px 6px 14px",display:"flex",flexDirection:"column",transition:"width .2s ease",overflow:"hidden",flexShrink:0,
+      ...(isMobile ? {position:"fixed",top:0,left:0,height:"100%",zIndex:50,width:200,transform:sidebarOpen?"translateX(0)":"translateX(-100%)",transition:"transform .25s ease"} : {})}}>
+
       {/* Logo + collapse */}
-      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:sidebarOpen?"8px 12px":"8px 4px",marginBottom:20}}>
-        {sidebarOpen && <div><div style={{fontSize:18,fontWeight:400,fontFamily:"'Fraunces',serif",letterSpacing:"0.04em",color:C.text}}>Finance<span style={{fontStyle:"italic",color:C.accent}}>Hub</span></div><div style={{fontSize:9,color:C.textDim,marginTop:2,fontFamily:"'DM Mono',monospace",letterSpacing:"0.06em",textTransform:"uppercase"}}>Personal Finance</div></div>}
-        {!isMobile && <button onClick={()=>setSidebarOpen(o=>!o)} style={{background:"transparent",border:"none",cursor:"pointer",color:C.textDim,padding:4,borderRadius:6,display:"flex",alignItems:"center"}} title={sidebarOpen?"Collapse":"Expand"}>
-          {sidebarOpen ? <ChevronLeft size={18}/> : <ChevronRight size={18}/>}
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:18,padding:sidebarOpen?"0 4px":"0"}}>
+        {sidebarOpen && <div>
+          <div style={{fontSize:16,fontWeight:400,fontFamily:"'Fraunces',serif",letterSpacing:"0.04em",color:C.text,lineHeight:1.2}}>Finance<span style={{fontStyle:"italic",color:C.accent}}>Hub</span></div>
+          <div style={{fontSize:8,color:C.textDim,marginTop:1,fontFamily:"'DM Mono',monospace",letterSpacing:"0.08em",textTransform:"uppercase"}}>Personal Finance</div>
+        </div>}
+        {!isMobile && <button onClick={()=>setSidebarOpen(o=>!o)} style={{background:"transparent",border:"none",cursor:"pointer",color:C.textDim,padding:3,borderRadius:5,display:"flex",alignItems:"center",flexShrink:0}} title={sidebarOpen?"Collapse":"Expand"}>
+          {sidebarOpen ? <ChevronLeft size={15}/> : <ChevronRight size={15}/>}
         </button>}
       </div>
+
       {/* Navigation */}
-      <nav style={{display:"flex",flexDirection:"column",gap:2}}>
-        {NAV.map(n=>{const a=page===n.id;return <button key={n.id} onClick={()=>{setPage(n.id);if(isMobile)setSidebarOpen(false);}} title={sidebarOpen?undefined:n.label} style={{display:"flex",alignItems:"center",gap:10,padding:sidebarOpen?"10px 12px":"10px 0",justifyContent:sidebarOpen?"flex-start":"center",borderRadius:8,border:"none",cursor:"pointer",fontSize:14,fontWeight:a?600:400,color:a?C.text:C.textMuted,background:a?C.accent+"18":"transparent",textAlign:"left",whiteSpace:"nowrap"}}><n.icon size={18} color={a?C.accentLight:C.textDim}/>{sidebarOpen && n.label}</button>;})}
+      <nav style={{display:"flex",flexDirection:"column",gap:1}}>
+        {NAV.map(n=>{
+          const a=page===n.id;
+          return <button key={n.id} onClick={()=>{setPage(n.id);if(isMobile)setSidebarOpen(false);}} title={sidebarOpen?undefined:n.label}
+            style={{display:"flex",alignItems:"center",gap:8,padding:sidebarOpen?"7px 10px":"8px 0",justifyContent:sidebarOpen?"flex-start":"center",borderRadius:7,border:"none",cursor:"pointer",fontSize:13,fontWeight:a?600:400,color:a?C.text:C.textMuted,background:a?C.accent+"18":"transparent",textAlign:"left",whiteSpace:"nowrap",transition:"background .12s,color .12s",position:"relative"}}>
+            <n.icon size={15} color={a?C.accentLight:C.textDim}/>
+            {sidebarOpen && <span style={{flex:1}}>{n.label}</span>}
+            {sidebarOpen && a && <div style={{width:4,height:4,borderRadius:2,background:C.accent,flexShrink:0}}/>}
+          </button>;
+        })}
       </nav>
+
       {/* Bottom section */}
-      <div style={{marginTop:"auto",padding:sidebarOpen?"8px 0":"8px 0",borderTop:`1px solid ${C.border}`,display:"flex",flexDirection:"column",gap:6}}>
-        {/* Profile button */}
-        <button onClick={()=>setProfileOpen(true)} title={sidebarOpen?undefined:`${profile.firstName} ${profile.lastName}`} style={{display:"flex",alignItems:"center",gap:8,width:"100%",padding:"8px 10px",borderRadius:8,border:`1px solid ${C.border}`,background:"transparent",cursor:"pointer",textAlign:"left",justifyContent:sidebarOpen?"flex-start":"center",color:C.textMuted,fontSize:13,marginBottom:2}}>
-          <User size={18}/>
-          {sidebarOpen && <div style={{overflow:"hidden",lineHeight:1.3}}>
-            <div style={{whiteSpace:"nowrap",fontSize:14}}>{profile.firstName} {profile.lastName}</div>
-            <div style={{fontSize:12,color:C.textDim,whiteSpace:"nowrap"}}>{profile.company || "Profile"}</div>
-          </div>}
+      <div style={{marginTop:"auto",paddingTop:10,borderTop:`1px solid ${C.border}`,display:"flex",flexDirection:"column",gap:1}}>
+
+        {/* Profile */}
+        <button onClick={()=>setProfileOpen(true)} title={sidebarOpen?undefined:`${profile.firstName||'Profile'} ${profile.lastName}`}
+          style={{display:"flex",alignItems:"center",gap:8,width:"100%",padding:"6px 10px",borderRadius:7,border:"none",background:"transparent",cursor:"pointer",textAlign:"left",justifyContent:sidebarOpen?"flex-start":"center",color:C.textMuted,marginBottom:2}}>
+          <User size={14} color={C.accentLight}/>
+          {sidebarOpen && <span style={{fontSize:11,color:C.textDim,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{profile.firstName?`${profile.firstName} ${profile.lastName}`.trim():"Profile"}</span>}
         </button>
-        {/* AI Prompt shortcut */}
-        <button onClick={()=>setPromptOpen(true)} title={sidebarOpen?undefined:"AI Advisor Prompt"} style={{display:"flex",alignItems:"center",gap:8,width:"100%",padding:"8px 10px",borderRadius:8,border:`1px solid ${C.border}`,background:"transparent",cursor:"pointer",textAlign:"left",justifyContent:sidebarOpen?"flex-start":"center",color:C.textMuted,fontSize:12}}>
-          <Sparkles size={18}/>
-          {sidebarOpen && <div style={{lineHeight:1.3}}>
-            <div style={{fontSize:12}}>AI Advisor Prompt</div>
-            <div style={{fontSize:10,color:C.textDim}}>Customise advisor</div>
-          </div>}
+
+        {/* AI Prompt */}
+        <button onClick={()=>setPromptOpen(true)} title={sidebarOpen?undefined:"AI Advisor Prompt"}
+          style={{display:"flex",alignItems:"center",gap:8,width:"100%",padding:"6px 10px",borderRadius:7,border:"none",background:"transparent",cursor:"pointer",textAlign:"left",justifyContent:sidebarOpen?"flex-start":"center",color:C.textMuted,marginBottom:2}}>
+          <Sparkles size={14} color={C.accentLight}/>
+          {sidebarOpen && <span style={{fontSize:11,color:C.textDim}}>AI Advisor Prompt</span>}
         </button>
-        {/* Theme toggle */}
-        <button onClick={()=>setDarkMode(d=>!d)} title={sidebarOpen?undefined:(darkMode?"Light Mode":"Dark Mode")} style={{display:"flex",alignItems:"center",gap:8,width:"100%",padding:"8px 10px",borderRadius:8,border:`1px solid ${C.border}`,background:"transparent",color:C.textMuted,fontSize:13,cursor:"pointer",justifyContent:sidebarOpen?"flex-start":"center"}}>
-          {darkMode ? <Sun size={18}/> : <Moon size={18}/>}{sidebarOpen && (darkMode ? "Light Mode" : "Dark Mode")}
+
+        {/* AI Settings */}
+        <button onClick={()=>{setPage('ai-settings');if(isMobile)setSidebarOpen(false);}} title={sidebarOpen?undefined:"AI Settings"}
+          style={{display:"flex",alignItems:"center",gap:8,width:"100%",padding:"6px 10px",borderRadius:7,border:"none",background:page==='ai-settings'?C.accent+"18":"transparent",cursor:"pointer",textAlign:"left",justifyContent:sidebarOpen?"flex-start":"center",color:page==='ai-settings'?C.accentLight:C.textMuted,marginBottom:4}}>
+          <Settings size={14} color={page==='ai-settings'?C.accentLight:undefined}/>
+          {sidebarOpen && <span style={{fontSize:11,color:page==='ai-settings'?C.accentLight:C.textDim}}>AI Settings</span>}
         </button>
-        <button onClick={()=>setHideBalances(h=>!h)} title={sidebarOpen?undefined:(hideBalances?"Show Balances":"Hide Balances")} style={{display:"flex",alignItems:"center",gap:8,width:"100%",padding:"8px 10px",borderRadius:8,border:`1px solid ${C.border}`,background:hideBalances?C.accent+"18":"transparent",color:hideBalances?C.accentLight:C.textMuted,fontSize:13,cursor:"pointer",justifyContent:sidebarOpen?"flex-start":"center"}}>
-          {hideBalances ? <EyeOff size={18}/> : <Eye size={18}/>}{sidebarOpen && (hideBalances ? "Show Balances" : "Hide Balances")}
-        </button>
+
+        {/* Dark Mode toggle row */}
+        {sidebarOpen ? (
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"6px 10px",borderRadius:7}}>
+            <div style={{display:"flex",alignItems:"center",gap:7,color:C.textMuted}}>
+              {darkMode ? <Sun size={13}/> : <Moon size={13}/>}
+              <span style={{fontSize:11}}>{darkMode?"Light Mode":"Dark Mode"}</span>
+            </div>
+            <Toggle on={darkMode} onToggle={()=>setDarkMode(d=>!d)}/>
+          </div>
+        ) : (
+          <button onClick={()=>setDarkMode(d=>!d)} title={darkMode?"Light Mode":"Dark Mode"} style={{display:"flex",alignItems:"center",justifyContent:"center",width:"100%",padding:"8px 0",borderRadius:7,border:"none",background:"transparent",color:C.textMuted,cursor:"pointer"}}>
+            {darkMode ? <Sun size={15}/> : <Moon size={15}/>}
+          </button>
+        )}
+
+        {/* Hide Balances toggle row */}
+        {sidebarOpen ? (
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"6px 10px",borderRadius:7}}>
+            <div style={{display:"flex",alignItems:"center",gap:7,color:C.textMuted}}>
+              {hideBalances ? <EyeOff size={13}/> : <Eye size={13}/>}
+              <span style={{fontSize:11}}>Hide Balances</span>
+            </div>
+            <Toggle on={hideBalances} onToggle={()=>setHideBalances(h=>!h)}/>
+          </div>
+        ) : (
+          <button onClick={()=>setHideBalances(h=>!h)} title={hideBalances?"Show Balances":"Hide Balances"} style={{display:"flex",alignItems:"center",justifyContent:"center",width:"100%",padding:"8px 0",borderRadius:7,border:"none",background:"transparent",color:hideBalances?C.accentLight:C.textMuted,cursor:"pointer"}}>
+            {hideBalances ? <EyeOff size={15}/> : <Eye size={15}/>}
+          </button>
+        )}
+
         {/* Getting Started */}
-        <button onClick={()=>{setOnboarding(o=>({...o,dismissed:false}));setPage('dashboard');}} title={sidebarOpen?undefined:"Getting Started"} style={{display:"flex",alignItems:"center",gap:8,width:"100%",padding:"8px 10px",borderRadius:8,border:`1px solid ${C.border}`,background:!onboarding.dismissed?C.accent+"18":"transparent",color:!onboarding.dismissed?C.accentLight:C.textMuted,fontSize:13,cursor:"pointer",justifyContent:sidebarOpen?"flex-start":"center"}}>
-          <BookOpen size={18}/>{sidebarOpen && "Getting Started"}
+        <button onClick={()=>{setOnboarding(o=>({...o,dismissed:false}));setPage('dashboard');}} title={sidebarOpen?undefined:"Getting Started"}
+          style={{display:"flex",alignItems:"center",gap:8,width:"100%",padding:"6px 10px",borderRadius:7,border:"none",background:!onboarding.dismissed?C.accent+"18":"transparent",cursor:"pointer",textAlign:"left",justifyContent:sidebarOpen?"flex-start":"center",color:!onboarding.dismissed?C.accentLight:C.textMuted,marginTop:2}}>
+          <BookOpen size={13}/>{sidebarOpen && <span style={{fontSize:11}}>Getting Started</span>}
         </button>
+
         {/* Export / Import */}
-        {sidebarOpen && <div style={{display:"flex",gap:6}}>
+        {sidebarOpen && <div style={{display:"flex",gap:4,marginTop:6}}>
           <button onClick={async()=>{
             const keys=['accounts','scenarios','tracker','subscriptions_personal','yearly','taxes','insurance','settings','profile','ai_analysis'];
             const out={};
             for(const k of keys){ const r=await fetch(`${API_URL}/${k}`); out[k]=r.status===404?null:await r.json(); }
             const ts=new Date().toISOString().slice(0,16).replace('T','_').replace(':','');
             const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([JSON.stringify(out,null,2)],{type:'application/json'})); a.download=`finance_hub_${ts}.json`; a.style.display='none'; document.body.appendChild(a); a.click(); URL.revokeObjectURL(a.href); document.body.removeChild(a);
-          }} style={{flex:1,padding:"5px 0",borderRadius:6,border:`1px solid ${C.border}`,background:"transparent",color:C.textMuted,fontSize:12,cursor:"pointer"}}>Export</button>
-          <button onClick={()=>importJsonRef.current?.click()} style={{flex:1,padding:"5px 0",borderRadius:6,border:`1px solid ${C.border}`,background:"transparent",color:C.textMuted,fontSize:12,cursor:"pointer"}}>Import</button>
+          }} style={{flex:1,padding:"4px 0",borderRadius:5,border:`1px solid ${C.border}`,background:"transparent",color:C.textDim,fontSize:10,cursor:"pointer",letterSpacing:"0.02em"}}>Export</button>
+          <button onClick={()=>importJsonRef.current?.click()} style={{flex:1,padding:"4px 0",borderRadius:5,border:`1px solid ${C.border}`,background:"transparent",color:C.textDim,fontSize:10,cursor:"pointer",letterSpacing:"0.02em"}}>Import</button>
           <input ref={importJsonRef} type="file" accept=".json" style={{display:"none"}} onChange={async e=>{
             const file=e.target.files[0]; if(!file) return;
             e.target.value='';
@@ -3964,6 +4348,7 @@ export default function FinanceApp() {
             } catch(err){ alert('Import failed: '+err.message); }
           }}/>
         </div>}
+
       </div>
     </div>
     <div style={{flex:1,overflow:"auto",padding:isMobile?"16px 12px":28,marginLeft:isMobile?0:undefined}}>
@@ -3978,6 +4363,22 @@ export default function FinanceApp() {
         {!isMobile && <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:24}}>
           <h1 style={{fontSize:26,fontWeight:400,fontFamily:"'Fraunces',serif",margin:0}}>{NAV.find(n=>n.id===page)?.label}</h1>
         </div>}
+
+        {/* Ollama detection banner */}
+        {ollamaDetected && serverProviderLabel !== 'ollama' && !ollamaBannerDismissed && (() => {
+          const storedConf = getStoredProviderConfig();
+          const usingOllama = storedConf?.provider === 'ollama';
+          if (usingOllama) return null;
+          return <div style={{marginBottom:18,padding:'12px 18px',borderRadius:10,background:C.green+'11',border:`1px solid ${C.green+'44'}`,display:'flex',alignItems:'center',gap:12}}>
+            <div style={{width:8,height:8,borderRadius:'50%',background:C.green,flexShrink:0,boxShadow:`0 0 6px ${C.green}`}}/>
+            <div style={{flex:1,fontSize:13,color:C.text}}>
+              <strong>Ollama detected!</strong> You have a local AI running on this machine — switch to it for 100% private, zero-cost AI.
+              <button onClick={()=>setPage('ai-settings')} style={{marginLeft:10,padding:'2px 10px',borderRadius:6,border:`1px solid ${C.green}`,background:'transparent',color:C.green,fontSize:12,cursor:'pointer',fontWeight:600}}>Configure →</button>
+            </div>
+            <button onClick={()=>{ setOllamaBannerDismissed(true); sessionStorage.setItem('ollama_banner_dismissed','true'); }} style={{background:'transparent',border:'none',color:C.textDim,cursor:'pointer',padding:4,flexShrink:0}}><X size={14}/></button>
+          </div>;
+        })()}
+
         {page==="dashboard" && <>
           <OnboardingChecklist accounts={accounts} scenarios={scenarios} subsP={subsP} yearly={yearly} profile={profile} onboarding={onboarding} setOnboarding={setOnboarding} setPage={setPage} setProfileOpen={setProfileOpen} setPromptOpen={setPromptOpen} onClearAll={(skipConfirm)=>{ if(skipConfirm !== 'skip' && !window.confirm('Clear all data and start fresh? This cannot be undone.')) return; setAccounts([]); setScenarios([]); setSubsP([]); setYearly([]); setTaxes([]); setInsurance([]); setTracker({2026:[]}); setProfile({firstName:'',lastName:'',gender:'',birthDate:'',address:'',postalCode:'',city:'',canton:'',phone:'',maritalStatus:'',religion:'',children:'',ahvNumber:'',company:'',jobTitle:'',businessName:'',businessType:'',businessProjects:'',notes:''}); setOnboarding(o=>({...o,dataCleared:true})); }}/>
           <Dashboard accounts={accounts} scenarios={scenarios} subsP={subsP} subsPInScenario={subsPInScenario} yearly={yearly} taxes={taxes} insurance={insurance} profile={profile} hideBalances={hideBalances} setChatOpen={setChatOpen} setChatInput={setChatInput} notesVersion={notesVersion}/>
@@ -3988,6 +4389,7 @@ export default function FinanceApp() {
         {page==="tracker" && <TrackerPage tracker={tracker} setTracker={setTracker} accounts={accounts} hideBalances={hideBalances} onTrackerSynced={() => setOnboarding(o => ({...o, lastTrackerSync: new Date().toISOString()}))}/>}
         {page==="expenses" && <ExpensesPage subsP={subsP} setSubsP={setSubsP} subsPInScenario={subsPInScenario} setSubsPInScenario={setSubsPInScenario} yearly={yearly} setYearly={setYearly} taxes={taxes} setTaxes={setTaxes} insurance={insurance} setInsurance={setInsurance} hideBalances={hideBalances} profile={profile} accounts={accounts} scenarios={scenarios} darkMode={darkMode} insPrompt={insPrompt} setInsPrompt={setInsPrompt} taxPrompt={taxPrompt} setTaxPrompt={setTaxPrompt} recPrompt={recPrompt} setRecPrompt={setRecPrompt} subPrompt={subPrompt} setSubPrompt={setSubPrompt}/>}
         {page==="pillars" && <PillarPage accounts={accounts} scenarios={scenarios} subsP={subsP} subsPInScenario={subsPInScenario} yearly={yearly} taxes={taxes} insurance={insurance} hideBalances={hideBalances}/>}
+        {page==="ai-settings" && <AISettingsPage/>}
       </div>
     </div>
     <ChatPanel accounts={accounts} scenarios={scenarios} subsP={subsP} subsPInScenario={subsPInScenario} yearly={yearly} taxes={taxes} insurance={insurance} profile={profile} open={chatOpen} setOpen={setChatOpen} externalInput={chatInput} setExternalInput={setChatInput} promptTemplate={promptTemplate} onPinned={() => setNotesVersion(v => v + 1)}/>
