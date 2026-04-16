@@ -205,7 +205,7 @@ const ONBOARDING_STEPS = [
   { id: 'monthlyTracker', label: 'Sync Tracker', desc: 'Sync your tracker with current account balances.', type: 'recurring', icon: Activity, action: 'tracker' },
 ];
 
-function generateInsights({ accounts, scenarios, insurance, inc, exp, sav, inv, liquidTotal, lockedTotal, totalWealth }) {
+function generateInsights({ accounts, scenarios, insurance, inc, exp, sav, inv, liquidTotal, lockedTotal, totalWealth, debtTotal = 0 }) {
   const insights = [];
   const sc = scenarios.find(s => s.isActive);
 
@@ -289,6 +289,31 @@ function generateInsights({ accounts, scenarios, insurance, inc, exp, sav, inv, 
     insights.push({ priority: "low", category: "tax", icon: "info", title: "Wealth tax planning (Vermogenssteuer)",
       detail: `Your net worth of CHF ${fmt(totalWealth)} is subject to Kanton Zurich wealth tax (Vermogenssteuer). The rate is progressive (~0.05-0.3%). Timing matters: the tax snapshot is taken on December 31st. Strategies include: making large purchases or BVG buy-ins before year-end.`,
       action: "Consider timing of large BVG buy-ins or asset purchases near year-end", impact: "Optimise Dec 31 snapshot for lower wealth tax",
+    });
+  }
+
+  // 8. Debt load & loan interest deduction
+  if (debtTotal > 0) {
+    const grossAssets = totalWealth + debtTotal;
+    const debtRatio = grossAssets > 0 ? debtTotal / grossAssets : 1;
+    const priority = debtRatio > 0.5 ? "high" : debtRatio > 0.25 ? "medium" : "low";
+    insights.push({ priority, category: "debt", icon: "alert",
+      title: `Total debt: CHF ${fmt(debtTotal)} (${(debtRatio * 100).toFixed(0)}% of gross assets)`,
+      detail: `${debtRatio > 0.5 ? "Your debt exceeds 50% of gross assets — prioritise debt reduction to strengthen your net worth." : "Your debt-to-asset ratio is manageable."} In Switzerland, all mortgage and loan interest is fully tax-deductible (Ziffer 250 on the tax return). Attach a Schuldenverzeichnis (debt schedule) with every creditor, outstanding balance, and interest paid during the year.`,
+      action: debtRatio > 0.4 ? "Review debt repayment plan vs. investment return trade-off" : "Claim all loan/mortgage interest as a deduction (Ziffer 250)",
+      impact: "Full interest deduction reduces taxable income — commonly missed",
+    });
+  }
+
+  // 9. Withholding tax reclaim (Verrechnungssteuer / DA-1)
+  const investmentAccounts = accounts.filter(a => ["Investment","Crypto"].includes(a.type));
+  const totalInvested = investmentAccounts.reduce((s,a) => s + a.balance, 0);
+  if (totalInvested > 5000) {
+    insights.push({ priority: "medium", category: "tax", icon: "tax",
+      title: "Reclaim 35% withholding tax on dividends (DA-1)",
+      detail: `You have CHF ${fmt(totalInvested)} in investment accounts. Swiss companies withhold 35% (Verrechnungssteuer) from dividends before paying them. As a Swiss resident you can reclaim 100% via form DA-1 (also partial reclaim on foreign dividends via double-taxation treaties). File the Wertschriftenverzeichnis (securities list) with your tax return — this triggers the refund automatically in ZHprivateTax.`,
+      action: "Declare all securities in Wertschriftenverzeichnis and attach DA-1 to your tax return",
+      impact: "Up to 35% of Swiss dividend income returned as a tax refund",
     });
   }
 
@@ -378,7 +403,7 @@ function AccountsPage({ accounts, setAccounts, hideBalances, onAccountsUpdated, 
   const toggleNotes = id => setNotesOpen(p => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n; });
 
   const totalWealth = accounts.reduce((s, a) => s + a.balance, 0);
-  const ACCT_TYPES = ["Checking","Savings","Investment","Crypto","Pension 2A","Pension 3A","Deposit","Lent Out"];
+  const ACCT_TYPES = ["Checking","Savings","Investment","Crypto","Pension 2A","Pension 3A","Deposit","Lent Out","Debt"];
   const [sortCol, setSortCol] = useState("institution");
   const [sortDir, setSortDir] = useState(-1);
   const handleSort = col => { if(sortCol===col) setSortDir(d=>d*-1); else { setSortCol(col); setSortDir(1); } };
@@ -501,7 +526,7 @@ function AccountsPage({ accounts, setAccounts, hideBalances, onAccountsUpdated, 
         <TH w={isMobile?60:110}></TH>
       </tr></thead>
       <tbody>{sorted.map(a=>{
-        const typeColor = ["Checking"].includes(a.type)?C.accent:["Savings"].includes(a.type)?C.yellow:["Investment","Crypto"].includes(a.type)?C.teal:a.type.includes("Pension")?C.blue:a.type==="Deposit"?C.textDim:a.type==="Lent Out"?C.orange:C.textMuted;
+        const typeColor = ["Checking"].includes(a.type)?C.accent:["Savings"].includes(a.type)?C.yellow:["Investment","Crypto"].includes(a.type)?C.teal:a.type.includes("Pension")?C.blue:a.type==="Deposit"?C.textDim:a.type==="Lent Out"?C.orange:a.type==="Debt"?C.red:C.textMuted;
         return <React.Fragment key={a.id}>
           <tr onMouseEnter={e=>e.currentTarget.style.background=C.cardHover} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
           <td style={{padding:"10px 12px",fontSize:14,color:C.text,borderBottom:`1px solid ${C.border}11`}}><div style={{display:"flex",alignItems:"center",gap:10}}><div style={{width:8,height:8,borderRadius:4,background:a.color,flexShrink:0}}/><InlineEdit value={a.name} onChange={v=>editAcct(a.id,"name",v)} inputWidth={isMobile?120:160}/></div></td>
@@ -736,14 +761,17 @@ function OnboardingChecklist({ accounts, scenarios, subsP, yearly, profile, onbo
 function Dashboard({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes, insurance, profile, hideBalances, setChatOpen, setChatInput, notesVersion }) {
   const mask = (v) => hideBalances ? "••••" : v;
   const winW = useWindowWidth(); const isMobile = winW < 768;
-  const totalWealth = accounts.reduce((s, a) => s + a.balance, 0);
+  const debtTotal = accounts.filter(a => a.type === "Debt").reduce((s,a)=>s+a.balance,0);
+  const totalAssets = accounts.filter(a => a.type !== "Debt").reduce((s, a) => s + a.balance, 0);
+  const totalWealth = totalAssets - debtTotal;
   const liquidTypes = ["Checking","Savings","Investment","Crypto"];
   const lockedTypes = ["Pension 2A","Pension 3A","Deposit"];
   const liquidTotal = accounts.filter(a => liquidTypes.includes(a.type)).reduce((s,a)=>s+a.balance,0);
   const lockedTotal = accounts.filter(a => lockedTypes.includes(a.type)).reduce((s,a)=>s+a.balance,0);
   const loanTotal = accounts.filter(a => a.type === "Lent Out").reduce((s,a)=>s+a.balance,0);
-  const liquidPct = totalWealth > 0 ? ((liquidTotal / totalWealth) * 100).toFixed(0) : 0;
-  const lockedPct = totalWealth > 0 ? ((lockedTotal / totalWealth) * 100).toFixed(0) : 0;
+  const liquidPct = totalAssets > 0 ? ((liquidTotal / totalAssets) * 100).toFixed(0) : 0;
+  const lockedPct = totalAssets > 0 ? ((lockedTotal / totalAssets) * 100).toFixed(0) : 0;
+  const debtPct = totalAssets > 0 ? ((debtTotal / totalAssets) * 100).toFixed(0) : 0;
 
   const sc = scenarios.find(s=>s.isActive);
   const getA = (item) => item.pct != null ? +(sc ? sc.incomes.reduce((s,x)=>s+x.amount,0) : 0) * item.pct / 100 : item.amount;
@@ -772,19 +800,19 @@ function Dashboard({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes,
   const rem = Math.round(inc - exp - sav - inv);
   const survivalMonths = essentialTotal > 0 ? Math.floor(liquidTotal / essentialTotal) : 0;
 
-  const pieData = accounts.filter(a=>a.balance>0).map(a=>({name:a.name,value:a.balance}));
+  const pieData = accounts.filter(a=>a.balance>0 && a.type !== "Debt").map(a=>({name:a.name,value:a.balance}));
 
   const insights = useMemo(() => generateInsights({
-    accounts, scenarios, insurance, inc, exp, sav, inv, liquidTotal, lockedTotal, totalWealth,
-  }), [accounts, scenarios, insurance, inc, exp, sav, inv, liquidTotal, lockedTotal, totalWealth]);
+    accounts, scenarios, insurance, inc, exp, sav, inv, liquidTotal, lockedTotal, totalWealth, debtTotal,
+  }), [accounts, scenarios, insurance, inc, exp, sav, inv, liquidTotal, lockedTotal, totalWealth, debtTotal]);
 
   return <div>
     {/* Net Worth headline with liquid/locked bar */}
     <Card style={{marginBottom:24,padding:"24px 28px"}}>
       <div style={{display:"flex",alignItems:isMobile?"flex-start":"center",justifyContent:"space-between",marginBottom:16,flexWrap:"wrap",gap:isMobile?12:0}}>
         <div>
-          <div style={{fontSize:14,color:C.textMuted,marginBottom:4}}>Total Net Worth</div>
-          <div style={{fontSize:isMobile?24:32,fontWeight:700,color:C.text}}>CHF {mask(fmt(totalWealth))}</div>
+          <div style={{fontSize:14,color:C.textMuted,marginBottom:4}}>Net Worth{debtTotal>0&&<span style={{fontSize:11,color:C.textDim,marginLeft:6}}>(assets − debt)</span>}</div>
+          <div style={{fontSize:isMobile?24:32,fontWeight:700,color:totalWealth>=0?C.text:C.red}}>CHF {mask(fmt(totalWealth))}</div>
         </div>
         <div style={{display:"flex",gap:isMobile?16:24,alignItems:"flex-end",flexWrap:"wrap"}}>
           <div style={{textAlign:"right"}}>
@@ -800,7 +828,12 @@ function Dashboard({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes,
           {loanTotal > 0 && <div style={{textAlign:"right"}}>
             <div style={{fontSize:12,color:C.textDim,marginBottom:2}}>Lent Out</div>
             <div style={{fontSize:20,fontWeight:700,color:C.orange}}>CHF {mask(fmt(loanTotal))}</div>
-            <div style={{fontSize:12,color:C.textDim}}>{totalWealth>0?((loanTotal/totalWealth)*100).toFixed(0):0}% of total</div>
+            <div style={{fontSize:12,color:C.textDim}}>{totalAssets>0?((loanTotal/totalAssets)*100).toFixed(0):0}% of assets</div>
+          </div>}
+          {debtTotal > 0 && <div style={{textAlign:"right"}}>
+            <div style={{fontSize:12,color:C.textDim,marginBottom:2}}>Debt</div>
+            <div style={{fontSize:20,fontWeight:700,color:C.red}}>CHF {mask(fmt(debtTotal))}</div>
+            <div style={{fontSize:12,color:C.textDim}}>{totalAssets>0?((debtTotal/totalAssets)*100).toFixed(0):0}% of assets</div>
           </div>}
         </div>
       </div>
@@ -808,12 +841,14 @@ function Dashboard({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes,
       <div style={{display:"flex",height:8,borderRadius:4,overflow:"hidden",background:C.border}}>
         {liquidTotal > 0 && <div style={{width:`${liquidPct}%`,background:C.green,transition:"width .3s"}} title={`Liquid: CHF ${fmt(liquidTotal)}`}/>}
         {lockedTotal > 0 && <div style={{width:`${lockedPct}%`,background:C.blue,transition:"width .3s"}} title={`Locked: CHF ${fmt(lockedTotal)}`}/>}
-        {loanTotal > 0 && <div style={{width:`${totalWealth>0?((loanTotal/totalWealth)*100).toFixed(0):0}%`,background:C.orange,transition:"width .3s"}} title={`Lent Out: CHF ${fmt(loanTotal)}`}/>}
+        {loanTotal > 0 && <div style={{width:`${totalAssets>0?((loanTotal/totalAssets)*100).toFixed(0):0}%`,background:C.orange,transition:"width .3s"}} title={`Lent Out: CHF ${fmt(loanTotal)}`}/>}
+        {debtTotal > 0 && <div style={{width:`${debtPct}%`,background:C.red,transition:"width .3s"}} title={`Debt: CHF ${fmt(debtTotal)}`}/>}
       </div>
       <div style={{display:"flex",gap:16,marginTop:8}}>
         <div style={{display:"flex",alignItems:"center",gap:6,fontSize:12,color:C.textDim}}><div style={{width:8,height:8,borderRadius:2,background:C.green}}/>Liquid</div>
         <div style={{display:"flex",alignItems:"center",gap:6,fontSize:12,color:C.textDim}}><div style={{width:8,height:8,borderRadius:2,background:C.blue}}/>Locked</div>
         {loanTotal > 0 && <div style={{display:"flex",alignItems:"center",gap:6,fontSize:12,color:C.textDim}}><div style={{width:8,height:8,borderRadius:2,background:C.orange}}/>Lent Out</div>}
+        {debtTotal > 0 && <div style={{display:"flex",alignItems:"center",gap:6,fontSize:12,color:C.textDim}}><div style={{width:8,height:8,borderRadius:2,background:C.red}}/>Debt</div>}
       </div>
     </Card>
 
@@ -1131,7 +1166,8 @@ function AiWealthCard({ accounts, scenarios, yearly, taxes, insurance, subsP, pr
 
   const buildContext = () => {
     const sc = scenarios.find(s=>s.isActive);
-    const totalWealth = accounts.reduce((s,a)=>s+a.balance,0);
+    const debtTotal = accounts.filter(a=>a.type==="Debt").reduce((s,a)=>s+a.balance,0);
+    const totalWealth = accounts.filter(a=>a.type!=="Debt").reduce((s,a)=>s+a.balance,0) - debtTotal;
     const liquidTypes = ["Checking","Savings","Investment","Crypto"];
     const liquidTotal = accounts.filter(a=>liquidTypes.includes(a.type)).reduce((s,a)=>s+a.balance,0);
     const getA = (item) => item.pct != null ? (sc ? sc.incomes.reduce((s,x)=>s+x.amount,0) * item.pct / 100 : 0) : item.amount;
@@ -2443,7 +2479,8 @@ function ExpensesPage({ subsP, setSubsP, subsPInScenario, setSubsPInScenario, ye
     const taxableStaat = Math.max(0, grossAnnual - ahv - bvg - pillar3a - berufsauslagen - versStaat);
     const taxableBund = Math.max(0, grossAnnual - ahv - bvg - pillar3a - berufsauslagen - versBund);
     const isPension = a => ["Pension 2A","Pension 3A"].includes(a.type)||(a.name||"").toLowerCase().includes("2a pillar")||(a.name||"").toLowerCase().includes("3a pillar")||(a.name||"").toLowerCase().includes("pillar 2")||(a.name||"").toLowerCase().includes("pillar 3");
-    const taxableWealth = accounts ? accounts.filter(a=>!isPension(a)).reduce((s,a)=>s+(a.balance||0),0) : 0;
+    const taxableDebt = accounts ? accounts.filter(a=>a.type==="Debt").reduce((s,a)=>s+(a.balance||0),0) : 0;
+    const taxableWealth = accounts ? Math.max(0, accounts.filter(a=>!isPension(a)&&a.type!=="Debt").reduce((s,a)=>s+(a.balance||0),0) - taxableDebt) : 0;
 
     // ── Document Checklist ──
     const docs = [
@@ -2457,6 +2494,8 @@ function ExpensesPage({ subsP, setSubsP, subsPInScenario, setSubsPInScenario, ye
       ["Steuerrechnungen",         "All provisional + final invoices  ->  for history"],
       ["Schuldenverzeichnis",      "Mortgage / loan statements  ->  Ziffer 470 (wealth deduction)"],
       ["AHV-Abrechnung",           "Required if self-employed or side income  ->  Ziffer 120"],
+      ["Bank Steuerausweis",        "Annual tax statement: interest + dividends received  ->  Wertschriftenverzeichnis"],
+      ["DA-1 Form",                 "Reclaim 35% withholding tax on dividends  ->  Ziffer 650 / auto in ZHprivateTax"],
     ];
     const docsHalf = Math.ceil(docs.length/2);
     const docsH = 16 + docsHalf * 8 + 4;
@@ -2503,6 +2542,11 @@ function ExpensesPage({ subsP, setSubsP, subsPInScenario, setSubsPInScenario, ye
       { label:"WEITERE ABZUGE", color:yellow, items:[
         ["Spenden  (Ziff. 324)",      "Swiss charities above CHF 100 fully deductible. Need written confirmation — no upper limit."],
         ["Schuldzinsen  (Ziff. 250)", "Mortgage & loan interest fully deductible. Attach Schuldenverzeichnis with statement."],
+      ]},
+      { label:"KAPITALANLAGEN & QUELLENSTEUER", color:blue, items:[
+        ["Wertschriftenverzeichnis  (Ziff. 400/650)", "Declare ALL securities (stocks, ETFs, funds, crypto). Triggers automatic DA-1 refund for Swiss withholding tax. Required to declare dividend/interest income."],
+        ["Verrechnungssteuer DA-1  (Ziff. 650)", "Swiss companies deduct 35% from dividends. As resident you reclaim 100% via DA-1. Foreign dividends: partial reclaim via double-taxation treaty (DA-1 / R-US / R-D etc.)"],
+        ["Quellensteuer auf Bankzins  (Ziff. 400)", "Banks deduct 35% withholding on interest income. Declare account balance — refund processed automatically by ZH tax authority."],
       ]},
     ];
     // measure total height: header 14 + per group: groupHeader 9 + items * 9
@@ -2985,7 +3029,8 @@ function PillarPage({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes
   const liquidTypes = ["Checking","Savings","Investment","Crypto"];
   const liquidTotal = accounts.filter(a=>liquidTypes.includes(a.type)).reduce((s,a)=>s+a.balance,0);
   const pensionTotal = accounts.filter(a=>a.type==="Pension 2A"||a.type==="Pension 3A").reduce((s,a)=>s+a.balance,0);
-  const totalWealth = accounts.reduce((s,a)=>s+a.balance,0);
+  const debtTotal = accounts.filter(a=>a.type==="Debt").reduce((s,a)=>s+a.balance,0);
+  const totalWealth = accounts.filter(a=>a.type!=="Debt").reduce((s,a)=>s+a.balance,0) - debtTotal;
 
   // Freedom targets
   // Money System: capital needed so (yieldRate% × capital) / 12 = essentialTotal/mo
@@ -3045,34 +3090,6 @@ function PillarPage({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes
         {p.items.map((item,i)=><div key={i} style={{fontSize:12,color:C.textDim,padding:"4px 0",borderBottom:i<p.items.length-1?`1px solid ${C.border}11`:"none"}}>{item}</div>)}
       </Card>)}
     </div>
-
-    {/* Pillar 1 vs 2: Demographic Risk */}
-    <Card style={{marginBottom:20,borderLeft:`3px solid ${C.red}`}}>
-      <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}>
-        <div style={{fontSize:14,fontWeight:700,color:C.text}}>The "Pyramid" / Demographic Risk — Will You Lose It All?</div>
-      </div>
-      <div style={{display:"flex",flexDirection:"column",gap:10}}>
-        <div style={{padding:"10px 14px",borderRadius:8,background:C.red+"0d",border:`1px solid ${C.red}22`}}>
-          <div style={{fontSize:13,fontWeight:700,color:C.red,marginBottom:4}}>🔴 Pillar 1 (AHV) — YES, pay-as-you-go (Umlageverfahren)</div>
-          <div style={{fontSize:12,color:C.textMuted,lineHeight:1.7}}>
-            Today's workers pay for today's retirees — <strong style={{color:C.text}}>this IS the pyramid</strong> you should worry about. Fewer young workers supporting more retirees = demographic pressure.<br/>
-            AHV is under continuous reform (AHV 21 raised women's retirement age, future reforms will raise contributions, lower payouts, or push retirement age further).<br/>
-            <strong style={{color:C.text}}>BUT:</strong> AHV is federally guaranteed — the government will adjust the rules rather than let it collapse. Your contributions are <strong>not "your money"</strong> — they go into a communal pool.
-          </div>
-        </div>
-        <div style={{padding:"10px 14px",borderRadius:8,background:C.green+"0d",border:`1px solid ${C.green}22`}}>
-          <div style={{fontSize:13,fontWeight:700,color:C.green,marginBottom:4}}>🟢 Pillar 2 (BVG / Pensionskasse) — NOT a pyramid, funded system (Kapitaldeckungsverfahren)</div>
-          <div style={{fontSize:12,color:C.textMuted,lineHeight:1.7}}>
-            Your money is <strong style={{color:C.text}}>actually set aside and invested</strong> in your personal account at your Pensionskasse (e.g. SwissLife). It is not redistributed to current retirees.<br/>
-            <strong style={{color:C.text}}>Your voluntary buy-in (Einkauf) goes into YOUR account</strong> — it's legally protected and belongs to you, not a pool.<br/>
-            Risk: conversion rate (Umwandlungssatz) may be reduced in future (currently ~6.8% for mandatory portion), but the capital itself is yours. Think of it as a forced savings account with tax-deductible contributions.
-          </div>
-        </div>
-        <div style={{padding:"8px 12px",borderRadius:8,background:C.accent+"0a",border:`1px solid ${C.accent}15`,fontSize:12,color:C.textDim,lineHeight:1.7}}>
-          <strong style={{color:C.accentLight}}>Bottom line:</strong> Worry about Pillar 1 (state pension erosion) — don't rely on AHV alone. Don't worry about Pillar 2 capital disappearing — your BVG balance is yours. Max out voluntary buy-ins (Einkauf) when you have the Einkaufspotenzial — they're tax-deductible and the capital is safe.
-        </div>
-      </div>
-    </Card>
 
     {/* Personal extension pillars */}
     <div style={{fontSize:12,color:C.yellow,fontWeight:700,textTransform:"uppercase",letterSpacing:0.5,marginBottom:8}}>Personal Extension Pillars (Wealth Building)</div>
