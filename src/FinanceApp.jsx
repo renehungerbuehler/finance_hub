@@ -3679,6 +3679,13 @@ function ChatPanel({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes,
               <span>Scanning file for sensitive data…</span>
             </div>;
           }
+          // Tag describing how the file was read, shown in tooltips so the
+          // user can tell embedded-text PDFs from OCR'd scanned ones.
+          const methodNote = scanResult?.method === 'pdf-ocr'
+            ? ` · OCR'd ${scanResult.pageCount} page${scanResult.pageCount > 1 ? 's' : ''}${scanResult.pageLimitHit ? ' (page limit reached — content beyond not scanned)' : ''}`
+            : scanResult?.method === 'tesseract' ? ' · OCR'
+            : scanResult?.method === 'pdf-parse' ? ' · embedded text'
+            : '';
           if (scanResult?.supported && scanResult.totalFindings > 0) {
             const f = scanResult.findings || {};
             const items = [];
@@ -3689,15 +3696,15 @@ function ChatPanel({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes,
             if (f.card?.length)     items.push(`${f.card.length} card-like`);
             if (f.names?.length)    items.push(`${f.names.length} name${f.names.length>1?'s':''}`);
             if (f.addresses?.length)items.push(`${f.addresses.length} address-part${f.addresses.length>1?'s':''}`);
-            return <div style={{margin:"6px 14px 0",padding:"7px 10px",fontSize:11,lineHeight:1.5,color:C.orange,background:C.orange+'15',border:`1px solid ${C.orange}33`,borderRadius:7,display:"flex",gap:6,alignItems:"flex-start"}}>
+            return <div title={`Scan method${methodNote}`} style={{margin:"6px 14px 0",padding:"7px 10px",fontSize:11,lineHeight:1.5,color:C.orange,background:C.orange+'15',border:`1px solid ${C.orange}33`,borderRadius:7,display:"flex",gap:6,alignItems:"flex-start"}}>
               <AlertTriangle size={12} style={{flexShrink:0,marginTop:1}}/>
-              <span>Sensitive data detected: <strong>{items.join(' · ')}</strong>. This file goes to <strong>{aiProvider?.label || 'the cloud provider'}</strong> as-is — masking cannot rewrite binary contents. You'll see a confirmation before sending.</span>
+              <span>Sensitive data detected: <strong>{items.join(' · ')}</strong>. This file goes to <strong>{aiProvider?.label || 'the cloud provider'}</strong> as-is — masking cannot rewrite binary contents. You'll see a confirmation before sending.{scanResult.pageLimitHit && <> <em>Page limit reached — content beyond page {scanResult.pageCount} was not scanned and may contain more.</em></>}</span>
             </div>;
           }
           if (scanResult?.supported && scanResult.totalFindings === 0) {
-            return <div style={{margin:"6px 14px 0",padding:"6px 10px",fontSize:11,lineHeight:1.5,color:C.green,background:C.green+'15',border:`1px solid ${C.green}33`,borderRadius:7,display:"flex",gap:6,alignItems:"center"}}>
+            return <div title={`Scan method${methodNote}`} style={{margin:"6px 14px 0",padding:"6px 10px",fontSize:11,lineHeight:1.5,color:C.green,background:C.green+'15',border:`1px solid ${C.green}33`,borderRadius:7,display:"flex",gap:6,alignItems:"center"}}>
               <ShieldCheck size={12} style={{flexShrink:0}}/>
-              <span>Scanned — no obvious PII patterns (AHV, IBAN, email, phone, address) found in this file.</span>
+              <span>Scanned{scanResult.method === 'pdf-ocr' ? ` (OCR'd ${scanResult.pageCount} page${scanResult.pageCount > 1 ? 's' : ''})` : ''} — no obvious PII patterns (AHV, IBAN, email, phone, address) found in this file.</span>
             </div>;
           }
           if (scanResult?.supported && scanResult.extractionEmpty) {

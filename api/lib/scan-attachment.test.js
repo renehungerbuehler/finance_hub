@@ -126,3 +126,12 @@ test('scanAttachment: empty data returns supported=false', async () => {
   const r = await scanAttachment({ name: 'x.txt', type: 'text/plain', data: '' }, null);
   assert.equal(r.supported, false);
 });
+
+// ─── Module surface for the OCR-fallback path (binaries not run in tests) ──
+
+test('module exposes ocrScannedPdf + page limit constant', () => {
+  const { _internal } = require('./scan-attachment');
+  assert.equal(typeof _internal.ocrScannedPdf, 'function');
+  assert.equal(typeof _internal.SCANNED_PDF_PAGE_LIMIT, 'number');
+  assert.ok(_internal.SCANNED_PDF_PAGE_LIMIT > 0);
+});

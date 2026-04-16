@@ -59,6 +59,71 @@ async function extractPdfText(base64) {
   return result.text || '';
 }
 
+// Maximum number of PDF pages we'll OCR in the scanned-PDF fallback.
+// Tax docs and bank statements are typically 1-5 pages; we cap to keep
+// scans bounded (each page ~2-5s on CPU at 200 DPI).
+const SCANNED_PDF_PAGE_LIMIT = 10;
+
+/**
+ * Fallback for PDFs with no embedded text layer (pure-image scans, photos
+ * saved as PDF). Renders each page to PNG via `pdftoppm`, OCRs each with
+ * tesseract, joins the results. Returns { text, pageCount, truncated }.
+ */
+async function ocrScannedPdf(base64) {
+  const tmpName = crypto.randomBytes(8).toString('hex');
+  const tmpDir = path.join(os.tmpdir(), `scan-pdf-${tmpName}`);
+  const pdfPath = path.join(tmpDir, 'in.pdf');
+  await fs.mkdir(tmpDir, { recursive: true });
+  try {
+    await fs.writeFile(pdfPath, Buffer.from(base64, 'base64'));
+    try {
+      await execFileP('pdftoppm', [
+        '-png',
+        '-r', '200',                                    // 200 DPI: good OCR / speed balance
+        '-f', '1', '-l', String(SCANNED_PDF_PAGE_LIMIT),
+        pdfPath,
+        path.join(tmpDir, 'page'),
+      ], { timeout: 60000 });
+    } catch (err) {
+      if (err.code === 'ENOENT') {
+        throw new Error('pdftoppm binary not found. Install poppler-utils to enable OCR of scanned PDFs.');
+      }
+      throw err;
+    }
+
+    const pageFiles = (await fs.readdir(tmpDir))
+      .filter(f => f.startsWith('page') && f.endsWith('.png'))
+      .sort();
+    if (pageFiles.length === 0) throw new Error('pdftoppm produced no pages');
+
+    const pageTexts = [];
+    for (const f of pageFiles) {
+      try {
+        const { stdout } = await execFileP(
+          'tesseract',
+          [path.join(tmpDir, f), '-', '-l', 'eng+deu+fra+ita'],
+          { timeout: 30000, maxBuffer: 5 * 1024 * 1024 },
+        );
+        pageTexts.push(stdout);
+      } catch {
+        // Skip individual page failures so one bad page doesn't kill the whole scan.
+      }
+    }
+
+    return {
+      text: pageTexts.join('\n\n'),
+      pageCount: pageFiles.length,
+      truncated: pageFiles.length === SCANNED_PDF_PAGE_LIMIT,
+    };
+  } finally {
+    try {
+      const files = await fs.readdir(tmpDir);
+      await Promise.all(files.map(f => fs.unlink(path.join(tmpDir, f)).catch(() => {})));
+      await fs.rmdir(tmpDir);
+    } catch {}
+  }
+}
+
 async function ocrImage(base64, mimeType) {
   const ext = (mimeType.split('/')[1] || 'png').split('+')[0];
   const tmpName = crypto.randomBytes(8).toString('hex');
@@ -73,7 +138,7 @@ async function ocrImage(base64, mimeType) {
     return stdout;
   } catch (err) {
     if (err.code === 'ENOENT') {
-      throw new Error('tesseract binary not found on this server. Install with `apk add tesseract-ocr` or equivalent, or use a PDF with an embedded text layer.');
+      throw new Error('tesseract binary not found on this server. Install with `apk add tesseract-ocr` or equivalent.');
     }
     throw err;
   } finally {
@@ -132,12 +197,28 @@ async function scanAttachment(attachment, profile) {
 
   let text = '';
   let method = 'unknown';
+  let pageCount = null;
+  let pageLimitHit = false;
   let extractionError = null;
 
   try {
     if (type === 'application/pdf') {
       text = await extractPdfText(data);
       method = 'pdf-parse';
+      // Fallback: if the PDF has no embedded text (pure-image scan), render
+      // each page to PNG and OCR them.
+      if (!text.trim()) {
+        try {
+          const ocr = await ocrScannedPdf(data);
+          text = ocr.text;
+          method = 'pdf-ocr';
+          pageCount = ocr.pageCount;
+          pageLimitHit = ocr.truncated;
+        } catch (ocrErr) {
+          // Keep the original empty-text result; surface the OCR error
+          extractionError = `scanned-PDF OCR failed: ${ocrErr.message}`;
+        }
+      }
     } else if (type.startsWith('image/')) {
       text = await ocrImage(data, type);
       method = 'tesseract';
@@ -151,14 +232,13 @@ async function scanAttachment(attachment, profile) {
     extractionError = err.message;
   }
 
-  // If extraction failed or returned nothing, surface that honestly —
-  // a PDF with no text layer (scanned, pure image) will come back empty
-  // and we want the user to know we couldn't verify it.
   if (extractionError || !text.trim()) {
     return {
       supported: true,
       name, type,
       method,
+      pageCount,
+      pageLimitHit,
       extractionError,
       extractionEmpty: !extractionError && !text.trim(),
       findings: { ahv: [], iban: [], email: [], phone: [], card: [], names: [], addresses: [] },
@@ -173,6 +253,8 @@ async function scanAttachment(attachment, profile) {
     supported: true,
     name, type,
     method,
+    pageCount,
+    pageLimitHit,
     textLength: text.length,
     totalFindings,
     findings,
@@ -183,5 +265,5 @@ async function scanAttachment(attachment, profile) {
 module.exports = {
   scanAttachment,
   detectPII,
-  _internal: { PII_PATTERNS, isTextType, extractPdfText, ocrImage },
+  _internal: { PII_PATTERNS, isTextType, extractPdfText, ocrImage, ocrScannedPdf, SCANNED_PDF_PAGE_LIMIT },
 };
