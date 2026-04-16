@@ -16,7 +16,70 @@ BASE='https://api.peakprivacy.ch/v1'
 OUT='pp-spike-out'
 mkdir -p "$OUT"
 
-hdr=(-H "Api-token: $PP_TOKEN"
+# ── Auth-header detection ────────────────────────────────────────────────
+# First run of the spike came back with 401 on every probe, so the header
+# format may be wrong. Walk through the common variants against the cheapest
+# endpoint (/ai/models) and pick the first that doesn't 401.
+#
+# Variants tried (in order):
+#   A. Api-token: <token>               (what Google's indexed docs showed)
+#   B. Authorization: Bearer <token>    (OpenAI / industry standard)
+#   C. X-Api-Key: <token>
+#   D. Authorization: <token>           (bare, no "Bearer")
+#   E. ?api_token=<token> query param
+
+detect_auth() {
+  local url="$BASE/ai/models"
+  local name status
+  for variant in \
+      "A|Api-token: $PP_TOKEN" \
+      "B|Authorization: Bearer $PP_TOKEN" \
+      "C|X-Api-Key: $PP_TOKEN" \
+      "D|Authorization: $PP_TOKEN"; do
+    name="${variant%%|*}"
+    hdr="${variant#*|}"
+    status=$(curl -sS -o /dev/null -w '%{http_code}' \
+      -H "$hdr" -H 'Accept: application/json' "$url")
+    echo "  variant $name  [$(echo "$hdr" | cut -d: -f1)]  →  HTTP $status" >&2
+    if [ "$status" != "401" ] && [ "$status" != "403" ]; then
+      echo "$hdr"
+      return 0
+    fi
+  done
+  # Last resort: query param
+  status=$(curl -sS -o /dev/null -w '%{http_code}' \
+    -H 'Accept: application/json' "$url?api_token=$PP_TOKEN")
+  echo "  variant E  [?api_token=…]  →  HTTP $status" >&2
+  if [ "$status" != "401" ] && [ "$status" != "403" ]; then
+    echo "QUERY"
+    return 0
+  fi
+  return 1
+}
+
+echo "── 00-auth-detect ──"
+echo "Walking through auth header variants against $BASE/ai/models …" >&2
+if AUTH_HDR=$(detect_auth); then
+  if [ "$AUTH_HDR" = "QUERY" ]; then
+    echo "  ✓ Token accepted as ?api_token= query param"
+    USE_QUERY=1
+  else
+    echo "  ✓ Token accepted with header:  $(echo "$AUTH_HDR" | cut -d: -f1)"
+    USE_QUERY=0
+  fi
+else
+  echo "  ✗ All auth variants returned 401/403."
+  echo "    → This token is most likely a BROWSER SESSION JWT, not an API token."
+  echo "    → Log into treuhandsuisse.peakprivacy.ch → Settings → API Tokens"
+  echo "      (or equivalent) and generate a real API token."
+  echo "    → Still running probes with the original Api-token: header so you"
+  echo "      can see endpoint existence (401 = endpoint exists, 404 = doesn't)."
+  AUTH_HDR="Api-token: $PP_TOKEN"
+  USE_QUERY=0
+fi
+echo
+
+hdr=(-H "$AUTH_HDR"
      -H 'X-Requested-With: XMLHttpRequest'
      -H 'Accept: application/json'
      -H 'Content-Type: application/json')
