@@ -3258,6 +3258,9 @@ function ChatPanel({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes,
   const [saved, setSaved] = useState(false);
   const [pinPending, setPinPending] = useState(false);
   const [pendingConsent, setPendingConsent] = useState(null); // { question, sentAttachment }
+  const [scanResult, setScanResult] = useState(null);          // server scan response for the current attachment
+  const [scanning,   setScanning]   = useState(false);         // scan in-flight
+  const [pendingAttachmentConfirm, setPendingAttachmentConfirm] = useState(null); // { question, sentAttachment, findings }
   const pendingPin = useRef(false);
   const messagesRef = useRef([]);
   const fileInputRef = useRef(null);
@@ -3302,6 +3305,7 @@ function ChatPanel({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes,
     reader.onload = () => {
       const base64 = reader.result.split(',')[1];
       setAttachment({ name: file.name, type: file.type, data: base64, size: file.size });
+      setScanResult(null);
     };
     reader.readAsDataURL(file);
     e.target.value = '';
@@ -3312,6 +3316,34 @@ function ChatPanel({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes,
   useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
   useEffect(() => { if (open) setTimeout(() => inputRef.current?.focus(), 50); }, [open]);
   useEffect(() => { messagesRef.current = messages; }, [messages]);
+
+  // Scan attachments in the background the moment the user picks a file, so
+  // by the time they click Send we can tell them what PII is about to leave
+  // their machine. Skipped for Ollama — data never leaves the box anyway.
+  useEffect(() => {
+    if (!attachment) { setScanResult(null); setScanning(false); return; }
+    const sc = getStoredProviderConfig();
+    const isLocal = aiProvider?.provider === 'ollama' || sc?.provider === 'ollama';
+    if (isLocal) { setScanResult(null); setScanning(false); return; }
+    const ctrl = new AbortController();
+    setScanning(true); setScanResult(null);
+    fetch(`${API_URL}/scan-attachment`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ attachment, profile: profile || null }),
+      signal: ctrl.signal,
+    })
+      .then(r => r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`)))
+      .then(r => { setScanResult(r); setScanning(false); })
+      .catch((err) => {
+        if (err.name !== 'AbortError') {
+          setScanResult({ supported: false, error: err.message });
+          setScanning(false);
+        }
+      });
+    return () => ctrl.abort();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [attachment?.data, aiProvider?.provider]);
   useEffect(() => {
     if (!streaming && pendingPin.current) {
       pendingPin.current = false;
@@ -3457,7 +3489,15 @@ function ChatPanel({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes,
     if ((!input.trim() && !attachment) || streaming) return;
     const question = input.trim() || (attachment ? `Please analyse this file: ${attachment.name}` : "");
     const sentAttachment = attachment;
-    setInput(""); setAttachment(null);
+    const scanForThisAtt = sentAttachment ? scanResult : null;
+    setInput(""); setAttachment(null); setScanResult(null);
+
+    // If the attached file was scanned and contained PII, pause and make the
+    // user explicitly acknowledge what's about to leave their server.
+    if (sentAttachment && scanForThisAtt?.supported && scanForThisAtt.totalFindings > 0) {
+      setPendingAttachmentConfirm({ question, sentAttachment, scan: scanForThisAtt });
+      return;
+    }
 
     // Check consent for cloud providers (one-time per session per provider)
     const storedConfig = getStoredProviderConfig();
@@ -3465,12 +3505,35 @@ function ChatPanel({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes,
     if (provId && provId !== 'ollama') {
       const consentKey = `ai_consent_${provId}`;
       if (!sessionStorage.getItem(consentKey)) {
-        // Pause sending — show consent modal first
         setPendingConsent({ question, sentAttachment });
         return;
       }
     }
     doSendMessage(question, sentAttachment);
+  };
+
+  const handleAttachmentConfirmAccept = () => {
+    const { question, sentAttachment } = pendingAttachmentConfirm;
+    setPendingAttachmentConfirm(null);
+    // Still run consent check after the attachment confirmation
+    const storedConfig = getStoredProviderConfig();
+    const provId = (storedConfig?.provider && storedConfig.provider !== 'auto') ? storedConfig.provider : aiProvider?.provider;
+    if (provId && provId !== 'ollama') {
+      const consentKey = `ai_consent_${provId}`;
+      if (!sessionStorage.getItem(consentKey)) {
+        setPendingConsent({ question, sentAttachment });
+        return;
+      }
+    }
+    doSendMessage(question, sentAttachment);
+  };
+
+  const handleAttachmentConfirmCancel = () => {
+    // Restore the attachment and the typed message so the user can edit/cancel
+    setInput(pendingAttachmentConfirm?.question || '');
+    setAttachment(pendingAttachmentConfirm?.sentAttachment || null);
+    setScanResult(pendingAttachmentConfirm?.scan || null);
+    setPendingAttachmentConfirm(null);
   };
 
   const handleConsentAccept = () => {
@@ -3499,6 +3562,42 @@ function ChatPanel({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes,
     {/* Panel */}
     {open && maximized && <div onClick={()=>setMaximized(false)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.7)",zIndex:1001,display:"flex",alignItems:"center",justifyContent:"center",padding:24}}/>}
     {open && <div style={maximized?{position:"fixed",top:"50%",left:"50%",transform:"translate(-50%,-50%)",width:"min(92vw,1140px)",height:"84vh",background:C.card,border:`1px solid ${C.border}`,borderRadius:16,display:"flex",flexDirection:"column",zIndex:1002,boxShadow:"0 24px 80px rgba(0,0,0,0.6)",overflow:"hidden"}:{position:"fixed",bottom:btnPos.bottom+64,right:btnPos.right,width:panelW,height:typeof window !== 'undefined' && window.innerWidth < 768 ? 'calc(100vh - 120px)' : 520,background:C.card,border:`1px solid ${C.border}`,borderRadius:16,display:"flex",flexDirection:"column",zIndex:1000,boxShadow:"0 8px 40px rgba(0,0,0,0.5)",overflow:"hidden"}}>
+      {/* Attachment-findings confirm modal — shown BEFORE the provider consent modal
+          when the pre-send scan turned up sensitive data in the attached file. */}
+      {pendingAttachmentConfirm && <div style={{position:'absolute',inset:0,background:'rgba(0,0,0,0.75)',zIndex:11,display:'flex',alignItems:'center',justifyContent:'center',padding:20,borderRadius:16}}>
+        <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:14,padding:22,maxWidth:420,width:'100%',boxShadow:'0 8px 40px rgba(0,0,0,0.5)',maxHeight:'90%',overflowY:'auto'}}>
+          <div style={{fontSize:18,marginBottom:6,display:'flex',alignItems:'center',gap:8}}><AlertTriangle size={18} color={C.orange}/>Sensitive data in attachment</div>
+          <div style={{fontSize:12,color:C.textDim,marginBottom:14}}><Paperclip size={11}/> {pendingAttachmentConfirm.sentAttachment.name}</div>
+          <div style={{fontSize:13,color:C.text,lineHeight:1.6,marginBottom:12}}>
+            The following was detected inside this file and will be visible to <strong style={{color:C.accent}}>{aiProvider?.label || 'the cloud provider'}</strong> — binary files cannot be masked on the way out:
+          </div>
+          <div style={{fontSize:12,color:C.text,lineHeight:1.8,marginBottom:14,padding:'10px 14px',background:C.orange+'15',borderRadius:9,border:`1px solid ${C.orange}33`,fontFamily:"'DM Mono',monospace"}}>
+            {(() => {
+              const f = pendingAttachmentConfirm.scan.findings || {};
+              const rows = [];
+              if (f.ahv?.length)       rows.push([`${f.ahv.length} AHV number${f.ahv.length>1?'s':''}`,       f.ahv]);
+              if (f.iban?.length)      rows.push([`${f.iban.length} IBAN${f.iban.length>1?'s':''}`,            f.iban]);
+              if (f.email?.length)     rows.push([`${f.email.length} email${f.email.length>1?'s':''}`,         f.email]);
+              if (f.phone?.length)     rows.push([`${f.phone.length} phone number${f.phone.length>1?'s':''}`,  f.phone]);
+              if (f.card?.length)      rows.push([`${f.card.length} card-like number${f.card.length>1?'s':''}`,f.card]);
+              if (f.names?.length)     rows.push([`${f.names.length} name match${f.names.length>1?'es':''}`,   f.names]);
+              if (f.addresses?.length) rows.push([`${f.addresses.length} address part${f.addresses.length>1?'s':''}`, f.addresses]);
+              return rows.map(([label, values], i) => <div key={i}>
+                <div style={{color:C.orange,fontWeight:700}}>• {label}</div>
+                <div style={{color:C.textDim,fontSize:11,paddingLeft:12,whiteSpace:'pre-wrap',wordBreak:'break-all'}}>{values.slice(0,5).join(', ')}{values.length>5?`  (+${values.length-5} more)`:''}</div>
+              </div>);
+            })()}
+          </div>
+          <div style={{fontSize:11,color:C.textDim,lineHeight:1.6,marginBottom:16}}>
+            To keep this file private, <strong>Cancel</strong> and either redact it yourself before uploading, or switch to <strong>Ollama</strong> in AI Settings (local — no network send).
+          </div>
+          <div style={{display:'flex',gap:10}}>
+            <button onClick={handleAttachmentConfirmCancel} style={{flex:1,padding:'10px 0',borderRadius:8,border:`1px solid ${C.border}`,background:'transparent',color:C.text,fontSize:14,cursor:'pointer'}}>Cancel</button>
+            <button onClick={handleAttachmentConfirmAccept} style={{flex:1,padding:'10px 0',borderRadius:8,border:'none',background:C.orange,color:'#fff',fontWeight:700,fontSize:14,cursor:'pointer'}}>Send anyway</button>
+          </div>
+        </div>
+      </div>}
+
       {/* Consent modal */}
       {pendingConsent && <div style={{position:'absolute',inset:0,background:'rgba(0,0,0,0.75)',zIndex:10,display:'flex',alignItems:'center',justifyContent:'center',padding:20,borderRadius:16}}>
         <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:14,padding:24,maxWidth:380,width:'100%',boxShadow:'0 8px 40px rgba(0,0,0,0.5)'}}>
@@ -3573,15 +3672,46 @@ function ChatPanel({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes,
           <span style={{color:C.textDim,fontSize:11}}>({(attachment.size/1024).toFixed(0)}KB)</span>
           <button onClick={()=>setAttachment(null)} style={{background:"transparent",border:"none",cursor:"pointer",color:C.textDim,padding:0}}><X size={13}/></button>
         </div>}
-        {attachment && !providerIsLocal && <div style={{margin:"6px 14px 0",padding:"6px 10px",fontSize:11,lineHeight:1.5,color:C.orange,background:C.orange+'15',border:`1px solid ${C.orange}33`,borderRadius:7,display:"flex",gap:6,alignItems:"flex-start"}}>
-          <AlertTriangle size={12} style={{flexShrink:0,marginTop:1}}/>
-          <span>
-            {(attachment.type?.startsWith('image/') || attachment.type === 'application/pdf')
-              ? <>PDFs and images are sent to <strong>{aiProvider?.label || 'the cloud provider'}</strong> <strong>as-is</strong>. PII masking cannot process binary file contents — any names, AHV, IBAN or amounts inside this file will be visible to the provider.</>
-              : <>Text file contents are scanned for AHV, IBAN, email and phone patterns and masked — but random names inside the file may still be visible to <strong>{aiProvider?.label || 'the cloud provider'}</strong>.</>
-            }
-          </span>
-        </div>}
+        {attachment && !providerIsLocal && (() => {
+          if (scanning) {
+            return <div style={{margin:"6px 14px 0",padding:"6px 10px",fontSize:11,lineHeight:1.5,color:C.textDim,background:C.bg,border:`1px solid ${C.border}`,borderRadius:7,display:"flex",gap:6,alignItems:"center"}}>
+              <div style={{display:'flex',gap:2,alignItems:'center'}}>{[0,1,2].map(i=><div key={i} style={{width:4,height:4,borderRadius:'50%',background:C.textDim,animation:`aipulse 1.2s ease-in-out ${i*0.2}s infinite`}}/>)}</div>
+              <span>Scanning file for sensitive data…</span>
+            </div>;
+          }
+          if (scanResult?.supported && scanResult.totalFindings > 0) {
+            const f = scanResult.findings || {};
+            const items = [];
+            if (f.ahv?.length)      items.push(`${f.ahv.length} AHV`);
+            if (f.iban?.length)     items.push(`${f.iban.length} IBAN`);
+            if (f.email?.length)    items.push(`${f.email.length} email`);
+            if (f.phone?.length)    items.push(`${f.phone.length} phone`);
+            if (f.card?.length)     items.push(`${f.card.length} card-like`);
+            if (f.names?.length)    items.push(`${f.names.length} name${f.names.length>1?'s':''}`);
+            if (f.addresses?.length)items.push(`${f.addresses.length} address-part${f.addresses.length>1?'s':''}`);
+            return <div style={{margin:"6px 14px 0",padding:"7px 10px",fontSize:11,lineHeight:1.5,color:C.orange,background:C.orange+'15',border:`1px solid ${C.orange}33`,borderRadius:7,display:"flex",gap:6,alignItems:"flex-start"}}>
+              <AlertTriangle size={12} style={{flexShrink:0,marginTop:1}}/>
+              <span>Sensitive data detected: <strong>{items.join(' · ')}</strong>. This file goes to <strong>{aiProvider?.label || 'the cloud provider'}</strong> as-is — masking cannot rewrite binary contents. You'll see a confirmation before sending.</span>
+            </div>;
+          }
+          if (scanResult?.supported && scanResult.totalFindings === 0) {
+            return <div style={{margin:"6px 14px 0",padding:"6px 10px",fontSize:11,lineHeight:1.5,color:C.green,background:C.green+'15',border:`1px solid ${C.green}33`,borderRadius:7,display:"flex",gap:6,alignItems:"center"}}>
+              <ShieldCheck size={12} style={{flexShrink:0}}/>
+              <span>Scanned — no obvious PII patterns (AHV, IBAN, email, phone, address) found in this file.</span>
+            </div>;
+          }
+          if (scanResult?.supported && scanResult.extractionEmpty) {
+            return <div style={{margin:"6px 14px 0",padding:"6px 10px",fontSize:11,lineHeight:1.5,color:C.orange,background:C.orange+'15',border:`1px solid ${C.orange}33`,borderRadius:7,display:"flex",gap:6,alignItems:"flex-start"}}>
+              <AlertTriangle size={12} style={{flexShrink:0,marginTop:1}}/>
+              <span>Could not read this file's contents (likely a scanned PDF with no text layer). <strong>We cannot verify what's inside</strong> — it will still be sent to {aiProvider?.label || 'the cloud provider'} as-is.</span>
+            </div>;
+          }
+          // Extraction error or unsupported type — still warn generically.
+          return <div style={{margin:"6px 14px 0",padding:"6px 10px",fontSize:11,lineHeight:1.5,color:C.orange,background:C.orange+'15',border:`1px solid ${C.orange}33`,borderRadius:7,display:"flex",gap:6,alignItems:"flex-start"}}>
+            <AlertTriangle size={12} style={{flexShrink:0,marginTop:1}}/>
+            <span>File contents could not be pre-scanned ({scanResult?.error || scanResult?.reason || 'unsupported format'}). It will be sent to {aiProvider?.label || 'the cloud provider'} as-is.</span>
+          </div>;
+        })()}
         <div style={{padding:"12px 14px",display:"flex",gap:8,alignItems:"center"}}>
           <input type="file" ref={fileInputRef} onChange={handleFileSelect} accept="image/*,.pdf,.txt,.csv,.md,.json" style={{display:"none"}}/>
           <button onClick={()=>fileInputRef.current?.click()} disabled={streaming} title="Attach file" style={{padding:"8px",borderRadius:8,border:`1px solid ${C.border}`,background:"transparent",color:attachment?C.accent:C.textDim,cursor:"pointer",display:"flex",flexShrink:0}}>

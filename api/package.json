@@ -5,7 +5,7 @@
   "scripts": {
     "start": "node index.js",
     "dev": "node --watch index.js",
-    "test": "node --test lib/*.test.js"
+    "test": "node --test lib/redact.test.js lib/scan-attachment.test.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.87.0",
@@ -13,7 +13,8 @@
     "@prisma/client": "^5",
     "cors": "^2",
     "express": "^4",
-    "openai": "^4"
+    "openai": "^4",
+    "pdf-parse": "^1.1.1"
   },
   "devDependencies": {
     "prisma": "^5"

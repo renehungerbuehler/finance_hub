@@ -1,5 +1,14 @@
 FROM node:20-alpine
-RUN apk add --no-cache openssl
+# openssl: required by Prisma
+# tesseract-ocr + language packs: used by /api/scan-attachment for image OCR
+#   (eng+deu+fra+ita covers the four Swiss national languages + English)
+RUN apk add --no-cache \
+    openssl \
+    tesseract-ocr \
+    tesseract-ocr-data-eng \
+    tesseract-ocr-data-deu \
+    tesseract-ocr-data-fra \
+    tesseract-ocr-data-ita
 WORKDIR /app
 COPY package*.json ./
 RUN npm ci
