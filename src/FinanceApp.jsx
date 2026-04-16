@@ -3919,58 +3919,101 @@ export default function FinanceApp() {
   return <div style={{display:"flex",height:"100vh",background:C.bg,fontFamily:"'Instrument Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif",color:C.text,position:"relative",overflow:"hidden"}}>
     {/* Mobile overlay backdrop */}
     {isMobile && sidebarOpen && <div onClick={()=>setSidebarOpen(false)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.6)",zIndex:49}}/>}
-    <div style={{width:sidebarOpen?220:60,background:C.card,borderRight:`1px solid ${C.border}`,padding:sidebarOpen?"20px 12px":"20px 8px",display:"flex",flexDirection:"column",transition:"width .2s ease",overflow:"hidden",flexShrink:0,
-      ...(isMobile ? {position:"fixed",top:0,left:0,height:"100%",zIndex:50,width:220,transform:sidebarOpen?"translateX(0)":"translateX(-100%)",transition:"transform .25s ease"} : {})}}>
+    <div style={{width:sidebarOpen?200:52,background:C.card,borderRight:`1px solid ${C.border}`,padding:sidebarOpen?"16px 10px 14px":"16px 6px 14px",display:"flex",flexDirection:"column",transition:"width .2s ease",overflow:"hidden",flexShrink:0,
+      ...(isMobile ? {position:"fixed",top:0,left:0,height:"100%",zIndex:50,width:200,transform:sidebarOpen?"translateX(0)":"translateX(-100%)",transition:"transform .25s ease"} : {})}}>
+
       {/* Logo + collapse */}
-      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:sidebarOpen?"8px 12px":"8px 4px",marginBottom:20}}>
-        {sidebarOpen && <div><div style={{fontSize:18,fontWeight:400,fontFamily:"'Fraunces',serif",letterSpacing:"0.04em",color:C.text}}>Finance<span style={{fontStyle:"italic",color:C.accent}}>Hub</span></div><div style={{fontSize:9,color:C.textDim,marginTop:2,fontFamily:"'DM Mono',monospace",letterSpacing:"0.06em",textTransform:"uppercase"}}>Personal Finance</div></div>}
-        {!isMobile && <button onClick={()=>setSidebarOpen(o=>!o)} style={{background:"transparent",border:"none",cursor:"pointer",color:C.textDim,padding:4,borderRadius:6,display:"flex",alignItems:"center"}} title={sidebarOpen?"Collapse":"Expand"}>
-          {sidebarOpen ? <ChevronLeft size={18}/> : <ChevronRight size={18}/>}
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:18,padding:sidebarOpen?"0 4px":"0"}}>
+        {sidebarOpen && <div>
+          <div style={{fontSize:16,fontWeight:400,fontFamily:"'Fraunces',serif",letterSpacing:"0.04em",color:C.text,lineHeight:1.2}}>Finance<span style={{fontStyle:"italic",color:C.accent}}>Hub</span></div>
+          <div style={{fontSize:8,color:C.textDim,marginTop:1,fontFamily:"'DM Mono',monospace",letterSpacing:"0.08em",textTransform:"uppercase"}}>Personal Finance</div>
+        </div>}
+        {!isMobile && <button onClick={()=>setSidebarOpen(o=>!o)} style={{background:"transparent",border:"none",cursor:"pointer",color:C.textDim,padding:3,borderRadius:5,display:"flex",alignItems:"center",flexShrink:0}} title={sidebarOpen?"Collapse":"Expand"}>
+          {sidebarOpen ? <ChevronLeft size={15}/> : <ChevronRight size={15}/>}
         </button>}
       </div>
+
       {/* Navigation */}
-      <nav style={{display:"flex",flexDirection:"column",gap:2}}>
-        {NAV.map(n=>{const a=page===n.id;return <button key={n.id} onClick={()=>{setPage(n.id);if(isMobile)setSidebarOpen(false);}} title={sidebarOpen?undefined:n.label} style={{display:"flex",alignItems:"center",gap:10,padding:sidebarOpen?"10px 12px":"10px 0",justifyContent:sidebarOpen?"flex-start":"center",borderRadius:8,border:"none",cursor:"pointer",fontSize:14,fontWeight:a?600:400,color:a?C.text:C.textMuted,background:a?C.accent+"18":"transparent",textAlign:"left",whiteSpace:"nowrap"}}><n.icon size={18} color={a?C.accentLight:C.textDim}/>{sidebarOpen && n.label}</button>;})}
+      <nav style={{display:"flex",flexDirection:"column",gap:1}}>
+        {NAV.map(n=>{
+          const a=page===n.id;
+          return <button key={n.id} onClick={()=>{setPage(n.id);if(isMobile)setSidebarOpen(false);}} title={sidebarOpen?undefined:n.label}
+            style={{display:"flex",alignItems:"center",gap:8,padding:sidebarOpen?"7px 10px":"8px 0",justifyContent:sidebarOpen?"flex-start":"center",borderRadius:7,border:"none",cursor:"pointer",fontSize:13,fontWeight:a?600:400,color:a?C.text:C.textMuted,background:a?C.accent+"18":"transparent",textAlign:"left",whiteSpace:"nowrap",transition:"background .12s,color .12s",position:"relative"}}>
+            <n.icon size={15} color={a?C.accentLight:C.textDim}/>
+            {sidebarOpen && <span style={{flex:1}}>{n.label}</span>}
+            {sidebarOpen && a && <div style={{width:4,height:4,borderRadius:2,background:C.accent,flexShrink:0}}/>}
+          </button>;
+        })}
       </nav>
+
       {/* Bottom section */}
-      <div style={{marginTop:"auto",padding:sidebarOpen?"8px 0":"8px 0",borderTop:`1px solid ${C.border}`,display:"flex",flexDirection:"column",gap:6}}>
-        {/* Profile button */}
-        <button onClick={()=>setProfileOpen(true)} title={sidebarOpen?undefined:`${profile.firstName} ${profile.lastName}`} style={{display:"flex",alignItems:"center",gap:8,width:"100%",padding:"8px 10px",borderRadius:8,border:`1px solid ${C.border}`,background:"transparent",cursor:"pointer",textAlign:"left",justifyContent:sidebarOpen?"flex-start":"center",color:C.textMuted,fontSize:13,marginBottom:2}}>
-          <User size={18}/>
-          {sidebarOpen && <div style={{overflow:"hidden",lineHeight:1.3}}>
-            <div style={{whiteSpace:"nowrap",fontSize:14}}>{profile.firstName} {profile.lastName}</div>
-            <div style={{fontSize:12,color:C.textDim,whiteSpace:"nowrap"}}>{profile.company || "Profile"}</div>
+      <div style={{marginTop:"auto",paddingTop:10,borderTop:`1px solid ${C.border}`,display:"flex",flexDirection:"column",gap:1}}>
+
+        {/* Profile */}
+        <button onClick={()=>setProfileOpen(true)} title={sidebarOpen?undefined:`${profile.firstName} ${profile.lastName}`}
+          style={{display:"flex",alignItems:"center",gap:8,width:"100%",padding:"7px 10px",borderRadius:7,border:"none",background:"transparent",cursor:"pointer",textAlign:"left",justifyContent:sidebarOpen?"flex-start":"center",color:C.textMuted,marginBottom:2}}>
+          <div style={{width:24,height:24,borderRadius:12,background:C.accent+"22",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+            <User size={13} color={C.accentLight}/>
+          </div>
+          {sidebarOpen && <div style={{overflow:"hidden",lineHeight:1.25,minWidth:0}}>
+            <div style={{whiteSpace:"nowrap",fontSize:12,fontWeight:500,color:C.text,overflow:"hidden",textOverflow:"ellipsis"}}>{profile.firstName||"Profile"} {profile.lastName}</div>
+            <div style={{fontSize:10,color:C.textDim,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{profile.company||"Set up profile"}</div>
           </div>}
         </button>
-        {/* AI Prompt shortcut */}
-        <button onClick={()=>setPromptOpen(true)} title={sidebarOpen?undefined:"AI Advisor Prompt"} style={{display:"flex",alignItems:"center",gap:8,width:"100%",padding:"8px 10px",borderRadius:8,border:`1px solid ${C.border}`,background:"transparent",cursor:"pointer",textAlign:"left",justifyContent:sidebarOpen?"flex-start":"center",color:C.textMuted,fontSize:12}}>
-          <Sparkles size={18}/>
-          {sidebarOpen && <div style={{lineHeight:1.3}}>
-            <div style={{fontSize:12}}>AI Advisor Prompt</div>
-            <div style={{fontSize:10,color:C.textDim}}>Customise advisor</div>
-          </div>}
+
+        {/* AI Prompt */}
+        <button onClick={()=>setPromptOpen(true)} title={sidebarOpen?undefined:"AI Advisor Prompt"}
+          style={{display:"flex",alignItems:"center",gap:8,width:"100%",padding:"6px 10px",borderRadius:7,border:"none",background:"transparent",cursor:"pointer",textAlign:"left",justifyContent:sidebarOpen?"flex-start":"center",color:C.textMuted,marginBottom:4}}>
+          <Sparkles size={14} color={C.accentLight}/>
+          {sidebarOpen && <span style={{fontSize:11,color:C.textDim}}>AI Advisor Prompt</span>}
         </button>
-        {/* Theme toggle */}
-        <button onClick={()=>setDarkMode(d=>!d)} title={sidebarOpen?undefined:(darkMode?"Light Mode":"Dark Mode")} style={{display:"flex",alignItems:"center",gap:8,width:"100%",padding:"8px 10px",borderRadius:8,border:`1px solid ${C.border}`,background:"transparent",color:C.textMuted,fontSize:13,cursor:"pointer",justifyContent:sidebarOpen?"flex-start":"center"}}>
-          {darkMode ? <Sun size={18}/> : <Moon size={18}/>}{sidebarOpen && (darkMode ? "Light Mode" : "Dark Mode")}
-        </button>
-        <button onClick={()=>setHideBalances(h=>!h)} title={sidebarOpen?undefined:(hideBalances?"Show Balances":"Hide Balances")} style={{display:"flex",alignItems:"center",gap:8,width:"100%",padding:"8px 10px",borderRadius:8,border:`1px solid ${C.border}`,background:hideBalances?C.accent+"18":"transparent",color:hideBalances?C.accentLight:C.textMuted,fontSize:13,cursor:"pointer",justifyContent:sidebarOpen?"flex-start":"center"}}>
-          {hideBalances ? <EyeOff size={18}/> : <Eye size={18}/>}{sidebarOpen && (hideBalances ? "Show Balances" : "Hide Balances")}
-        </button>
+
+        {/* Dark Mode toggle row */}
+        {sidebarOpen ? (
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"6px 10px",borderRadius:7}}>
+            <div style={{display:"flex",alignItems:"center",gap:7,color:C.textMuted}}>
+              {darkMode ? <Sun size={13}/> : <Moon size={13}/>}
+              <span style={{fontSize:11}}>{darkMode?"Light Mode":"Dark Mode"}</span>
+            </div>
+            <Toggle on={darkMode} onToggle={()=>setDarkMode(d=>!d)}/>
+          </div>
+        ) : (
+          <button onClick={()=>setDarkMode(d=>!d)} title={darkMode?"Light Mode":"Dark Mode"} style={{display:"flex",alignItems:"center",justifyContent:"center",width:"100%",padding:"8px 0",borderRadius:7,border:"none",background:"transparent",color:C.textMuted,cursor:"pointer"}}>
+            {darkMode ? <Sun size={15}/> : <Moon size={15}/>}
+          </button>
+        )}
+
+        {/* Hide Balances toggle row */}
+        {sidebarOpen ? (
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"6px 10px",borderRadius:7}}>
+            <div style={{display:"flex",alignItems:"center",gap:7,color:C.textMuted}}>
+              {hideBalances ? <EyeOff size={13}/> : <Eye size={13}/>}
+              <span style={{fontSize:11}}>Hide Balances</span>
+            </div>
+            <Toggle on={hideBalances} onToggle={()=>setHideBalances(h=>!h)}/>
+          </div>
+        ) : (
+          <button onClick={()=>setHideBalances(h=>!h)} title={hideBalances?"Show Balances":"Hide Balances"} style={{display:"flex",alignItems:"center",justifyContent:"center",width:"100%",padding:"8px 0",borderRadius:7,border:"none",background:"transparent",color:hideBalances?C.accentLight:C.textMuted,cursor:"pointer"}}>
+            {hideBalances ? <EyeOff size={15}/> : <Eye size={15}/>}
+          </button>
+        )}
+
         {/* Getting Started */}
-        <button onClick={()=>{setOnboarding(o=>({...o,dismissed:false}));setPage('dashboard');}} title={sidebarOpen?undefined:"Getting Started"} style={{display:"flex",alignItems:"center",gap:8,width:"100%",padding:"8px 10px",borderRadius:8,border:`1px solid ${C.border}`,background:!onboarding.dismissed?C.accent+"18":"transparent",color:!onboarding.dismissed?C.accentLight:C.textMuted,fontSize:13,cursor:"pointer",justifyContent:sidebarOpen?"flex-start":"center"}}>
-          <BookOpen size={18}/>{sidebarOpen && "Getting Started"}
+        <button onClick={()=>{setOnboarding(o=>({...o,dismissed:false}));setPage('dashboard');}} title={sidebarOpen?undefined:"Getting Started"}
+          style={{display:"flex",alignItems:"center",gap:8,width:"100%",padding:"6px 10px",borderRadius:7,border:"none",background:!onboarding.dismissed?C.accent+"18":"transparent",cursor:"pointer",textAlign:"left",justifyContent:sidebarOpen?"flex-start":"center",color:!onboarding.dismissed?C.accentLight:C.textMuted,marginTop:2}}>
+          <BookOpen size={13}/>{sidebarOpen && <span style={{fontSize:11}}>Getting Started</span>}
         </button>
+
         {/* Export / Import */}
-        {sidebarOpen && <div style={{display:"flex",gap:6}}>
+        {sidebarOpen && <div style={{display:"flex",gap:4,marginTop:6}}>
           <button onClick={async()=>{
             const keys=['accounts','scenarios','tracker','subscriptions_personal','yearly','taxes','insurance','settings','profile','ai_analysis'];
             const out={};
             for(const k of keys){ const r=await fetch(`${API_URL}/${k}`); out[k]=r.status===404?null:await r.json(); }
             const ts=new Date().toISOString().slice(0,16).replace('T','_').replace(':','');
             const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([JSON.stringify(out,null,2)],{type:'application/json'})); a.download=`finance_hub_${ts}.json`; a.style.display='none'; document.body.appendChild(a); a.click(); URL.revokeObjectURL(a.href); document.body.removeChild(a);
-          }} style={{flex:1,padding:"5px 0",borderRadius:6,border:`1px solid ${C.border}`,background:"transparent",color:C.textMuted,fontSize:12,cursor:"pointer"}}>Export</button>
-          <button onClick={()=>importJsonRef.current?.click()} style={{flex:1,padding:"5px 0",borderRadius:6,border:`1px solid ${C.border}`,background:"transparent",color:C.textMuted,fontSize:12,cursor:"pointer"}}>Import</button>
+          }} style={{flex:1,padding:"4px 0",borderRadius:5,border:`1px solid ${C.border}`,background:"transparent",color:C.textDim,fontSize:10,cursor:"pointer",letterSpacing:"0.02em"}}>Export</button>
+          <button onClick={()=>importJsonRef.current?.click()} style={{flex:1,padding:"4px 0",borderRadius:5,border:`1px solid ${C.border}`,background:"transparent",color:C.textDim,fontSize:10,cursor:"pointer",letterSpacing:"0.02em"}}>Import</button>
           <input ref={importJsonRef} type="file" accept=".json" style={{display:"none"}} onChange={async e=>{
             const file=e.target.files[0]; if(!file) return;
             e.target.value='';
@@ -3981,6 +4024,7 @@ export default function FinanceApp() {
             } catch(err){ alert('Import failed: '+err.message); }
           }}/>
         </div>}
+
       </div>
     </div>
     <div style={{flex:1,overflow:"auto",padding:isMobile?"16px 12px":28,marginLeft:isMobile?0:undefined}}>
