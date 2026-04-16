@@ -306,8 +306,6 @@ function generateInsights({ accounts, scenarios, insurance, inc, exp, sav, inv, 
   }
 
   // 9. Withholding tax reclaim (Verrechnungssteuer / DA-1)
-  const investmentAccounts = accounts.filter(a => ["Investment","Crypto"].includes(a.type));
-  const totalInvested = investmentAccounts.reduce((s,a) => s + a.balance, 0);
   if (totalInvested > 5000) {
     insights.push({ priority: "medium", category: "tax", icon: "tax",
       title: "Reclaim 35% withholding tax on dividends (DA-1)",
@@ -3890,6 +3888,27 @@ function AISettingsPage() {
     { id: 'ollama',    label: 'Ollama (local)',        desc: '100% local · no data leaves your machine · requires Ollama',     cloud: false },
   ];
 
+  // Curated model lists per cloud provider (latest first)
+  const CLOUD_MODELS = {
+    anthropic: [
+      { id: 'claude-opus-4-6',          label: 'Claude Opus 4.6',    note: 'most capable' },
+      { id: 'claude-sonnet-4-6',        label: 'Claude Sonnet 4.6',  note: 'balanced' },
+      { id: 'claude-haiku-4-5-20251001',label: 'Claude Haiku 4.5',   note: 'fast & cheap' },
+    ],
+    openai: [
+      { id: 'gpt-4o',       label: 'GPT-4o',      note: 'flagship' },
+      { id: 'gpt-4o-mini',  label: 'GPT-4o mini', note: 'fast & cheap' },
+      { id: 'o1-preview',   label: 'o1-preview',  note: 'reasoning' },
+      { id: 'o1-mini',      label: 'o1-mini',     note: 'reasoning · faster' },
+    ],
+    gemini: [
+      { id: 'gemini-2.0-flash',     label: 'Gemini 2.0 Flash', note: 'fast' },
+      { id: 'gemini-2.0-flash-exp', label: 'Gemini 2.0 Flash (exp)', note: 'experimental' },
+      { id: 'gemini-1.5-pro',       label: 'Gemini 1.5 Pro',   note: 'large context' },
+      { id: 'gemini-1.5-flash',     label: 'Gemini 1.5 Flash', note: 'fast' },
+    ],
+  };
+
   const [serverProvider, setServerProvider] = useState(null);
   const [ollamaModels, setOllamaModels] = useState(null); // null = loading, [] = none found
   const [storedConfig] = useState(() => getStoredProviderConfig());
@@ -3927,15 +3946,25 @@ function AISettingsPage() {
   };
 
   const handleTest = async () => {
-    if (!editConfig.provider || editConfig.provider === 'auto') return;
+    if (!editConfig.provider) return;
+    // In auto mode, test the server's currently-configured .env provider with no overrides
+    const isAuto = editConfig.provider === 'auto';
+    const providerToTest = isAuto ? serverProvider?.provider : editConfig.provider;
+    if (!providerToTest) {
+      setTestResult({ ok: false, error: 'No server provider detected — set ANTHROPIC_API_KEY, OPENAI_API_KEY, GEMINI_API_KEY, or OLLAMA_MODEL in your .env file.' });
+      return;
+    }
     setTesting(true); setTestResult(null);
     try {
-      const body = { provider: editConfig.provider };
-      if (editConfig.apiKey.trim())  body.apiKey  = editConfig.apiKey.trim();
-      if (editConfig.model.trim())   body.model   = editConfig.model.trim();
-      if (editConfig.baseUrl.trim()) body.baseUrl = editConfig.baseUrl.trim();
+      const body = { provider: providerToTest };
+      if (!isAuto) {
+        if (editConfig.apiKey.trim())  body.apiKey  = editConfig.apiKey.trim();
+        if (editConfig.model.trim())   body.model   = editConfig.model.trim();
+        if (editConfig.baseUrl.trim()) body.baseUrl = editConfig.baseUrl.trim();
+      }
       const r = await fetch(`${API_URL}/provider/test`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       const d = await r.json();
+      if (isAuto && d.ok) d.msg = `using server .env (${providerToTest})`;
       setTestResult(d);
     } catch (err) {
       setTestResult({ ok: false, error: err.message });
@@ -4012,6 +4041,23 @@ function AISettingsPage() {
               <label style={{fontSize:12,color:C.accent,fontWeight:600,textTransform:'uppercase',letterSpacing:0.5,display:'block',marginBottom:6}}>Model (optional)</label>
               {inp(editConfig.model, v => setEditConfig(c=>({...c,model:v})),
                 editConfig.provider==='anthropic'?'claude-opus-4-6 (default)':editConfig.provider==='openai'?'gpt-4o (default)':editConfig.provider==='gemini'?'gemini-2.0-flash (default)':'llama3.2 (default)')}
+              {CLOUD_MODELS[editConfig.provider] && (
+                <div style={{marginTop:8,display:'flex',flexWrap:'wrap',gap:6}}>
+                  {CLOUD_MODELS[editConfig.provider].map(m => (
+                    <button key={m.id} type="button" onClick={()=>setEditConfig(c=>({...c,model:m.id}))} title={m.id}
+                      style={{padding:'4px 10px',borderRadius:6,border:`1px solid ${editConfig.model===m.id?C.accent:C.border}`,background:editConfig.model===m.id?C.accent+'22':'transparent',color:editConfig.model===m.id?C.accentLight:C.textMuted,fontSize:12,cursor:'pointer',display:'flex',alignItems:'center',gap:6}}>
+                      <span style={{fontWeight:600}}>{m.label}</span>
+                      <span style={{fontSize:10,color:C.textDim}}>{m.note}</span>
+                    </button>
+                  ))}
+                  {editConfig.model && !CLOUD_MODELS[editConfig.provider].some(m=>m.id===editConfig.model) && (
+                    <button type="button" onClick={()=>setEditConfig(c=>({...c,model:''}))}
+                      style={{padding:'4px 10px',borderRadius:6,border:`1px dashed ${C.border}`,background:'transparent',color:C.textDim,fontSize:12,cursor:'pointer'}}>
+                      custom: {editConfig.model} ✕
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
             {(editConfig.provider==='ollama'||editConfig.provider==='openai') && (
               <div>
@@ -4050,11 +4096,9 @@ function AISettingsPage() {
           <button onClick={handleSave} style={{padding:'9px 22px',borderRadius:8,border:'none',background:C.accent,color:'#fff',fontSize:14,fontWeight:600,cursor:'pointer'}}>
             {saved ? '✓ Saved' : 'Save'}
           </button>
-          {editConfig.provider !== 'auto' && (
-            <button onClick={handleTest} disabled={testing} style={{padding:'9px 18px',borderRadius:8,border:`1px solid ${C.border}`,background:'transparent',color:C.text,fontSize:14,cursor:testing?'not-allowed':'pointer',opacity:testing?0.6:1}}>
-              {testing ? 'Testing…' : 'Test Connection'}
-            </button>
-          )}
+          <button onClick={handleTest} disabled={testing || (editConfig.provider==='auto' && !serverProvider?.provider)} title={editConfig.provider==='auto'?`Test the server's .env provider${serverProvider?.provider?` (${serverProvider.provider})`:''}`:undefined} style={{padding:'9px 18px',borderRadius:8,border:`1px solid ${C.border}`,background:'transparent',color:C.text,fontSize:14,cursor:(testing||(editConfig.provider==='auto'&&!serverProvider?.provider))?'not-allowed':'pointer',opacity:(testing||(editConfig.provider==='auto'&&!serverProvider?.provider))?0.6:1}}>
+            {testing ? 'Testing…' : (editConfig.provider==='auto' ? `Test .env Connection${serverProvider?.provider?` (${serverProvider.provider})`:''}` : 'Test Connection')}
+          </button>
           {storedConfig && (
             <button onClick={()=>{ localStorage.removeItem('finance_hub_provider_config'); setEditConfig({provider:'auto',apiKey:'',model:'',baseUrl:''}); setSaved(false); setTestResult({ok:true,msg:'Cleared — reverted to server config.'}); }} style={{padding:'9px 16px',borderRadius:8,border:`1px solid ${C.red+'55'}`,background:'transparent',color:C.red,fontSize:14,cursor:'pointer'}}>
               Clear override
@@ -4085,7 +4129,6 @@ const NAV = [
   { id:"tracker", label:"Tracker", icon:Activity },
   { id:"expenses", label:"Expenses", icon:CreditCard },
   { id:"pillars", label:"Strategy", icon:PiggyBank },
-  { id:"ai-settings", label:"AI Settings", icon:Settings },
 ];
 
 export default function FinanceApp() {
@@ -4229,22 +4272,24 @@ export default function FinanceApp() {
       <div style={{marginTop:"auto",paddingTop:10,borderTop:`1px solid ${C.border}`,display:"flex",flexDirection:"column",gap:1}}>
 
         {/* Profile */}
-        <button onClick={()=>setProfileOpen(true)} title={sidebarOpen?undefined:`${profile.firstName} ${profile.lastName}`}
-          style={{display:"flex",alignItems:"center",gap:8,width:"100%",padding:"7px 10px",borderRadius:7,border:"none",background:"transparent",cursor:"pointer",textAlign:"left",justifyContent:sidebarOpen?"flex-start":"center",color:C.textMuted,marginBottom:2}}>
-          <div style={{width:24,height:24,borderRadius:12,background:C.accent+"22",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
-            <User size={13} color={C.accentLight}/>
-          </div>
-          {sidebarOpen && <div style={{overflow:"hidden",lineHeight:1.25,minWidth:0}}>
-            <div style={{whiteSpace:"nowrap",fontSize:12,fontWeight:500,color:C.text,overflow:"hidden",textOverflow:"ellipsis"}}>{profile.firstName||"Profile"} {profile.lastName}</div>
-            <div style={{fontSize:10,color:C.textDim,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{profile.company||"Set up profile"}</div>
-          </div>}
+        <button onClick={()=>setProfileOpen(true)} title={sidebarOpen?undefined:`${profile.firstName||'Profile'} ${profile.lastName}`}
+          style={{display:"flex",alignItems:"center",gap:8,width:"100%",padding:"6px 10px",borderRadius:7,border:"none",background:"transparent",cursor:"pointer",textAlign:"left",justifyContent:sidebarOpen?"flex-start":"center",color:C.textMuted,marginBottom:2}}>
+          <User size={14} color={C.accentLight}/>
+          {sidebarOpen && <span style={{fontSize:11,color:C.textDim,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{profile.firstName?`${profile.firstName} ${profile.lastName}`.trim():"Profile"}</span>}
         </button>
 
         {/* AI Prompt */}
         <button onClick={()=>setPromptOpen(true)} title={sidebarOpen?undefined:"AI Advisor Prompt"}
-          style={{display:"flex",alignItems:"center",gap:8,width:"100%",padding:"6px 10px",borderRadius:7,border:"none",background:"transparent",cursor:"pointer",textAlign:"left",justifyContent:sidebarOpen?"flex-start":"center",color:C.textMuted,marginBottom:4}}>
+          style={{display:"flex",alignItems:"center",gap:8,width:"100%",padding:"6px 10px",borderRadius:7,border:"none",background:"transparent",cursor:"pointer",textAlign:"left",justifyContent:sidebarOpen?"flex-start":"center",color:C.textMuted,marginBottom:2}}>
           <Sparkles size={14} color={C.accentLight}/>
           {sidebarOpen && <span style={{fontSize:11,color:C.textDim}}>AI Advisor Prompt</span>}
+        </button>
+
+        {/* AI Settings */}
+        <button onClick={()=>{setPage('ai-settings');if(isMobile)setSidebarOpen(false);}} title={sidebarOpen?undefined:"AI Settings"}
+          style={{display:"flex",alignItems:"center",gap:8,width:"100%",padding:"6px 10px",borderRadius:7,border:"none",background:page==='ai-settings'?C.accent+"18":"transparent",cursor:"pointer",textAlign:"left",justifyContent:sidebarOpen?"flex-start":"center",color:page==='ai-settings'?C.accentLight:C.textMuted,marginBottom:4}}>
+          <Settings size={14} color={page==='ai-settings'?C.accentLight:undefined}/>
+          {sidebarOpen && <span style={{fontSize:11,color:page==='ai-settings'?C.accentLight:C.textDim}}>AI Settings</span>}
         </button>
 
         {/* Dark Mode toggle row */}

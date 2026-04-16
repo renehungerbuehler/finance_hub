@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Terms &amp; Conditions — Finance Hub</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,300;0,400;0,600;1,300;1,400&family=DM+Mono:wght@300;400&family=Instrument+Sans:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --ink: #1a1a18;
+    --ink2: #3d3d38;
+    --ink3: #7a7a72;
+    --paper: #f5f3ee;
+    --paper2: #eeebe3;
+    --paper3: #e4e0d5;
+    --gold: #c8a84b;
+    --gold2: #e8c96a;
+    --green2: #3d7a52;
+    --border: rgba(26,26,24,0.12);
+    --radius: 3px;
+  }
+
+  html { font-size: 16px; scroll-behavior: smooth; }
+
+  body {
+    font-family: 'Instrument Sans', sans-serif;
+    background: var(--paper);
+    color: var(--ink);
+    line-height: 1.6;
+    overflow-x: hidden;
+  }
+
+  /* NAV */
+  nav {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 1rem 3rem;
+    background: rgba(245,243,238,0.92);
+    backdrop-filter: blur(12px);
+    border-bottom: 0.5px solid var(--border);
+  }
+  .nav-logo {
+    font-family: 'Fraunces', serif;
+    font-weight: 300;
+    font-size: 1.1rem;
+    letter-spacing: 0.04em;
+    color: var(--ink);
+    text-decoration: none;
+  }
+  .nav-logo span { color: var(--gold); font-style: italic; }
+  .nav-links { display: flex; gap: 2rem; align-items: center; }
+  .nav-links a {
+    font-size: 0.8rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink3);
+    text-decoration: none;
+    transition: color 0.2s;
+  }
+  .nav-links a:hover { color: var(--ink); }
+  .nav-cta {
+    background: var(--ink) !important;
+    color: var(--paper) !important;
+    padding: 0.5rem 1.25rem !important;
+    border-radius: var(--radius) !important;
+    letter-spacing: 0.04em !important;
+    font-size: 0.78rem !important;
+    text-transform: uppercase !important;
+  }
+  .nav-cta:hover { background: var(--ink2) !important; }
+  .lang-toggle {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.7rem;
+    letter-spacing: 0.06em;
+    color: var(--ink3);
+    background: none;
+    border: 0.5px solid var(--border);
+    border-radius: 2px;
+    padding: 0.25rem 0.5rem;
+    cursor: pointer;
+    transition: color 0.2s, border-color 0.2s;
+  }
+  .lang-toggle:hover { color: var(--ink); border-color: var(--ink2); }
+
+  /* SECTION */
+  section { padding: 9rem 3rem 6rem; }
+
+  .section-tag {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.65rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--gold);
+    margin-bottom: 1rem;
+  }
+  h2 {
+    font-family: 'Fraunces', serif;
+    font-weight: 300;
+    font-size: clamp(2rem, 3.5vw, 2.8rem);
+    line-height: 1.2;
+    letter-spacing: -0.01em;
+    margin-bottom: 1rem;
+  }
+  h2 em { font-style: italic; color: var(--gold); }
+  .section-sub {
+    font-size: 0.95rem;
+    color: var(--ink2);
+    max-width: 520px;
+    line-height: 1.7;
+  }
+
+  /* FOOTER */
+  footer {
+    background: var(--paper3);
+    border-top: 0.5px solid var(--border);
+    padding: 3rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 1.5rem;
+  }
+  .footer-brand {
+    font-family: 'Fraunces', serif;
+    font-weight: 300;
+    font-size: 1rem;
+    color: var(--ink);
+  }
+  .footer-brand span { color: var(--gold); font-style: italic; }
+  .footer-note {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.65rem;
+    color: var(--ink3);
+    letter-spacing: 0.06em;
+  }
+  .footer-links { display: flex; gap: 1.5rem; }
+  .footer-links a {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.65rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--ink3);
+    text-decoration: none;
+  }
+  .footer-links a:hover { color: var(--ink); }
+
+  /* RESPONSIVE */
+  @media (max-width: 900px) {
+    nav { padding: 1rem 1.5rem; }
+    .nav-links { display: none; }
+    section { padding: 7rem 1.5rem 4rem; }
+    footer { padding: 2rem 1.5rem; }
+  }
+</style>
+</head>
+<body>
+
+<nav>
+  <a class="nav-logo" href="index.html">Finance<span>Hub</span></a>
+  <div class="nav-links">
+    <a href="index.html#features" data-en="Features" data-de="Features">Features</a>
+    <a href="index.html#swiss" data-en="Swiss-native" data-de="Swiss-nativ">Swiss-native</a>
+    <a href="index.html#partners" data-en="Partners" data-de="Partner">Partners</a>
+    <a href="index.html#pricing" data-en="Pricing" data-de="Preise">Pricing</a>
+    <button class="lang-toggle" onclick="toggleLang()" aria-label="Switch language">DE</button>
+    <a href="index.html#pricing" class="nav-cta" data-en="Request Access" data-de="Zugang anfragen">Request Access</a>
+  </div>
+</nav>
+
+<!-- Terms & Conditions -->
+<section id="terms" style="background:var(--paper2);">
+  <div style="max-width:720px;margin:0 auto;">
+    <div class="section-tag" data-en="Legal" data-de="Rechtliches">Legal</div>
+    <h2 style="font-size:2rem;margin-bottom:0.5rem;" data-en="Terms &amp; Conditions" data-de="Nutzungsbedingungen"><em>Terms &amp; Conditions</em></h2>
+    <p class="section-sub" style="margin-bottom:2.5rem;" data-en="Finance Hub is open-source software provided as-is. Please read before use." data-de="Finance Hub ist Open-Source-Software, die ohne Gewähr bereitgestellt wird. Bitte vor der Nutzung lesen.">Finance Hub is open-source software provided as-is. Please read before use.</p>
+
+    <div style="display:flex;flex-direction:column;gap:1.5rem;font-size:0.9rem;line-height:1.85;color:var(--ink2);">
+
+      <div style="padding:1.25rem 1.5rem;border-left:3px solid var(--gold);background:var(--paper);">
+        <strong style="color:var(--ink);display:block;margin-bottom:0.4rem;" data-en="1. Open Source / As-Is" data-de="1. Open Source / Ohne Gewähr">1. Open Source / As-Is</strong>
+        <span data-en="Finance Hub is released under an open-source licence. The software is provided &quot;as is&quot;, without warranty of any kind — express or implied — including but not limited to fitness for a particular purpose or non-infringement. Use is at your own risk." data-de="Finance Hub wird unter einer Open-Source-Lizenz veröffentlicht. Die Software wird &quot;wie besehen&quot; bereitgestellt, ohne jegliche Gewährleistung — ausdrücklich oder stillschweigend — einschliesslich, aber nicht beschränkt auf die Eignung für einen bestimmten Zweck. Die Nutzung erfolgt auf eigenes Risiko.">Finance Hub is released under an open-source licence. The software is provided "as is", without warranty of any kind — express or implied — including but not limited to fitness for a particular purpose or non-infringement. Use is at your own risk.</span>
+      </div>
+
+      <div style="padding:1.25rem 1.5rem;border-left:3px solid var(--gold);background:var(--paper);">
+        <strong style="color:var(--ink);display:block;margin-bottom:0.4rem;" data-en="2. Your Data is Your Responsibility" data-de="2. Ihre Daten sind Ihre Verantwortung">2. Your Data is Your Responsibility</strong>
+        <span data-en="Finance Hub stores all data locally on your own infrastructure (Docker + PostgreSQL). You are solely responsible for the security, backup, and integrity of your data. The developer assumes no liability for data loss, corruption, or unauthorised access." data-de="Finance Hub speichert alle Daten lokal auf Ihrer eigenen Infrastruktur (Docker + PostgreSQL). Sie sind allein verantwortlich für die Sicherheit, Sicherung und Integrität Ihrer Daten. Der Entwickler übernimmt keine Haftung für Datenverlust, Beschädigung oder unbefugten Zugriff.">Finance Hub stores all data locally on your own infrastructure (Docker + PostgreSQL). You are solely responsible for the security, backup, and integrity of your data. The developer assumes no liability for data loss, corruption, or unauthorised access.</span>
+      </div>
+
+      <div style="padding:1.25rem 1.5rem;border-left:3px solid var(--gold);background:var(--paper);">
+        <strong style="color:var(--ink);display:block;margin-bottom:0.4rem;" data-en="3. Cloud AI — Data Transfer Notice" data-de="3. Cloud-KI — Datenweitergabe-Hinweis">3. Cloud AI — Data Transfer Notice</strong>
+        <span data-en="If you configure a cloud-based AI provider (Anthropic Claude, OpenAI, Google Gemini), your financial context — including account balances, income, expenses, and profile data — is transmitted to that provider's API servers with each AI request. This data transfer is governed by the respective provider's privacy policy. You are responsible for reviewing and accepting their terms. Finance Hub itself sends no telemetry and has no access to your data or API keys." data-de="Wenn Sie einen Cloud-KI-Anbieter konfigurieren (Anthropic Claude, OpenAI, Google Gemini), wird Ihr Finanzkontext — einschliesslich Kontostände, Einkommen, Ausgaben und Profildaten — bei jeder KI-Anfrage an die API-Server dieses Anbieters übertragen. Diese Datenweitergabe unterliegt der Datenschutzerklärung des jeweiligen Anbieters. Sie sind dafür verantwortlich, deren Bedingungen zu prüfen und zu akzeptieren.">If you configure a cloud-based AI provider (Anthropic Claude, OpenAI, Google Gemini), your financial context — including account balances, income, expenses, and profile data — is transmitted to that provider's API servers with each AI request. This data transfer is governed by the respective provider's privacy policy. You are responsible for reviewing and accepting their terms. Finance Hub itself sends no telemetry and has no access to your data or API keys.</span>
+      </div>
+
+      <div style="padding:1.25rem 1.5rem;border-left:3px solid var(--green2);background:var(--paper);">
+        <strong style="color:var(--ink);display:block;margin-bottom:0.4rem;" data-en="4. Local Mode Privacy" data-de="4. Lokaler Modus — Datenschutz">4. Local Mode Privacy</strong>
+        <span data-en="When using Ollama (local AI), no financial data leaves your machine. The application has no internet connectivity beyond fetching market quotes (Yahoo Finance) and optional Google Fonts. No telemetry, no analytics, no tracking of any kind." data-de="Bei Verwendung von Ollama (lokale KI) verlässt keine finanziellen Daten Ihren Computer. Die Anwendung hat keine Internetverbindung ausser dem Abrufen von Marktdaten (Yahoo Finance) und optionalen Google Fonts. Kein Telemetrie, keine Analytik, kein Tracking jeglicher Art.">When using Ollama (local AI), no financial data leaves your machine. The application has no internet connectivity beyond fetching market quotes (Yahoo Finance) and optional Google Fonts. No telemetry, no analytics, no tracking of any kind.</span>
+      </div>
+
+      <div style="padding:1.25rem 1.5rem;border-left:3px solid var(--gold);background:var(--paper);">
+        <strong style="color:var(--ink);display:block;margin-bottom:0.4rem;" data-en="5. No Financial Advice" data-de="5. Keine Finanzberatung">5. No Financial Advice</strong>
+        <span data-en="Finance Hub and its AI features are tools for personal financial organisation and calculation only. Nothing in this application constitutes financial, tax, legal, or investment advice. Always consult a qualified professional for decisions specific to your situation." data-de="Finance Hub und seine KI-Funktionen sind ausschliesslich Werkzeuge zur persönlichen Finanzorganisation und -berechnung. Nichts in dieser Anwendung stellt Finanz-, Steuer-, Rechts- oder Anlageberatung dar. Konsultieren Sie immer einen qualifizierten Fachmann für Entscheidungen in Ihrer spezifischen Situation.">Finance Hub and its AI features are tools for personal financial organisation and calculation only. Nothing in this application constitutes financial, tax, legal, or investment advice. Always consult a qualified professional for decisions specific to your situation.</span>
+      </div>
+
+      <div style="padding:1.25rem 1.5rem;border-left:3px solid var(--gold);background:var(--paper);">
+        <strong style="color:var(--ink);display:block;margin-bottom:0.4rem;" data-en="6. Jurisdiction" data-de="6. Gerichtsstand">6. Jurisdiction</strong>
+        <span data-en="These terms are governed by Swiss law. Any disputes shall be subject to the exclusive jurisdiction of the courts of the Canton of Schaffhausen, Switzerland." data-de="Diese Bedingungen unterliegen Schweizer Recht. Streitigkeiten unterliegen der ausschliesslichen Zuständigkeit der Gerichte des Kantons Schaffhausen, Schweiz.">These terms are governed by Swiss law. Any disputes shall be subject to the exclusive jurisdiction of the courts of the Canton of Schaffhausen, Switzerland.</span>
+      </div>
+
+    </div>
+
+    <p style="margin-top:2rem;font-size:0.8rem;color:var(--ink3);" data-en="Last updated: April 2026. Finance Hub is developed independently. Contact: rene@hungerbuhler.ch" data-de="Letzte Aktualisierung: April 2026. Finance Hub wird unabhängig entwickelt. Kontakt: rene@hungerbuhler.ch">Last updated: April 2026. Finance Hub is developed independently. Contact: rene@hungerbuhler.ch</p>
+  </div>
+</section>
+
+<footer>
+  <div class="footer-brand">Finance<span>Hub</span></div>
+  <div class="footer-note" data-en="Self-hosted · Privacy-first · Swiss-native · CHF" data-de="Self-hosted · Privacy-first · Swiss-nativ · CHF">Self-hosted · Privacy-first · Swiss-native · CHF</div>
+  <div class="footer-links">
+    <a href="https://github.com/renehungerbuehler/finance_hub" target="_blank" rel="noopener">GitHub</a>
+    <a href="index.html" data-en="Docs" data-de="Doku">Docs</a>
+    <a href="terms.html" data-en="Terms" data-de="AGB">Terms</a>
+    <a href="mailto:rene@hungerbuhler.ch" data-en="Contact" data-de="Kontakt">Contact</a>
+  </div>
+</footer>
+
+<script>
+let currentLang = 'en';
+function toggleLang() {
+  currentLang = currentLang === 'en' ? 'de' : 'en';
+  document.querySelector('.lang-toggle').textContent = currentLang === 'en' ? 'DE' : 'EN';
+  document.querySelectorAll('[data-en], [data-en-html]').forEach(el => {
+    if (el.dataset[currentLang + 'Html']) {
+      el.innerHTML = el.dataset[currentLang + 'Html'];
+    } else if (el.dataset[currentLang]) {
+      el.textContent = el.dataset[currentLang];
+    }
+  });
+}
+</script>
+
+</body>
+</html>
