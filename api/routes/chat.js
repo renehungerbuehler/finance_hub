@@ -317,26 +317,42 @@ router.post('/chat', async (req, res) => {
   let workingMessage = message;
   let workingHistory = history;
   let rehydrator = null;
+  let redactMap = null;
+  let redactCounter = null;
 
   if (redactEnabled) {
     const ctxResult = redactContext(context);
     workingContext = ctxResult.redacted;
-    workingMessage = redactMessage(message, ctxResult.map, ctxResult.counter);
-    workingHistory = redactHistory(history, ctxResult.map, ctxResult.counter);
-    rehydrator = new StreamRehydrator(ctxResult.map);
+    redactMap = ctxResult.map;
+    redactCounter = ctxResult.counter;
+    workingMessage = redactMessage(message, redactMap, redactCounter);
+    workingHistory = redactHistory(history, redactMap, redactCounter);
+    rehydrator = new StreamRehydrator(redactMap);
   }
 
   const system = buildSystem(workingContext, systemOverride?.trim() || SYSTEM_BASE);
 
   // Build user content — text + optional file attachment(s).
-  // Attachments (images/PDFs) are NOT redacted — they're opaque binary data.
-  // Users who want redacted attachments should sanitize before upload.
+  // Binary attachments (images/PDFs) pass through unchanged; we can't redact
+  // without OCR. Text-file attachments (CSV/JSON/TXT) go through the same
+  // redaction pipeline as the user's typed message — known-profile values are
+  // masked, and free-text regex patterns catch AHV/IBAN/email/phone.
+  // Users are warned about the binary-file limitation in the UI.
   let userContent;
   const allAtts = attachments && Array.isArray(attachments) && attachments.length
     ? attachments
     : (attachment && attachment.data ? [attachment] : []);
   if (allAtts.length > 0) {
     const blocks = allAtts.flatMap(att => buildAttachmentBlocks(att, provider));
+    if (redactEnabled && redactMap) {
+      // Text-file attachments (CSV/JSON/TXT) arrive as { type: 'text', text: ... }
+      // and get redacted. Image/PDF blocks are binary and pass through.
+      for (const block of blocks) {
+        if (block.type === 'text' && typeof block.text === 'string') {
+          block.text = redactMessage(block.text, redactMap, redactCounter);
+        }
+      }
+    }
     blocks.push({ type: 'text', text: workingMessage });
     userContent = blocks;
   } else {

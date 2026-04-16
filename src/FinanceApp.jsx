@@ -3506,8 +3506,11 @@ function ChatPanel({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes,
           <div style={{fontSize:13,color:C.text,lineHeight:1.7,marginBottom:12}}>
             You are using <strong style={{color:C.accent}}>{aiProvider?.label || 'a cloud AI provider'}</strong>. Your financial context — balances, income, expenses, and scenarios — is sent with each message.
           </div>
-          <div style={{fontSize:12,color:C.green,lineHeight:1.6,marginBottom:14,padding:'10px 14px',background:C.green+'15',borderRadius:9,border:`1px solid ${C.green}33`}}>
+          <div style={{fontSize:12,color:C.green,lineHeight:1.6,marginBottom:10,padding:'10px 14px',background:C.green+'15',borderRadius:9,border:`1px solid ${C.green}33`}}>
             🛡 <strong>PII masked automatically.</strong> Names, AHV, IBAN, email, phone, and addresses are replaced with placeholders (PERSON_1, AHV_1…) before leaving this server. The provider never sees your identity. Real values are restored in the response shown to you.
+          </div>
+          <div style={{fontSize:12,color:C.orange,lineHeight:1.6,marginBottom:10,padding:'10px 14px',background:C.orange+'15',borderRadius:9,border:`1px solid ${C.orange}33`}}>
+            ⚠ <strong>File attachments are not fully masked.</strong> PDFs and images go to the provider as-is — anything written inside them (names, numbers, signatures) will be visible. Text files (CSV/JSON/TXT) get the regex pass but random names inside may slip through. Strip sensitive data before uploading if that matters to you.
           </div>
           <div style={{fontSize:11,color:C.textDim,lineHeight:1.6,marginBottom:18}}>
             Canton, marital status, age, and children are <em>not</em> masked — they shape tax advice and aren't identifying alone. To keep 100% of data local, switch to <strong>Ollama</strong> in AI Settings.
@@ -3569,6 +3572,15 @@ function ChatPanel({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes,
           <span style={{color:C.accentLight,flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{attachment.name}</span>
           <span style={{color:C.textDim,fontSize:11}}>({(attachment.size/1024).toFixed(0)}KB)</span>
           <button onClick={()=>setAttachment(null)} style={{background:"transparent",border:"none",cursor:"pointer",color:C.textDim,padding:0}}><X size={13}/></button>
+        </div>}
+        {attachment && !providerIsLocal && <div style={{margin:"6px 14px 0",padding:"6px 10px",fontSize:11,lineHeight:1.5,color:C.orange,background:C.orange+'15',border:`1px solid ${C.orange}33`,borderRadius:7,display:"flex",gap:6,alignItems:"flex-start"}}>
+          <AlertTriangle size={12} style={{flexShrink:0,marginTop:1}}/>
+          <span>
+            {(attachment.type?.startsWith('image/') || attachment.type === 'application/pdf')
+              ? <>PDFs and images are sent to <strong>{aiProvider?.label || 'the cloud provider'}</strong> <strong>as-is</strong>. PII masking cannot process binary file contents — any names, AHV, IBAN or amounts inside this file will be visible to the provider.</>
+              : <>Text file contents are scanned for AHV, IBAN, email and phone patterns and masked — but random names inside the file may still be visible to <strong>{aiProvider?.label || 'the cloud provider'}</strong>.</>
+            }
+          </span>
         </div>}
         <div style={{padding:"12px 14px",display:"flex",gap:8,alignItems:"center"}}>
           <input type="file" ref={fileInputRef} onChange={handleFileSelect} accept="image/*,.pdf,.txt,.csv,.md,.json" style={{display:"none"}}/>
