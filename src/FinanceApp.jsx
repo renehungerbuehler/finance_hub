@@ -365,6 +365,7 @@ function AccountsPage({ accounts, setAccounts, hideBalances, onAccountsUpdated, 
         }
         attachments.push({name:attName,type:attType,data:attData,size:file.size});
       }
+      if (!await scanAndConfirmImport(attachments)) { setImportingAcctId(null); return; }
       const account = accounts.find(a=>a.id===accountId);
       const basePrompt = extractionPrompt?.trim() || DEFAULT_EXTRACTION_PROMPT;
       const msg = basePrompt + `\n- Account type hint: ${account?.type}${account?.instructions ? `\n\nAccount-specific instructions: ${account.instructions}` : ''}`;
@@ -1430,6 +1431,7 @@ function ScenariosPage({ scenarios, setScenarios, subsP, subsPInScenario, yearly
         let bin=''; bytes.forEach(b=>bin+=String.fromCharCode(b));
         attachments.push({name:file.name,type:file.type||'application/octet-stream',data:btoa(bin),size:file.size});
       }
+      if (!await scanAndConfirmImport(attachments)) { setPayrollImporting(false); return; }
       const basePrompt = payrollExtractionPrompt?.trim() || DEFAULT_PAYROLL_PROMPT;
       const resp = await fetch(`${API_URL}/chat`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:basePrompt,context:{},history:[],attachments})});
       const reader=resp.body.getReader(); const dec=new TextDecoder(); let buf='',fullText='',done=false;
@@ -2330,6 +2332,7 @@ function ExpensesPage({ subsP, setSubsP, subsPInScenario, setSubsPInScenario, ye
         let bin=''; bytes.forEach(b=>bin+=String.fromCharCode(b));
         attachments.push({name:file.name,type:file.type||'application/octet-stream',data:btoa(bin),size:file.size});
       }
+      if (!await scanAndConfirmImport(attachments)) { setExpImporting(null); return; }
       const [customPrompt,,defaultPrompt] = EXP_PROMPTS[section];
       const msg = customPrompt?.trim() || defaultPrompt;
       const resp = await fetch(`${API_URL}/chat`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:msg,context:{},history:[],attachments})});
@@ -4030,6 +4033,71 @@ function PortfolioPage({ accounts, setAccounts, hideBalances, setChatOpen, setCh
 // ─── Provider Config (localStorage) ───────────────────────────────────────────
 function getStoredProviderConfig() {
   try { return JSON.parse(localStorage.getItem('finance_hub_provider_config') || 'null'); } catch { return null; }
+}
+
+// Scan attachments for PII before sending to a cloud AI provider.
+// Returns true if safe to proceed, false if user cancelled.
+async function scanAndConfirmImport(attachments, profile) {
+  const sc = getStoredProviderConfig();
+  const isLocal = sc?.provider === 'ollama';
+  if (isLocal || !attachments.length) return true;
+  try {
+    const r = await fetch(`${API_URL}/scan-attachment`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ attachment: attachments[0], profile: profile || null }),
+    });
+    if (!r.ok) return true;
+    const scan = await r.json();
+    if (!scan.supported || scan.totalFindings === 0) return true;
+    const f = scan.findings || {};
+    const items = [];
+    if (f.ahv?.length)       items.push(`${f.ahv.length} AHV number${f.ahv.length>1?'s':''}`);
+    if (f.iban?.length)      items.push(`${f.iban.length} IBAN${f.iban.length>1?'s':''}`);
+    if (f.email?.length)     items.push(`${f.email.length} email${f.email.length>1?'s':''}`);
+    if (f.phone?.length)     items.push(`${f.phone.length} phone number${f.phone.length>1?'s':''}`);
+    if (f.card?.length)      items.push(`${f.card.length} card-like number${f.card.length>1?'s':''}`);
+    if (f.names?.length)     items.push(`${f.names.length} name match${f.names.length>1?'es':''}`);
+    if (f.addresses?.length) items.push(`${f.addresses.length} address part${f.addresses.length>1?'s':''}`);
+    const providerLabel = sc?.label || sc?.provider || 'cloud AI';
+    const fileName = attachments[0].name;
+    return showImportScanModal({ items, providerLabel, fileName });
+  } catch { return true; }
+}
+
+function showImportScanModal({ items, providerLabel, fileName }) {
+  return new Promise(resolve => {
+    const root = document.createElement('div');
+    document.body.appendChild(root);
+    const cleanup = (result) => { document.body.removeChild(root); resolve(result); };
+    const overlay = Object.assign(document.createElement('div'), { style: 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px' });
+    const card = Object.assign(document.createElement('div'), { style: `background:${C.card};border:1px solid ${C.border};border-radius:14px;padding:24px;max-width:420px;width:100%;box-shadow:0 8px 40px rgba(0,0,0,0.4);font-family:'Instrument Sans','Segoe UI',system-ui,sans-serif` });
+    card.innerHTML = `
+      <div style="font-size:16px;font-weight:600;color:${C.text};margin-bottom:6px;display:flex;align-items:center;gap:8px">
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="${C.accent}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+        Heads up — personal data detected
+      </div>
+      <div style="font-size:12px;color:${C.textDim};margin-bottom:14px">${fileName}</div>
+      <div style="font-size:13px;color:${C.textMuted};line-height:1.6;margin-bottom:12px">
+        This file contains personal information that will be sent to <strong style="color:${C.accent}">${providerLabel}</strong> for extraction. File contents cannot be automatically masked.
+      </div>
+      <div style="font-size:12px;color:${C.text};line-height:1.8;margin-bottom:14px;padding:10px 14px;background:${C.bg};border-radius:9px;border:1px solid ${C.border};font-family:'DM Mono',monospace">
+        ${items.map(i => `<div style="color:${C.textMuted};font-weight:600">• ${i}</div>`).join('')}
+      </div>
+      <div style="font-size:12px;color:${C.textDim};line-height:1.6;margin-bottom:16px">
+        This is usually fine for personal use. To keep data fully local, switch to <strong>Ollama</strong> in AI Settings.
+      </div>
+      <div style="display:flex;gap:10px">
+        <button id="scan-cancel" style="flex:1;padding:10px 0;border-radius:8px;border:1px solid ${C.border};background:transparent;color:${C.textMuted};font-size:14px;cursor:pointer;font-family:inherit">Cancel</button>
+        <button id="scan-continue" style="flex:1;padding:10px 0;border-radius:8px;border:none;background:${C.accent};color:#fff;font-weight:700;font-size:14px;cursor:pointer;font-family:inherit">Continue</button>
+      </div>
+    `;
+    overlay.appendChild(card);
+    root.appendChild(overlay);
+    overlay.addEventListener('click', e => { if (e.target === overlay) cleanup(false); });
+    card.querySelector('#scan-cancel').onclick = () => cleanup(false);
+    card.querySelector('#scan-continue').onclick = () => cleanup(true);
+  });
 }
 
 // ───────────────────────────────────────────────────────────────────────────────
