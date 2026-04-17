@@ -3567,12 +3567,12 @@ function ChatPanel({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes,
           when the pre-send scan turned up sensitive data in the attached file. */}
       {pendingAttachmentConfirm && <div style={{position:'absolute',inset:0,background:'rgba(0,0,0,0.75)',zIndex:11,display:'flex',alignItems:'center',justifyContent:'center',padding:20,borderRadius:16}}>
         <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:14,padding:22,maxWidth:420,width:'100%',boxShadow:'0 8px 40px rgba(0,0,0,0.5)',maxHeight:'90%',overflowY:'auto'}}>
-          <div style={{fontSize:18,marginBottom:6,display:'flex',alignItems:'center',gap:8}}><AlertTriangle size={18} color={C.orange}/>Sensitive data in attachment</div>
-          <div style={{fontSize:12,color:C.textDim,marginBottom:14}}><Paperclip size={11}/> {pendingAttachmentConfirm.sentAttachment.name}</div>
-          <div style={{fontSize:13,color:C.text,lineHeight:1.6,marginBottom:12}}>
-            The following was detected inside this file and will be visible to <strong style={{color:C.accent}}>{aiProvider?.label || 'the cloud provider'}</strong> — binary files cannot be masked on the way out:
+          <div style={{fontSize:16,marginBottom:6,display:'flex',alignItems:'center',gap:8,fontWeight:600,color:C.text}}><Info size={18} color={C.accent}/>Heads up — personal data detected</div>
+          <div style={{fontSize:12,color:C.textDim,marginBottom:14,display:'flex',alignItems:'center',gap:4}}><Paperclip size={11}/> {pendingAttachmentConfirm.sentAttachment.name}</div>
+          <div style={{fontSize:13,color:C.textMuted,lineHeight:1.6,marginBottom:12}}>
+            This file appears to contain personal information that will be sent to <strong style={{color:C.accent}}>{aiProvider?.label || 'the cloud provider'}</strong>. Unlike text, file contents cannot be automatically masked.
           </div>
-          <div style={{fontSize:12,color:C.text,lineHeight:1.8,marginBottom:14,padding:'10px 14px',background:C.orange+'15',borderRadius:9,border:`1px solid ${C.orange}33`,fontFamily:"'DM Mono',monospace"}}>
+          <div style={{fontSize:12,color:C.text,lineHeight:1.8,marginBottom:14,padding:'10px 14px',background:C.bg,borderRadius:9,border:`1px solid ${C.border}`,fontFamily:"'DM Mono',monospace"}}>
             {(() => {
               const f = pendingAttachmentConfirm.scan.findings || {};
               const rows = [];
@@ -3584,17 +3584,17 @@ function ChatPanel({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes,
               if (f.names?.length)     rows.push([`${f.names.length} name match${f.names.length>1?'es':''}`,   f.names]);
               if (f.addresses?.length) rows.push([`${f.addresses.length} address part${f.addresses.length>1?'s':''}`, f.addresses]);
               return rows.map(([label, values], i) => <div key={i}>
-                <div style={{color:C.orange,fontWeight:700}}>• {label}</div>
+                <div style={{color:C.textMuted,fontWeight:600}}>• {label}</div>
                 <div style={{color:C.textDim,fontSize:11,paddingLeft:12,whiteSpace:'pre-wrap',wordBreak:'break-all'}}>{values.slice(0,5).join(', ')}{values.length>5?`  (+${values.length-5} more)`:''}</div>
               </div>);
             })()}
           </div>
-          <div style={{fontSize:11,color:C.textDim,lineHeight:1.6,marginBottom:16}}>
-            To keep this file private, <strong>Cancel</strong> and either redact it yourself before uploading, or switch to <strong>Ollama</strong> in AI Settings (local — no network send).
+          <div style={{fontSize:12,color:C.textDim,lineHeight:1.6,marginBottom:16}}>
+            This is usually fine for personal use. If you'd prefer not to share this data, you can cancel and redact the file, or switch to <strong>Ollama</strong> (fully local) in AI Settings.
           </div>
           <div style={{display:'flex',gap:10}}>
-            <button onClick={handleAttachmentConfirmCancel} style={{flex:1,padding:'10px 0',borderRadius:8,border:`1px solid ${C.border}`,background:'transparent',color:C.text,fontSize:14,cursor:'pointer'}}>Cancel</button>
-            <button onClick={handleAttachmentConfirmAccept} style={{flex:1,padding:'10px 0',borderRadius:8,border:'none',background:C.orange,color:'#fff',fontWeight:700,fontSize:14,cursor:'pointer'}}>Send anyway</button>
+            <button onClick={handleAttachmentConfirmCancel} style={{flex:1,padding:'10px 0',borderRadius:8,border:`1px solid ${C.border}`,background:'transparent',color:C.textMuted,fontSize:14,cursor:'pointer'}}>Cancel</button>
+            <button onClick={handleAttachmentConfirmAccept} style={{flex:1,padding:'10px 0',borderRadius:8,border:'none',background:C.accent,color:'#fff',fontWeight:700,fontSize:14,cursor:'pointer'}}>Continue</button>
           </div>
         </div>
       </div>}
