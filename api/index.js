@@ -3,6 +3,7 @@ const cors = require('cors');
 const { PrismaClient } = require('@prisma/client');
 const chatRouter = require('./routes/chat');
 const marketRouter = require('./routes/market');
+const scanRouter = require('./routes/scan');
 
 const prisma = new PrismaClient();
 const app = express();
@@ -40,6 +41,7 @@ app.get('/api/provider', (_req, res) => {
 });
 app.use('/api', chatRouter);
 app.use('/api/market', marketRouter);
+app.use('/api', scanRouter);
 
 // Provider connection test — makes a minimal real API call
 app.post('/api/provider/test', async (req, res) => {

@@ -4,3 +4,5 @@ dist
 *.local
 .worktrees
 .env
+
+pp-spike-out/
