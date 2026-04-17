@@ -129,7 +129,7 @@ async function handleAnthropic(res, system, messages, config, writeDelta) {
   for (let turn = 0; turn < MAX_TURNS; turn++) {
     const stream = client.messages.stream({
       model,
-      max_tokens: 4096,
+      max_tokens: 16384,
       system,
       messages,
       tools: ANTHROPIC_TOOLS,
@@ -203,7 +203,7 @@ async function handleOpenAI(res, system, messages, config, writeDelta) {
 
   const stream = await client.chat.completions.create({
     model,
-    max_tokens: 4096,
+    max_tokens: 16384,
     messages: openaiMessages,
     stream: true,
   });
@@ -283,7 +283,7 @@ async function handleOllama(res, system, messages, config, writeDelta) {
 
   const stream = await client.chat.completions.create({
     model,
-    max_tokens: 4096,
+    max_tokens: 16384,
     messages: ollamaMessages,
     stream: true,
   });

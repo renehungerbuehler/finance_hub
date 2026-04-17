@@ -4385,6 +4385,7 @@ function AISettingsPage() {
 function TransactionsPage({ transactions, setTransactions, hideBalances }) {
   const [importing, setImporting] = useState(false);
   const [importProgress, setImportProgress] = useState('');
+  const [importPct, setImportPct] = useState(0);
   const [importPreview, setImportPreview] = useState(null);
   const [importName, setImportName] = useState('');
   const [importError, setImportError] = useState(null);
@@ -4526,6 +4527,7 @@ Rules:
       if (totalRows <= BATCH_SIZE) {
         // Small file — single request
         setImportProgress(`Processing ${totalRows} transactions…`);
+        setImportPct(-1); // indeterminate
         const bytes = new TextEncoder().encode(csvText);
         let bin = ''; bytes.forEach(b => bin += String.fromCharCode(b));
         const prompt = transactions.prompt || DEFAULT_TXN_PROMPT;
@@ -4542,21 +4544,40 @@ Rules:
         }
 
         const prompt = transactions.prompt || DEFAULT_TXN_PROMPT;
-        const results = [];
+        const CONCURRENCY = 3;
+        const results = new Array(batches.length);
+        let completedBatches = 0;
+        setImportPct(0);
 
-        for (let idx = 0; idx < batches.length; idx++) {
-          setImportProgress(`Processing batch ${idx + 1}/${batches.length} (${Math.min((idx + 1) * BATCH_SIZE, totalRows)}/${totalRows} transactions)…`);
-          const batchCsv = batches[idx];
-          const bytes = new TextEncoder().encode(batchCsv);
-          let bin = ''; bytes.forEach(b => bin += String.fromCharCode(b));
-          const result = await streamChat(prompt, [{ name: `${file.name}_batch${idx + 1}.csv`, type: 'text/csv', data: btoa(bin), size: batchCsv.length }]);
-          results.push(result);
+        // Process batches with concurrency limit
+        for (let start = 0; start < batches.length; start += CONCURRENCY) {
+          const chunk = batches.slice(start, start + CONCURRENCY);
+          const chunkResults = await Promise.all(chunk.map(async (batchCsv, ci) => {
+            const idx = start + ci;
+            try {
+              const bytes = new TextEncoder().encode(batchCsv);
+              let bin = ''; bytes.forEach(b => bin += String.fromCharCode(b));
+              const result = await streamChat(prompt, [{ name: `${file.name}_batch${idx + 1}.csv`, type: 'text/csv', data: btoa(bin), size: batchCsv.length }]);
+              return result;
+            } catch (err) {
+              console.warn(`Batch ${idx + 1} failed, skipping:`, err.message);
+              return { transactions: [] };
+            } finally {
+              completedBatches++;
+              const pct = Math.round((completedBatches / batches.length) * 100);
+              setImportPct(pct);
+              setImportProgress(`${completedBatches}/${batches.length} batches · ${Math.min(completedBatches * BATCH_SIZE, totalRows)}/${totalRows} transactions`);
+            }
+          }));
+          chunkResults.forEach((r, ci) => { results[start + ci] = r; });
         }
 
         // Merge all batch results
         const allTxns = results.flatMap(r => (r.transactions || []));
-        const currency = results[0]?.currency || 'CHF';
-        const merged = { currency, transactions: allTxns.map(t => ({ ...t, id: t.id || uid() })) };
+        const failedBatches = results.filter(r => (r.transactions || []).length === 0).length;
+        const currency = results.find(r => r.currency)?.currency || 'CHF';
+        if (allTxns.length === 0) throw new Error('All batches failed — no transactions could be extracted');
+        const merged = { currency, transactions: allTxns.map(t => ({ ...t, id: t.id || uid() })), failedBatches };
         setImportPreview(merged);
         setImportName(file.name.replace(/\.[^.]+$/, ''));
       }
@@ -4565,6 +4586,7 @@ Rules:
     } finally {
       setImporting(false);
       setImportProgress('');
+      setImportPct(0);
     }
   };
 
@@ -4655,11 +4677,25 @@ Rules:
           : <button onClick={() => setConfirmDeleteAll(true)} title="Delete all transactions" style={{ background: 'transparent', border: `1px solid ${C.border}`, color: C.red, borderRadius: 8, padding: '6px 8px', cursor: 'pointer', opacity: 0.7 }}><Trash2 size={15}/></button>
         )}
         <button onClick={() => fileRef.current?.click()} disabled={importing} style={{ background: C.accent, color: '#000', border: 'none', borderRadius: 8, padding: '7px 16px', fontWeight: 600, fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, opacity: importing ? 0.6 : 1 }}>
-          <Upload size={14}/> {importing ? (importProgress || 'Importing…') : 'Import Statement'}
+          <Upload size={14}/> {importing ? 'Importing…' : 'Import Statement'}
         </button>
         <input ref={fileRef} type="file" accept=".csv,.xlsx,.xls,.pdf" onChange={handleImport} style={{ display: 'none' }} />
       </div>
     </div>
+
+    {/* Import progress bar */}
+    {importing && importProgress && <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: '14px 18px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+        <span style={{ fontSize: 13, fontWeight: 500 }}>{importProgress}</span>
+        {importPct > 0 && <span style={{ fontSize: 12, color: C.textMuted, fontVariantNumeric: 'tabular-nums' }}>{importPct}%</span>}
+      </div>
+      <div style={{ width: '100%', height: 6, background: C.border, borderRadius: 3, overflow: 'hidden' }}>
+        {importPct < 0
+          ? <div style={{ width: '30%', height: '100%', background: C.accent, borderRadius: 3, animation: 'indeterminate 1.5s ease-in-out infinite' }} />
+          : <div style={{ width: `${importPct}%`, height: '100%', background: C.accent, borderRadius: 3, transition: 'width 0.5s ease' }} />
+        }
+      </div>
+    </div>}
 
     {/* Prompt edit modal */}
     {promptOpen && <div onClick={() => setPromptOpen(false)} style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.7)',zIndex:200,display:'flex',alignItems:'center',justifyContent:'center',padding:24}}>
@@ -4742,7 +4778,7 @@ Rules:
     {importPreview && <div onClick={() => setImportPreview(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
       <div onClick={e => e.stopPropagation()} style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, width: '100%', maxWidth: 900, padding: 24, maxHeight: '85vh', overflowY: 'auto' }}>
         <h3 style={{ margin: '0 0 4px', fontSize: 16 }}>Import Preview</h3>
-        <p style={{ color: C.textMuted, fontSize: 12, margin: '0 0 14px' }}>{importPreview.transactions.length} transactions · {importPreview.currency || 'CHF'}</p>
+        <p style={{ color: C.textMuted, fontSize: 12, margin: '0 0 14px' }}>{importPreview.transactions.length} transactions · {importPreview.currency || 'CHF'}{importPreview.failedBatches > 0 ? <span style={{ color: C.orange, marginLeft: 8 }}>({importPreview.failedBatches} batch{importPreview.failedBatches > 1 ? 'es' : ''} failed — some transactions may be missing)</span> : ''}</p>
         <div style={{ display: 'flex', gap: 8, marginBottom: 14, alignItems: 'center' }}>
           <label style={{ fontSize: 12, color: C.textMuted }}>Name:</label>
           <input value={importName} onChange={e => setImportName(e.target.value)} style={{ flex: 1, background: C.input, color: C.text, border: `1px solid ${C.border}`, borderRadius: 6, padding: '5px 8px', fontSize: 13 }} />
