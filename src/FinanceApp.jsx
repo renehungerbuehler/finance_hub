@@ -165,6 +165,57 @@ const INIT_SCENARIOS = [];
 
 const INIT_TRACKER = [];
 
+const HISTORICAL_TRACKER = {
+  2023: [
+    {id:"ht-23-1",name:"ZKB (Blocked Account Flat)",startBal:2900,recurring:0,activeUntil:12,active:true,
+     results:[2900,2900,2900,2900,2900,2900,2900,2900,2900,2900,2900,2900]},
+    {id:"ht-23-2",name:"SwissLife - 2A Pillar",startBal:26569,recurring:690,activeUntil:12,active:true,
+     results:[null,null,26569,27259,27949,28640,29330,30020,31945,32583,33325,34015]},
+    {id:"ht-23-3",name:"Frankly - 3A Pillar",startBal:19200,recurring:600,activeUntil:12,active:true,
+     results:[null,null,19326,20257,21033,21765,22580,22638,22473,22825,24532,25841]},
+    {id:"ht-23-4",name:"Crypto (CoinStats)",startBal:12000,recurring:0,activeUntil:12,active:true,
+     results:[12000,12000,12000,12000,12000,12000,12000,12000,12000,12000,15753,19000]},
+    {id:"ht-23-5",name:"Yuh Invest",startBal:0,recurring:1000,activeUntil:12,active:true,
+     results:[null,null,1006,2524,3520,3513,5023,5084,5082,5562,6504,7569]},
+    {id:"ht-23-6",name:"Yuh Golden Egg",startBal:0,recurring:1000,activeUntil:12,active:true,
+     results:[0,0,0,0,0,0,0,0,0,0,0,0]},
+    {id:"ht-23-7",name:"Yuh Emergency",startBal:0,recurring:1000,activeUntil:12,active:true,
+     results:[0,0,0,0,0,0,3000,0,0,0,0,0]},
+  ],
+  2024: [
+    {id:"ht-24-1",name:"ZKB (Blocked Account Flat)",startBal:2900,recurring:0,activeUntil:12,active:true,
+     results:[2900,2900,2900,2900,2900,2900,2900,2900,2900,2900,2900,2900]},
+    {id:"ht-24-2",name:"SwissLife - 2A Pillar",startBal:34495,recurring:480,activeUntil:12,active:true,
+     results:[34705,34975,35455,35935,36415,36895,37375,37375,38335,38815,39295,39854]},
+    {id:"ht-24-3",name:"Frankly - 3A Pillar",startBal:26429,recurring:588,activeUntil:12,active:true,
+     results:[26426,27793,29236,29615,31192,31714,32379,33027,33983,34926,35756,36086]},
+    {id:"ht-24-4",name:"Crypto (CoinStats)",startBal:0,recurring:0,activeUntil:12,active:true,
+     results:[0,0,0,0,0,607,626,556,545,576,707,700]},
+    {id:"ht-24-5",name:"Yuh Invest",startBal:8569,recurring:1000,activeUntil:12,active:true,
+     results:[9213,10509,11003,11002,11750,11864,12689,12872,12980,13320,13260,13628]},
+    {id:"ht-24-6",name:"Yuh Golden Egg",startBal:0,recurring:0,activeUntil:12,active:true,
+     results:[0,0,0,0,0,0,0,0,0,0,0,0]},
+    {id:"ht-24-7",name:"Yuh Emergency",startBal:0,recurring:1500,activeUntil:12,active:true,
+     results:[0,1000,1500,2000,2500,5000,5000,6000,9000,12000,15000,15000]},
+  ],
+  2025: [
+    {id:"ht-25-1",name:"ZKB (Blocked Account Flat)",startBal:8901,recurring:0,activeUntil:12,active:true,
+     results:[8901,8901,8901,8901,8901,8901,8901,8901,8901,8901,8901,8901]},
+    {id:"ht-25-2",name:"SwissLife - 2A Pillar",startBal:48212,recurring:690,activeUntil:12,active:true,
+     results:[48212,48902,48272,50282,50972,51662,52352,53042,53732,54422,55112,61685]},
+    {id:"ht-25-3",name:"Frankly - 3A Pillar",startBal:35919,recurring:600,activeUntil:12,active:true,
+     results:[37866,38692,38870,37548,39679,40672,42109,43277,44192,45989,46904,48170]},
+    {id:"ht-25-4",name:"Crypto (CoinStats)",startBal:500,recurring:0,activeUntil:12,active:true,
+     results:[500,500,539,544,632,585,725,639,732,721,548,523]},
+    {id:"ht-25-5",name:"Yuh Invest",startBal:14689,recurring:1000,activeUntil:12,active:true,
+     results:[14524,14704,15227,15343,16449,17472,17790,18045,18384,19058,20265,20984]},
+    {id:"ht-25-6",name:"Yuh Golden Egg",startBal:0,recurring:200,activeUntil:12,active:true,
+     results:[0,0,0,0,0,0,0,0,0,0,0,0]},
+    {id:"ht-25-7",name:"Yuh Emergency",startBal:15000,recurring:0,activeUntil:12,active:true,
+     results:[4000,15000,15000,15000,15000,15000,15000,15000,13000,12500,15000,15000]},
+  ],
+};
+
 const INIT_SUBS_PERSONAL = [];
 
 const INIT_YEARLY = [];
@@ -2042,17 +2093,15 @@ function TrackerPage({ tracker, setTracker, accounts: portfolioAccounts, hideBal
   // Auto-sync: keep tracker rows in sync with Accounts page
   useEffect(()=>{
     const acctNames = new Set(portfolioAccounts.map(a=>a.name));
-    const current = tracker[selYear] || [];
-    // Remove rows with no data whose account no longer exists
+    const current = tracker[currentYear] || [];
     const pruned = current.filter(r => acctNames.has(r.name) || r.results.some(v=>v!==null));
-    // Add accounts not yet in tracker
     const existingNames = new Set(pruned.map(r=>r.name));
     const newRows = portfolioAccounts.filter(a=>!existingNames.has(a.name) && a.type!=="Debt").map(a=>({id:uid(),name:a.name,recurring:0,startBal:a.balance,results:Array(12).fill(null),active:true,activeUntil:12}));
     if(pruned.length !== current.length || newRows.length > 0){
-      setTracker(p=>({...p,[selYear]:[...pruned,...newRows]}));
+      setTracker(p=>({...p,[currentYear]:[...pruned,...newRows]}));
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  },[selYear, portfolioAccounts.map(a=>a.name).join(",")]);
+  },[portfolioAccounts.map(a=>a.name).join(",")]);
 
   const debtNames = new Set(portfolioAccounts.filter(a=>a.type==="Debt").map(a=>a.name));
   const totals = MONTHS.map((_,mi)=>({ month:MONTHS[mi], forecast:computed.filter(a=>a.active&&!debtNames.has(a.name)).reduce((s,a)=>s+a.values[mi],0), result:computed.filter(a=>a.active&&!debtNames.has(a.name)).reduce((s,a)=>s+(a.results[mi]??0),0), hasResult:computed.filter(a=>a.active&&!debtNames.has(a.name)).some(a=>a.results[mi]!==null) }));
@@ -4364,7 +4413,7 @@ export default function FinanceApp() {
   const loaded = useRef(false);
   const [accounts, setAccounts] = useState(INIT_ACCOUNTS);
   const [scenarios, setScenarios] = useState(INIT_SCENARIOS);
-  const [tracker, setTracker] = useState({ 2026: [] });
+  const [tracker, setTracker] = useState({ ...HISTORICAL_TRACKER, 2026: [] });
   const [subsP, setSubsP] = useState(INIT_SUBS_PERSONAL);
   const [subsPInScenario, setSubsPInScenario] = useState(true);
   const [yearly, setYearly] = useState(INIT_YEARLY);
