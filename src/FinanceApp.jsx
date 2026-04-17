@@ -400,7 +400,7 @@ function AccountsPage({ accounts, setAccounts, hideBalances, onAccountsUpdated, 
   const [notesOpen, setNotesOpen] = useState(new Set());
   const toggleNotes = id => setNotesOpen(p => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n; });
 
-  const totalWealth = accounts.reduce((s, a) => s + a.balance, 0);
+  const totalWealth = accounts.filter(a=>a.type!=="Debt").reduce((s,a)=>s+a.balance,0) - accounts.filter(a=>a.type==="Debt").reduce((s,a)=>s+a.balance,0);
   const ACCT_TYPES = ["Checking","Savings","Investment","Crypto","Pension 2A","Pension 3A","Deposit","Lent Out","Debt"];
   const [sortCol, setSortCol] = useState("institution");
   const [sortDir, setSortDir] = useState(-1);
@@ -534,7 +534,7 @@ function AccountsPage({ accounts, setAccounts, hideBalances, onAccountsUpdated, 
               {ACCT_TYPES.map(t=><option key={t} value={t}>{t}</option>)}
             </select>
           </td>
-          <td style={{padding:"10px 12px",fontSize:14,textAlign:"right",fontWeight:600,fontVariantNumeric:"tabular-nums",borderBottom:`1px solid ${C.border}11`}}>{hideBalances ? <span style={{color:C.textDim}}>••••</span> : <InlineNum value={a.balance} onChange={v=>editAcct(a.id,"balance",v??0)} width={80}/>}</td>
+          <td style={{padding:"10px 12px",fontSize:14,textAlign:"right",fontWeight:600,fontVariantNumeric:"tabular-nums",borderBottom:`1px solid ${C.border}11`,color:a.type==="Debt"?C.red:undefined}}>{hideBalances ? <span style={{color:C.textDim}}>••••</span> : <>{a.type==="Debt" && a.balance>0 && <span style={{color:C.red}}>−</span>}<InlineNum value={a.balance} onChange={v=>editAcct(a.id,"balance",v??0)} width={80} style={a.type==="Debt"?{color:C.red}:undefined}/></>}</td>
           <td style={{padding:"8px 12px",borderBottom:`1px solid ${C.border}11`}}>
             <div style={{display:'flex',gap:6,alignItems:'center'}}>
               <button
@@ -830,7 +830,7 @@ function Dashboard({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes,
           </div>}
           {debtTotal > 0 && <div style={{textAlign:"right"}}>
             <div style={{fontSize:12,color:C.textDim,marginBottom:2}}>Debt</div>
-            <div style={{fontSize:20,fontWeight:700,color:C.red}}>CHF {mask(fmt(debtTotal))}</div>
+            <div style={{fontSize:20,fontWeight:700,color:C.red}}>−CHF {mask(fmt(debtTotal))}</div>
             <div style={{fontSize:12,color:C.textDim}}>{totalAssets>0?((debtTotal/totalAssets)*100).toFixed(0):0}% of assets</div>
           </div>}
         </div>
@@ -2045,22 +2045,23 @@ function TrackerPage({ tracker, setTracker, accounts: portfolioAccounts, hideBal
     const pruned = current.filter(r => acctNames.has(r.name) || r.results.some(v=>v!==null));
     // Add accounts not yet in tracker
     const existingNames = new Set(pruned.map(r=>r.name));
-    const newRows = portfolioAccounts.filter(a=>!existingNames.has(a.name)).map(a=>({id:uid(),name:a.name,recurring:0,startBal:a.balance,results:Array(12).fill(null),active:true,activeUntil:12}));
+    const newRows = portfolioAccounts.filter(a=>!existingNames.has(a.name) && a.type!=="Debt").map(a=>({id:uid(),name:a.name,recurring:0,startBal:a.balance,results:Array(12).fill(null),active:true,activeUntil:12}));
     if(pruned.length !== current.length || newRows.length > 0){
       setTracker(p=>({...p,[selYear]:[...pruned,...newRows]}));
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   },[selYear, portfolioAccounts.map(a=>a.name).join(",")]);
 
-  const totals = MONTHS.map((_,mi)=>({ month:MONTHS[mi], forecast:computed.filter(a=>a.active).reduce((s,a)=>s+a.values[mi],0), result:computed.filter(a=>a.active).reduce((s,a)=>s+(a.results[mi]??0),0), hasResult:computed.filter(a=>a.active).some(a=>a.results[mi]!==null) }));
-  const currentTotal = portfolioAccounts.reduce((s,a)=>s+a.balance,0);
+  const debtNames = new Set(portfolioAccounts.filter(a=>a.type==="Debt").map(a=>a.name));
+  const totals = MONTHS.map((_,mi)=>({ month:MONTHS[mi], forecast:computed.filter(a=>a.active&&!debtNames.has(a.name)).reduce((s,a)=>s+a.values[mi],0), result:computed.filter(a=>a.active&&!debtNames.has(a.name)).reduce((s,a)=>s+(a.results[mi]??0),0), hasResult:computed.filter(a=>a.active&&!debtNames.has(a.name)).some(a=>a.results[mi]!==null) }));
+  const currentTotal = portfolioAccounts.filter(a=>a.type!=="Debt").reduce((s,a)=>s+a.balance,0);
   const proj = useMemo(()=>{ const d=[]; let b=currentTotal; for(let y=0;y<=years;y++){ d.push({year:selYear+y,balance:Math.round(b),contributed:currentTotal+monthlyAdd*12*y}); b=(b+monthlyAdd*12)*(1+growthRate/100); } return d; },[growthRate,monthlyAdd,years,currentTotal,selYear]);
 
   const multiYearData = useMemo(() => {
     const trackedYears = Object.keys(tracker).map(Number).sort((a,b)=>a-b);
     const historical = trackedYears.map(yr => {
       const rows = tracker[yr] || [];
-      const activeRows = rows.filter(r => r.active !== false);
+      const activeRows = rows.filter(r => r.active !== false && !debtNames.has(r.name));
       const withForecast = activeRows.map(a => {
         const f = [];
         for (let m = 0; m < 12; m++) {
@@ -3832,7 +3833,7 @@ function PortfolioPage({ accounts, setAccounts, hideBalances, setChatOpen, setCh
   // ── Stats ──
   const rateAccts = accounts.filter(a=>RATE_TYPES.includes(a.type)&&a.balance>0);
   const investAccts = accounts.filter(a=>INVEST_TYPES.includes(a.type));
-  const totalPortfolio = accounts.reduce((s,a)=>s+a.balance,0);
+  const totalPortfolio = accounts.filter(a=>a.type!=="Debt").reduce((s,a)=>s+a.balance,0);
   const totalInvested = investAccts.reduce((s,a)=>s+(a.positions||[]).reduce((ps,p)=>{const q=quotes[p.ticker];const cur=q?.currency||'CHF';return ps+toCHF((p.shares||0)*(p.avgBuyPrice||0),cur);},0),0);
   const totalCurrentVal = investAccts.reduce((s,a)=>s+(a.positions||[]).reduce((ps,p)=>{
     const q=quotes[p.ticker];const cur=q?.currency||'CHF'; return ps+toCHF((p.shares||0)*(q?q.currentPrice:(p.avgBuyPrice||0)),cur);
@@ -3842,7 +3843,7 @@ function PortfolioPage({ accounts, setAccounts, hideBalances, setChatOpen, setCh
   const computedYield = rateTotal>0
     ? rateAccts.filter(a=>a.interestRate!=null).reduce((s,a)=>s+a.interestRate*a.balance,0)/rateTotal
     : null;
-  const pieData = accounts.filter(a=>a.balance>0).map(a=>({name:a.name,value:a.balance}));
+  const pieData = accounts.filter(a=>a.balance>0 && a.type!=="Debt").map(a=>({name:a.name,value:a.balance}));
 
   const freshness = lastFetched ? (Date.now()-lastFetched.getTime()) : null;
   const stale = freshness!=null && freshness>15*60*1000;
@@ -3873,8 +3874,8 @@ function PortfolioPage({ accounts, setAccounts, hideBalances, setChatOpen, setCh
           </button>}
         </div>
       }>
-      {accounts.length===0 && <div style={{textAlign:'center',padding:'32px 0',color:C.textDim,fontSize:13}}>No accounts — add some on the Accounts page.</div>}
-      {accounts.map(account=>{
+      {accounts.filter(a=>a.type!=="Debt").length===0 && <div style={{textAlign:'center',padding:'32px 0',color:C.textDim,fontSize:13}}>No accounts — add some on the Accounts page.</div>}
+      {accounts.filter(a=>a.type!=="Debt").map(account=>{
         const canExpand = INVEST_TYPES.includes(account.type) || (account.positions||[]).length>0;
         const isExpanded = expanded.has(account.id);
         const positions = account.positions||[];
@@ -3900,7 +3901,7 @@ function PortfolioPage({ accounts, setAccounts, hideBalances, setChatOpen, setCh
             </div>
             <div style={{display:'flex',gap:16,alignItems:'center',flexWrap:'wrap',justifyContent:'flex-end'}}>
               {annualReturn!=null && <div style={{textAlign:'right'}}><div style={{fontSize:10,color:C.textDim}}>Rate / Yield</div><div style={{fontSize:13,color:C.green}}>{account.interestRate}% · CHF {mask(fmt(Math.round(annualReturn)))}/yr</div></div>}
-              <div style={{textAlign:'right'}}><div style={{fontSize:10,color:C.textDim}}>Balance</div><div style={{fontSize:14,fontWeight:600,color:C.text}}>{mask(fmt(account.balance))}</div></div>
+              <div style={{textAlign:'right'}}><div style={{fontSize:10,color:C.textDim}}>Balance</div><div style={{fontSize:14,fontWeight:600,color:account.type==="Debt"?C.red:C.text}}>{account.type==="Debt"&&account.balance>0?"−":""}{mask(fmt(account.balance))}</div></div>
               {acctInvested>0&&<>
                 <div style={{textAlign:'right'}}><div style={{fontSize:10,color:C.textDim}}>Invested</div><div style={{fontSize:14,color:C.textMuted}}>{mask(fmt(Math.round(acctInvested)))}</div></div>
                 <div style={{textAlign:'right'}}><div style={{fontSize:10,color:C.textDim}}>Current</div><div style={{fontSize:14,fontWeight:600,color:C.teal}}>{mask(fmt(Math.round(acctCurrentVal)))}</div></div>
