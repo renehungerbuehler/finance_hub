@@ -1988,8 +1988,8 @@ function TrackerPage({ tracker, setTracker, accounts: portfolioAccounts, hideBal
   const winW = useWindowWidth(); const isMobile = winW < 768;
   const sortedYears = Object.keys(tracker).map(Number).sort((a,b)=>b-a);
   const allYearsSorted = Object.keys(tracker).map(Number).sort((a,b)=>a-b);
-  const [startYear, setStartYear] = useState(allYearsSorted[0] || 2023);
-  const [endYear, setEndYear] = useState(sortedYears[0] || 2026);
+  const [startYear, setStartYear] = useState(new Date().getFullYear());
+  const [endYear, setEndYear] = useState(new Date().getFullYear());
   const [view, setView] = useState("grid");
   const [growthRate, setGrowthRate] = useState(5);
   const [monthlyAdd, setMonthlyAdd] = useState(2854);
@@ -2208,6 +2208,22 @@ function TrackerPage({ tracker, setTracker, accounts: portfolioAccounts, hideBal
                     <Toggle on={primaryRow.active} onToggle={()=>upd(primaryYear, acc.name, a=>{a.active=!a.active;return a;})}/>
                     <div style={{flex:1,minWidth:0}}>
                       <span style={{fontSize:14,fontWeight:600,color:dim?C.textDim:C.text,display:"block"}}>{acc.name}</span>
+                      {rangeYears.map(yr => {
+                        const yd = acc.yearData[rangeYears.indexOf(yr)];
+                        if (!yd || !yd.row) return null;
+                        const r = yd.row;
+                        return <div key={yr} style={{display:"flex",alignItems:"center",gap:4,marginTop:3,flexWrap:"wrap"}}>
+                          {rangeYears.length > 1 && <span style={{fontSize:10,color:C.textDim+"88",minWidth:28}}>{yr}</span>}
+                          <span style={{fontSize:10,color:C.textDim+"88"}}>start</span>
+                          <InlineNum value={r.startBal} onChange={v=>upd(yr, acc.name, a=>{a.startBal=v??0;return a;})}
+                            style={{fontSize:10,color:C.textDim+"aa"}} width={50}/>
+                          <span style={{fontSize:10,color:C.textDim+"66"}}>·</span>
+                          <span style={{fontSize:10,color:C.textDim+"88"}}>+</span>
+                          <InlineNum value={r.recurring} onChange={v=>upd(yr, acc.name, a=>{a.recurring=v??0;return a;})}
+                            style={{fontSize:10,color:r.recurring>0?C.accent:C.textDim+"88",fontWeight:600}} width={40}/>
+                          <span style={{fontSize:10,color:C.textDim+"66"}}>/mo</span>
+                        </div>;
+                      })}
                     </div>
                   </div>
                 </td>
