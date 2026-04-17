@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { PieChart, Pie, Cell, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, BarChart, Bar, ResponsiveContainer, AreaChart, Area, ComposedChart, ReferenceLine } from "recharts";
-import { LayoutDashboard, Target, TrendingUp, Activity, CreditCard, Shield, Plus, Pencil, Trash2, Check, X, DollarSign, Wallet, PiggyBank, BarChart3, GripVertical, Power, Sparkles, AlertTriangle, ArrowUpRight, Info, Lightbulb, ShieldCheck, Landmark, Paperclip, Upload, Download, Sun, Moon, ChevronLeft, ChevronRight, User, Building2, Eye, EyeOff, RefreshCw, ChevronDown, MessageSquarePlus, ExternalLink, Maximize2, Minimize2, BookOpen, Settings, Key, Bot, WifiOff } from "lucide-react";
+import { LayoutDashboard, Target, TrendingUp, Activity, CreditCard, Shield, Plus, Pencil, Trash2, Check, X, DollarSign, Wallet, PiggyBank, BarChart3, GripVertical, Power, Sparkles, AlertTriangle, ArrowUpRight, Info, Lightbulb, ShieldCheck, Landmark, Paperclip, Upload, Download, Sun, Moon, ChevronLeft, ChevronRight, User, Building2, Eye, EyeOff, RefreshCw, ChevronDown, MessageSquarePlus, ExternalLink, Maximize2, Minimize2, BookOpen, Settings, Key, Bot, WifiOff, Lock, Cloud, Pin, ClipboardList, Menu } from "lucide-react";
 import { jsPDF } from "jspdf";
 
 const API_URL = `http://${window.location.hostname}:3003/api`;
@@ -1084,7 +1084,7 @@ function PinnedNotes({ version = 0 }) {
       <div onClick={e=>e.stopPropagation()} style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:16,width:'100%',maxWidth:1140,height:'84vh',display:'flex',flexDirection:'column',boxShadow:'0 24px 80px rgba(0,0,0,0.6)'}}>
         <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'16px 20px',borderBottom:`1px solid ${C.border}`}}>
           <div style={{display:'flex',alignItems:'center',gap:10}}>
-            <span>📌</span>
+            <Pin size={14}/>
             <span style={{fontSize:17,fontWeight:700,color:C.text}}>{extractTitle(openNote.text)}</span>
           </div>
           <div style={{display:'flex',gap:8,alignItems:'center'}}>
@@ -1104,7 +1104,7 @@ function PinnedNotes({ version = 0 }) {
     {/* Post-it grid */}
     <div style={{marginBottom:24}}>
       <div style={{fontSize:13,color:C.textDim,marginBottom:10,marginTop:24,display:'flex',alignItems:'center',gap:6}}>
-        <span>📌</span> Pinned Analyses — click to expand
+        <Pin size={14}/> Pinned Analyses — click to expand
       </div>
       <div style={{display:'flex',flexWrap:'wrap',gap:12}}>
         {notes.map((note, ni) => {
@@ -1216,12 +1216,12 @@ function AiWealthCard({ accounts, scenarios, yearly, taxes, insurance, subsP, pr
 
   const friendlyError = (raw) => {
     if (!raw) return "Unknown error from AI service.";
-    if (raw.includes("credit balance is too low") || raw.includes("insufficient_balance")) return "⚠️ Anthropic API credits exhausted. Go to console.anthropic.com → Plans & Billing to top up.";
-    if (raw.includes("ANTHROPIC_API_KEY not configured")) return "⚠️ API key not set. Add ANTHROPIC_API_KEY to your .env file and restart.";
-    if (raw.includes("401") || raw.includes("authentication")) return "⚠️ Invalid API key. Check your ANTHROPIC_API_KEY in .env.";
-    if (raw.includes("529") || raw.includes("overloaded")) return "⚠️ Anthropic API is overloaded right now. Try again in a minute.";
-    if (raw.includes("rate_limit") || raw.includes("429")) return "⚠️ Rate limit hit. Wait a moment and try again.";
-    return "⚠️ AI error: " + raw.replace(/^AI service error:\s*/,"").slice(0, 200);
+    if (raw.includes("credit balance is too low") || raw.includes("insufficient_balance")) return "[!] Anthropic API credits exhausted. Go to console.anthropic.com → Plans & Billing to top up.";
+    if (raw.includes("ANTHROPIC_API_KEY not configured")) return "[!] API key not set. Add ANTHROPIC_API_KEY to your .env file and restart.";
+    if (raw.includes("401") || raw.includes("authentication")) return "[!] Invalid API key. Check your ANTHROPIC_API_KEY in .env.";
+    if (raw.includes("529") || raw.includes("overloaded")) return "[!] Anthropic API is overloaded right now. Try again in a minute.";
+    if (raw.includes("rate_limit") || raw.includes("429")) return "[!] Rate limit hit. Wait a moment and try again.";
+    return "[!] AI error: " + raw.replace(/^AI service error:\s*/,"").slice(0, 200);
   };
 
   const stream = async (userMsg, msgHistory, sentAttachment) => {
@@ -1247,7 +1247,7 @@ function AiWealthCard({ accounts, scenarios, yearly, taxes, insurance, subsP, pr
         }
       }
       setHistory(prev => [...prev, {role:"user",content:userMsg}, {role:"assistant",content:full}]);
-    } catch(e) { setMessages(prev => { const u=[...prev]; u[u.length-1]={...u[u.length-1],content:"⚠️ Cannot reach the API server. Make sure Docker is running (`make docker-up`)."}; return u; }); }
+    } catch(e) { setMessages(prev => { const u=[...prev]; u[u.length-1]={...u[u.length-1],content:"[!] Cannot reach the API server. Make sure Docker is running (`make docker-up`)."}; return u; }); }
     setLoading(false); setStatusMsg("");
   };
 
@@ -1274,7 +1274,7 @@ Use web search if helpful for current Swiss rates, ETF benchmarks, or relevant o
   };
 
   const pinLastResponse = async () => {
-    const lastAssistant = [...messages].reverse().find(m => m.role === "assistant" && m.content && !m.content.startsWith("⚠️"));
+    const lastAssistant = [...messages].reverse().find(m => m.role === "assistant" && m.content && !m.content.startsWith("[!]"));
     if (!lastAssistant) return;
     const existing = await fetch(`${API_URL}/ai_analysis`).then(r => r.status === 404 ? [] : r.json()).catch(()=>[]);
     const list = Array.isArray(existing) ? existing : (existing && existing.text ? [existing] : []);
@@ -1288,7 +1288,7 @@ Use web search if helpful for current Swiss rates, ETF benchmarks, or relevant o
   return <Card style={{marginTop:16}} headerRight={
     <div style={{display:"flex",gap:8,alignItems:"center"}}>
       {started && <button onClick={newSession} style={{padding:"5px 10px",borderRadius:6,border:`1px solid ${C.border}`,background:"transparent",color:C.textDim,fontSize:12,cursor:"pointer"}}>↺ New Session</button>}
-      {started && <button onClick={pinLastResponse} style={{padding:"5px 10px",borderRadius:6,border:`1px solid ${C.border}`,background:"transparent",color:saved?C.green:C.textDim,fontSize:12,cursor:"pointer"}}>{saved?"✓ Pinned":"📌 Pin"}</button>}
+      {started && <button onClick={pinLastResponse} style={{padding:"5px 10px",borderRadius:6,border:`1px solid ${C.border}`,background:"transparent",color:saved?C.green:C.textDim,fontSize:12,cursor:"pointer"}}>{saved?"✓ Pinned":<><Pin size={11} style={{marginRight:2}}/> Pin</>}</button>}
       <Badge color={C.accent}>{aiProvider.label}</Badge>
     </div>
   }>
@@ -1376,7 +1376,7 @@ function ScenariosPage({ scenarios, setScenarios, subsP, subsPInScenario, yearly
 
   if (!sc) return (
     <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",height:"60vh",gap:16,color:C.textDim}}>
-      <div style={{fontSize:48}}>📋</div>
+      <ClipboardList size={48} color={C.textDim}/>
       <div style={{fontSize:18,fontWeight:600,color:C.text}}>No scenarios yet</div>
       <div style={{fontSize:14}}>Create your first financial scenario to get started.</div>
       <button onClick={()=>{ const n={id:uid(),name:"New Scenario",tags:[],isActive:true,incomes:[],expenses:[],savings:[],investments:[],linkedOverrides:{}}; setScenarios([n]); setSelId(n.id); }} style={{padding:"10px 20px",borderRadius:8,background:C.accent,color:"#fff",border:"none",cursor:"pointer",fontSize:14,fontWeight:600}}>+ Add Scenario</button>
@@ -3413,7 +3413,7 @@ function ChatPanel({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes,
   };
 
   const doSavePin = async (msgs) => {
-    const lastAssistant = [...msgs].reverse().find(m => m.role === "assistant" && m.content && !m.content.startsWith("⚠️"));
+    const lastAssistant = [...msgs].reverse().find(m => m.role === "assistant" && m.content && !m.content.startsWith("[!]"));
     if (!lastAssistant) return;
     const existing = await fetch(`${API_URL}/ai_analysis`).then(r => r.status === 404 ? [] : r.json()).catch(() => []);
     const list = Array.isArray(existing) ? existing : (existing?.text ? [existing] : []);
@@ -3469,11 +3469,11 @@ function ChatPanel({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes,
             const { text, error, status } = JSON.parse(payload);
             if (status) { setChatStatus(status); }
             if (error) {
-              const msg = error.includes("credit balance is too low") || error.includes("insufficient_balance") ? "⚠️ Anthropic API credits exhausted — top up at console.anthropic.com → Plans & Billing."
-                : error.includes("ANTHROPIC_API_KEY not configured") ? "⚠️ API key not set. Add ANTHROPIC_API_KEY to .env and restart."
-                : error.includes("overloaded") || error.includes("529") ? "⚠️ Anthropic API overloaded. Try again in a moment."
-                : error.includes("rate_limit") || error.includes("429") ? "⚠️ Rate limit hit. Wait a moment and try again."
-                : "⚠️ " + error.replace(/^AI service error:\s*/,"").slice(0, 200);
+              const msg = error.includes("credit balance is too low") || error.includes("insufficient_balance") ? "[!] Anthropic API credits exhausted — top up at console.anthropic.com → Plans & Billing."
+                : error.includes("ANTHROPIC_API_KEY not configured") ? "[!] API key not set. Add ANTHROPIC_API_KEY to .env and restart."
+                : error.includes("overloaded") || error.includes("529") ? "[!] Anthropic API overloaded. Try again in a moment."
+                : error.includes("rate_limit") || error.includes("429") ? "[!] Rate limit hit. Wait a moment and try again."
+                : "[!] " + error.replace(/^AI service error:\s*/,"").slice(0, 200);
               setMessages(prev => { const u=[...prev]; u[u.length-1]={...u[u.length-1],content:msg}; return u; }); setChatStatus(""); break;
             }
             if (text) { setChatStatus(""); setMessages(prev => { const u=[...prev]; u[u.length-1]={...u[u.length-1],content:u[u.length-1].content+text}; return u; }); }
@@ -3481,7 +3481,7 @@ function ChatPanel({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes,
         }
       }
     } catch (err) {
-      setMessages(prev => { const u=[...prev]; u[u.length-1]={...u[u.length-1],content:"⚠️ Cannot reach the API server. Make sure Docker is running (`make docker-up`)."}; return u; });
+      setMessages(prev => { const u=[...prev]; u[u.length-1]={...u[u.length-1],content:"[!] Cannot reach the API server. Make sure Docker is running (`make docker-up`)."}; return u; });
     }
     setStreaming(false); setChatStatus("");
   };
@@ -3602,7 +3602,7 @@ function ChatPanel({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes,
       {/* Consent modal */}
       {pendingConsent && <div style={{position:'absolute',inset:0,background:'rgba(0,0,0,0.75)',zIndex:10,display:'flex',alignItems:'center',justifyContent:'center',padding:20,borderRadius:16}}>
         <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:14,padding:24,maxWidth:380,width:'100%',boxShadow:'0 8px 40px rgba(0,0,0,0.5)'}}>
-          <div style={{fontSize:20,marginBottom:12}}>☁️ Cloud AI Privacy Notice</div>
+          <div style={{fontSize:20,marginBottom:12,display:'flex',alignItems:'center',gap:8}}><Cloud size={20}/> Cloud AI Privacy Notice</div>
           <div style={{fontSize:13,color:C.text,lineHeight:1.7,marginBottom:12}}>
             You are using <strong style={{color:C.accent}}>{aiProvider?.label || 'a cloud AI provider'}</strong>. Your financial context — balances, income, expenses, and scenarios — is sent with each message.
           </div>
@@ -3610,7 +3610,7 @@ function ChatPanel({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes,
             <strong>PII masked automatically.</strong> Names, AHV, IBAN, email, phone, and addresses are replaced with placeholders (PERSON_1, AHV_1…) before leaving this server. The provider never sees your identity. Real values are restored in the response shown to you.
           </div>
           <div style={{fontSize:12,color:C.orange,lineHeight:1.6,marginBottom:10,padding:'10px 14px',background:C.orange+'15',borderRadius:9,border:`1px solid ${C.orange}33`}}>
-            ⚠ <strong>File attachments are not fully masked.</strong> PDFs and images go to the provider as-is — anything written inside them (names, numbers, signatures) will be visible. Text files (CSV/JSON/TXT) get the regex pass but random names inside may slip through. Strip sensitive data before uploading if that matters to you.
+            <AlertTriangle size={12} style={{marginRight:4,flexShrink:0}}/> <strong>File attachments are not fully masked.</strong> PDFs and images go to the provider as-is — anything written inside them (names, numbers, signatures) will be visible. Text files (CSV/JSON/TXT) get the regex pass but random names inside may slip through. Strip sensitive data before uploading if that matters to you.
           </div>
           <div style={{fontSize:11,color:C.textDim,lineHeight:1.6,marginBottom:18}}>
             Canton, marital status, age, and children are <em>not</em> masked — they shape tax advice and aren't identifying alone. To keep 100% of data local, switch to <strong>Ollama</strong> in AI Settings.
@@ -3628,16 +3628,16 @@ function ChatPanel({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes,
           <Sparkles size={16} color={C.accentLight}/>
           <span style={{fontSize:14,fontWeight:600,color:C.text}}>AI Finance Advisor</span>
           {providerIsLocal
-            ? <span style={{fontSize:10,padding:'1px 7px',borderRadius:9,background:C.green+'22',color:C.green,fontWeight:700}}>🔒 Local</span>
+            ? <span style={{fontSize:10,padding:'1px 7px',borderRadius:9,background:C.green+'22',color:C.green,fontWeight:700,display:'inline-flex',alignItems:'center'}}><Lock size={10} style={{marginRight:2}}/> Local</span>
             : aiProvider?.provider && <>
-                <span style={{fontSize:10,padding:'1px 7px',borderRadius:9,background:C.orange+'22',color:C.orange,fontWeight:700}}>☁ {aiProvider.label}</span>
-                <span title="Names, AHV, IBAN, email, phone and addresses are replaced with placeholders before leaving this server. The cloud provider never sees your real identity." style={{fontSize:10,padding:'1px 7px',borderRadius:9,background:C.green+'22',color:C.green,fontWeight:700,cursor:'help'}}>PII masked</span>
+                <span style={{fontSize:10,padding:'1px 7px',borderRadius:9,background:C.orange+'22',color:C.orange,fontWeight:700,display:'inline-flex',alignItems:'center'}}><Cloud size={10} style={{marginRight:2}}/> {aiProvider.label}</span>
+                <span title="Names, AHV, IBAN, email, phone and addresses are replaced with placeholders before leaving this server. The cloud provider never sees your real identity." style={{fontSize:10,padding:'1px 7px',borderRadius:9,background:C.green+'22',color:C.green,fontWeight:700,cursor:'help',display:'inline-flex',alignItems:'center',whiteSpace:'nowrap'}}><ShieldCheck size={10} style={{marginRight:3}}/>PII masked</span>
               </>
           }
         </div>
         <div style={{display:"flex",gap:6,alignItems:'center'}}>
           {messages.length>0 && <button onClick={()=>setMessages([])} title="Clear chat" style={{padding:"4px 8px",borderRadius:6,border:`1px solid ${C.border}`,background:"transparent",color:C.textDim,fontSize:12,cursor:"pointer"}}>Clear</button>}
-          {messages.some(m=>m.role==="assistant"&&m.content) && <button onClick={pinLastResponse} title="Pin last AI response to notes" style={{padding:"4px 8px",borderRadius:6,border:`1px solid ${C.border}`,background:"transparent",color:saved?C.green:pinPending?C.yellow:C.textDim,fontSize:12,cursor:"pointer"}}>{saved?"✓ Pinned":pinPending?"⏳ Pinning…":"📌 Pin"}</button>}
+          {messages.some(m=>m.role==="assistant"&&m.content) && <button onClick={pinLastResponse} title="Pin last AI response to notes" style={{padding:"4px 8px",borderRadius:6,border:`1px solid ${C.border}`,background:"transparent",color:saved?C.green:pinPending?C.yellow:C.textDim,fontSize:12,cursor:"pointer"}}>{saved?"✓ Pinned":pinPending?<><RefreshCw size={11} style={{animation:'spin 1s linear infinite',marginRight:2}}/> Pinning…</>:<><Pin size={11} style={{marginRight:2}}/> Pin</>}</button>}
           <button onClick={()=>setMaximized(m=>!m)} title={maximized?"Restore":"Maximize"} style={{background:"transparent",border:"none",cursor:"pointer",color:C.textDim,padding:4,display:'flex'}}>{maximized?<Minimize2 size={15}/>:<Maximize2 size={15}/>}</button>
           <button onClick={()=>setOpen(false)} style={{background:"transparent",border:"none",cursor:"pointer",color:C.textDim,padding:4,display:'flex'}}><X size={16}/></button>
         </div>
@@ -3867,7 +3867,7 @@ function PortfolioPage({ accounts, setAccounts, hideBalances, setChatOpen, setCh
     <Card title="Accounts & Positions" style={{marginBottom:24}}
       headerRight={
         <div style={{display:'flex',alignItems:'center',gap:8}}>
-          {stale && <span style={{fontSize:12,color:C.yellow}}>⚠ Prices may be stale</span>}
+          {stale && <span style={{fontSize:12,color:C.yellow,display:'flex',alignItems:'center',gap:3}}><AlertTriangle size={12}/> Prices may be stale</span>}
           {lastFetched && !stale && <span style={{fontSize:12,color:C.textDim}}>prices at {lastFetched.toLocaleTimeString('de-CH',{hour:'2-digit',minute:'2-digit'})}</span>}
           {allTickers.length>0 && <button onClick={refresh} disabled={quotesLoading} style={{display:'flex',alignItems:'center',gap:4,padding:'5px 10px',borderRadius:6,border:`1px solid ${C.border}`,background:'transparent',color:quotesLoading?C.textDim:C.accentLight,fontSize:13,cursor:quotesLoading?'not-allowed':'pointer'}}>
             <RefreshCw size={12}/>{quotesLoading?'Loading…':'Refresh'}
@@ -4169,8 +4169,8 @@ function AISettingsPage() {
                 <div style={{flex:1}}>
                   <div style={{fontSize:13,fontWeight:600,color:C.text,display:'flex',alignItems:'center',gap:8}}>
                     {p.label}
-                    {p.cloud && <span style={{fontSize:10,padding:'1px 6px',borderRadius:8,background:C.orange+'22',color:C.orange,fontWeight:700}}>☁ Cloud</span>}
-                    {!p.cloud && p.id!=='auto' && <span style={{fontSize:10,padding:'1px 6px',borderRadius:8,background:C.green+'22',color:C.green,fontWeight:700}}>🔒 Local</span>}
+                    {p.cloud && <span style={{fontSize:10,padding:'1px 6px',borderRadius:8,background:C.orange+'22',color:C.orange,fontWeight:700,display:'inline-flex',alignItems:'center'}}><Cloud size={10} style={{marginRight:2}}/> Cloud</span>}
+                    {!p.cloud && p.id!=='auto' && <span style={{fontSize:10,padding:'1px 6px',borderRadius:8,background:C.green+'22',color:C.green,fontWeight:700,display:'inline-flex',alignItems:'center'}}><Lock size={10} style={{marginRight:2}}/> Local</span>}
                     {p.id==='ollama' && ollamaModels !== null && ollamaModels.length > 0 && <span style={{fontSize:10,padding:'1px 6px',borderRadius:8,background:C.green+'22',color:C.green}}>● running</span>}
                     {p.id==='ollama' && ollamaModels !== null && ollamaModels.length === 0 && <span style={{fontSize:10,padding:'1px 6px',borderRadius:8,background:C.red+'22',color:C.red}}>not detected</span>}
                   </div>
@@ -4512,7 +4512,7 @@ export default function FinanceApp() {
         {/* Mobile header bar */}
         {isMobile && <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:16}}>
           <button onClick={()=>setSidebarOpen(o=>!o)} style={{padding:"8px",borderRadius:8,border:`1px solid ${C.border}`,background:C.card,color:C.text,cursor:"pointer",display:"flex",alignItems:"center"}}>
-            <span style={{fontSize:18,lineHeight:1}}>☰</span>
+            <Menu size={18}/>
           </button>
           <h1 style={{fontSize:20,fontWeight:700,margin:0}}>{NAV.find(n=>n.id===page)?.label}</h1>
         </div>}
