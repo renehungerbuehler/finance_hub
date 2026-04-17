@@ -659,7 +659,7 @@ function OnboardingChecklist({ accounts, scenarios, subsP, yearly, profile, onbo
       case 'backup':
         (async () => {
           try {
-            const keys = ['accounts','scenarios','tracker','subscriptions_personal','yearly','taxes','insurance','settings','profile'];
+            const keys = ['accounts','scenarios','tracker','subscriptions_personal','yearly','taxes','insurance','settings','profile','transactions'];
             const out = {};
             for (const k of keys) { const r = await fetch(`${API_URL}/${k}`); out[k] = r.status === 404 ? null : await r.json(); }
             const ts = new Date().toISOString().slice(0,16).replace('T','_').replace(':','');
@@ -4384,8 +4384,10 @@ function AISettingsPage() {
 // ── Transactions Page ──
 function TransactionsPage({ transactions, setTransactions, hideBalances }) {
   const [importing, setImporting] = useState(false);
+  const [importProgress, setImportProgress] = useState('');
   const [importPreview, setImportPreview] = useState(null);
   const [importName, setImportName] = useState('');
+  const [importError, setImportError] = useState(null);
   const [filter, setFilter] = useState({ search: '', category: '', dateFrom: '', dateTo: '' });
   const [sort, setSort] = useState({ col: 'date', asc: false });
   const [editingRules, setEditingRules] = useState(false);
@@ -4453,68 +4455,116 @@ function TransactionsPage({ transactions, setTransactions, hideBalances }) {
     });
   };
 
-  const DEFAULT_TXN_PROMPT = `You are a financial data parser. Given a bank statement file (CSV, XLSX, or PDF), do the following:
-1. Auto-detect the file format and column mapping.
-2. Extract every transaction row.
-3. Categorize each transaction into one of these categories: ${allCategories.join(', ')}.
-4. Apply these user-defined category rules first (exact description match overrides AI): ${JSON.stringify(transactions.categoryRules || [])}.
-5. Return ONLY valid JSON (no markdown, no explanation) in this exact format:
-{
-  "currency": "CHF",
-  "transactions": [
-    { "date": "YYYY-MM-DD", "description": "Merchant name", "amount": -12.50, "fee": 0, "category": "Category", "type": "Card Payment" }
-  ]
-}
-Negative amounts = expenses. Positive = income. Keep original sign from the data. Use the completed/settled date. Type should reflect the original transaction type from the statement.`;
+  const DEFAULT_TXN_PROMPT = `You are a financial data extractor. Parse the attached bank statement and extract every transaction.
+
+Respond with ONLY a raw JSON object — no explanation, no markdown, no code fences, no extra text before or after. Just the JSON.
+
+Required JSON shape:
+{"currency":"CHF","transactions":[{"date":"YYYY-MM-DD","description":"Merchant name","amount":-12.50,"fee":0,"category":"Category","type":"Card Payment"}]}
+
+Rules:
+- date: use the completed/settled date in YYYY-MM-DD format
+- description: merchant or transfer description as shown
+- amount: negative for expenses, positive for income. Keep original sign from the data.
+- fee: any fee charged, 0 if none
+- category: assign one of these categories: ${allCategories.join(', ')}
+- type: original transaction type from the statement (e.g. Card Payment, Transfer, Charge)
+- Auto-detect the file format and column mapping
+- Apply these user-defined category rules first (exact description match): ${JSON.stringify(transactions.categoryRules || [])}
+- IMPORTANT: Return ONLY the JSON object. No text before or after.`;
+
+  const streamChat = async (message, attachments) => {
+    const resp = await fetch(`${API_URL}/chat`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message, context: {}, history: [], attachments }) });
+    if (!resp.ok) throw new Error('API returned ' + resp.status);
+    const reader = resp.body.getReader(); const dec = new TextDecoder(); let buf = '', fullText = '', done = false;
+    while (!done) { const chunk = await reader.read(); done = chunk.done; if (chunk.value) buf += dec.decode(chunk.value, { stream: true }); const lines = buf.split('\n'); buf = lines.pop(); for (const line of lines) { if (!line.startsWith('data: ')) continue; const p = line.slice(6); if (p === '[DONE]') { done = true; break; } try { const d = JSON.parse(p); if (d.text) fullText += d.text; else if (d.error) fullText = 'API Error: ' + d.error; } catch {} } }
+    const cleaned = fullText.replace(/```(?:json)?\s*/gi, '').replace(/```/g, '').trim();
+    const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) throw new Error('AI did not return valid JSON. Response: ' + cleaned.slice(0, 200));
+    return JSON.parse(jsonMatch[0]);
+  };
+
+  const BATCH_SIZE = 100;
 
   const handleImport = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
     e.target.value = '';
     setImporting(true);
+    setImportProgress('Reading file…');
 
     try {
-      let content = '';
-      let mediaType = 'text/plain';
       const ext = file.name.split('.').pop().toLowerCase();
+      let csvText = '';
 
       if (['xlsx', 'xls'].includes(ext)) {
         const XLSX = (await import('xlsx')).default;
         const buf = await file.arrayBuffer();
         const wb = XLSX.read(buf, { type: 'array' });
-        content = btoa(XLSX.utils.sheet_to_csv(wb.Sheets[wb.SheetNames[0]]));
-        mediaType = 'text/csv';
+        csvText = XLSX.utils.sheet_to_csv(wb.Sheets[wb.SheetNames[0]]);
       } else if (ext === 'pdf') {
-        content = btoa(String.fromCharCode(...new Uint8Array(await file.arrayBuffer())));
-        mediaType = 'application/pdf';
+        // PDFs can't be split into rows — send as single batch
+        const bytes = new Uint8Array(await file.arrayBuffer());
+        let bin = ''; bytes.forEach(b => bin += String.fromCharCode(b));
+        setImportProgress('Processing PDF…');
+        const prompt = transactions.prompt || DEFAULT_TXN_PROMPT;
+        const parsed = await streamChat(prompt, [{ name: file.name, type: 'application/pdf', data: btoa(bin), size: file.size }]);
+        parsed.transactions = (parsed.transactions || []).map(t => ({ ...t, id: t.id || uid() }));
+        setImportPreview(parsed);
+        setImportName(file.name.replace(/\.[^.]+$/, ''));
+        return;
       } else {
-        content = btoa(await file.text());
-        mediaType = 'text/csv';
+        csvText = await file.text();
       }
 
-      const prompt = transactions.prompt || DEFAULT_TXN_PROMPT;
-      const res = await fetch(`${API_URL}/chat`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          messages: [{ role: 'user', content: prompt }],
-          attachments: [{ name: file.name, type: mediaType, data: content }],
-        }),
-      });
+      // Split CSV into header + row batches
+      const lines = csvText.split('\n');
+      const header = lines[0];
+      const dataRows = lines.slice(1).filter(l => l.trim());
+      const totalRows = dataRows.length;
 
-      const data = await res.json();
-      const text = data.choices?.[0]?.message?.content || data.content?.[0]?.text || data.message?.content || '';
-      const jsonMatch = text.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) throw new Error('AI did not return valid JSON');
-      const parsed = JSON.parse(jsonMatch[0]);
+      if (totalRows <= BATCH_SIZE) {
+        // Small file — single request
+        setImportProgress(`Processing ${totalRows} transactions…`);
+        const bytes = new TextEncoder().encode(csvText);
+        let bin = ''; bytes.forEach(b => bin += String.fromCharCode(b));
+        const prompt = transactions.prompt || DEFAULT_TXN_PROMPT;
+        const parsed = await streamChat(prompt, [{ name: file.name, type: 'text/csv', data: btoa(bin), size: csvText.length }]);
+        parsed.transactions = (parsed.transactions || []).map(t => ({ ...t, id: t.id || uid() }));
+        setImportPreview(parsed);
+        setImportName(file.name.replace(/\.[^.]+$/, ''));
+      } else {
+        // Large file — split into batches and process in parallel
+        const batches = [];
+        for (let i = 0; i < totalRows; i += BATCH_SIZE) {
+          const chunk = dataRows.slice(i, i + BATCH_SIZE);
+          batches.push(header + '\n' + chunk.join('\n'));
+        }
 
-      parsed.transactions = (parsed.transactions || []).map(t => ({ ...t, id: t.id || crypto.randomUUID() }));
-      setImportPreview(parsed);
-      setImportName(file.name.replace(/\.[^.]+$/, ''));
+        const prompt = transactions.prompt || DEFAULT_TXN_PROMPT;
+        const results = [];
+
+        for (let idx = 0; idx < batches.length; idx++) {
+          setImportProgress(`Processing batch ${idx + 1}/${batches.length} (${Math.min((idx + 1) * BATCH_SIZE, totalRows)}/${totalRows} transactions)…`);
+          const batchCsv = batches[idx];
+          const bytes = new TextEncoder().encode(batchCsv);
+          let bin = ''; bytes.forEach(b => bin += String.fromCharCode(b));
+          const result = await streamChat(prompt, [{ name: `${file.name}_batch${idx + 1}.csv`, type: 'text/csv', data: btoa(bin), size: batchCsv.length }]);
+          results.push(result);
+        }
+
+        // Merge all batch results
+        const allTxns = results.flatMap(r => (r.transactions || []));
+        const currency = results[0]?.currency || 'CHF';
+        const merged = { currency, transactions: allTxns.map(t => ({ ...t, id: t.id || uid() })) };
+        setImportPreview(merged);
+        setImportName(file.name.replace(/\.[^.]+$/, ''));
+      }
     } catch (err) {
-      alert('Import failed: ' + err.message);
+      setImportError(err.message);
     } finally {
       setImporting(false);
+      setImportProgress('');
     }
   };
 
@@ -4537,7 +4587,7 @@ Negative amounts = expenses. Positive = income. Keep original sign from the data
         if (imp.transactions.length > 0) merged.push(imp);
       }
       merged.push({
-        id: crypto.randomUUID(),
+        id: uid(),
         name: importName || 'Imported Statement',
         importedAt: new Date().toISOString(),
         currency: importPreview.currency || 'CHF',
@@ -4548,6 +4598,24 @@ Negative amounts = expenses. Positive = income. Keep original sign from the data
     });
     setImportPreview(null);
     setImportName('');
+  };
+
+  const [confirmDeleteAll, setConfirmDeleteAll] = useState(false);
+
+  const deleteTxn = (txnId) => {
+    setTransactions(prev => {
+      const next = JSON.parse(JSON.stringify(prev));
+      for (const imp of next.imports) {
+        imp.transactions = imp.transactions.filter(t => t.id !== txnId);
+      }
+      next.imports = next.imports.filter(imp => imp.transactions.length > 0);
+      return next;
+    });
+  };
+
+  const deleteAllTxns = () => {
+    setTransactions(prev => ({ ...prev, imports: [] }));
+    setConfirmDeleteAll(false);
   };
 
   const deleteRule = (idx) => {
@@ -4576,24 +4644,70 @@ Negative amounts = expenses. Positive = income. Keep original sign from the data
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
       <h2 style={{ margin: 0, fontSize: 22, fontWeight: 600 }}>Transactions</h2>
       <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-        <button onClick={() => setPromptOpen(true)} title="Edit import prompt" style={{ background: 'transparent', border: `1px solid ${C.border}`, color: C.textMuted, borderRadius: 8, padding: '6px 8px', cursor: 'pointer' }}><Settings size={15}/></button>
+        <button onClick={() => setPromptOpen(true)} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 10px', borderRadius: 6, border: `1px solid ${C.border}`, background: 'transparent', cursor: 'pointer', color: transactions.prompt ? C.accentLight : C.textMuted, fontSize: 12 }}><Sparkles size={12}/>Import Prompt{transactions.prompt ? ' ✓' : ''}</button>
         <button onClick={() => setEditingRules(!editingRules)} title="Category rules" style={{ background: 'transparent', border: `1px solid ${C.border}`, color: C.textMuted, borderRadius: 8, padding: '6px 8px', cursor: 'pointer' }}><ClipboardList size={15}/></button>
+        {allTxns.length > 0 && (confirmDeleteAll
+          ? <span style={{ display: 'flex', gap: 4, alignItems: 'center', fontSize: 12 }}>
+              <span style={{ color: C.textMuted }}>Delete all?</span>
+              <button onClick={deleteAllTxns} style={{ background: C.red, color: '#fff', border: 'none', borderRadius: 6, padding: '4px 10px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>Yes</button>
+              <button onClick={() => setConfirmDeleteAll(false)} style={{ background: 'transparent', border: `1px solid ${C.border}`, color: C.textMuted, borderRadius: 6, padding: '4px 10px', fontSize: 12, cursor: 'pointer' }}>No</button>
+            </span>
+          : <button onClick={() => setConfirmDeleteAll(true)} title="Delete all transactions" style={{ background: 'transparent', border: `1px solid ${C.border}`, color: C.red, borderRadius: 8, padding: '6px 8px', cursor: 'pointer', opacity: 0.7 }}><Trash2 size={15}/></button>
+        )}
         <button onClick={() => fileRef.current?.click()} disabled={importing} style={{ background: C.accent, color: '#000', border: 'none', borderRadius: 8, padding: '7px 16px', fontWeight: 600, fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, opacity: importing ? 0.6 : 1 }}>
-          <Upload size={14}/> {importing ? 'Importing…' : 'Import Statement'}
+          <Upload size={14}/> {importing ? (importProgress || 'Importing…') : 'Import Statement'}
         </button>
         <input ref={fileRef} type="file" accept=".csv,.xlsx,.xls,.pdf" onChange={handleImport} style={{ display: 'none' }} />
       </div>
     </div>
 
     {/* Prompt edit modal */}
-    {promptOpen && <div onClick={() => setPromptOpen(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
-      <div onClick={e => e.stopPropagation()} style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, width: '100%', maxWidth: 700, padding: 24, maxHeight: '80vh', overflowY: 'auto' }}>
-        <h3 style={{ margin: '0 0 12px', fontSize: 16 }}>Transaction Import Prompt</h3>
-        <textarea value={transactions.prompt || DEFAULT_TXN_PROMPT} onChange={e => setTransactions(prev => ({ ...prev, prompt: e.target.value }))} style={{ width: '100%', minHeight: 200, background: C.input, color: C.text, border: `1px solid ${C.border}`, borderRadius: 8, padding: 10, fontSize: 12, fontFamily: 'monospace', resize: 'vertical' }} />
-        <div style={{ display: 'flex', gap: 8, marginTop: 12, justifyContent: 'flex-end' }}>
-          <button onClick={() => setTransactions(prev => ({ ...prev, prompt: '' }))} style={{ background: 'transparent', border: `1px solid ${C.border}`, color: C.textMuted, borderRadius: 8, padding: '6px 14px', cursor: 'pointer', fontSize: 12 }}>Reset to Default</button>
-          <button onClick={() => setPromptOpen(false)} style={{ background: C.accent, color: '#000', border: 'none', borderRadius: 8, padding: '6px 14px', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>Done</button>
+    {promptOpen && <div onClick={() => setPromptOpen(false)} style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.7)',zIndex:200,display:'flex',alignItems:'center',justifyContent:'center',padding:24}}>
+      <div onClick={e => e.stopPropagation()} style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:16,width:'100%',maxWidth:1140,maxHeight:'84vh',overflowY:'auto',padding:28,boxShadow:'0 24px 80px rgba(0,0,0,0.6)'}}>
+        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:8}}>
+          <h2 style={{margin:0,fontSize:18,fontWeight:700,color:C.text}}>Transaction Import Prompt</h2>
+          <button onClick={() => setPromptOpen(false)} style={{background:'transparent',border:'none',cursor:'pointer',color:C.textDim}}><X size={18}/></button>
         </div>
+        <p style={{margin:'0 0 12px',fontSize:13,color:C.textDim}}>
+          Customise the AI prompt used when importing bank statements. Leave blank to use the built-in default.
+          Category rules are always appended automatically.
+        </p>
+        <div style={{display:'flex',gap:8,marginBottom:10}}>
+          <button onClick={() => setTransactions(prev => ({ ...prev, prompt: DEFAULT_TXN_PROMPT }))}
+            style={{padding:'6px 12px',borderRadius:6,border:`1px solid ${C.border}`,background:'transparent',color:C.textMuted,fontSize:13,cursor:'pointer'}}>
+            Load default
+          </button>
+          <button onClick={() => setTransactions(prev => ({ ...prev, prompt: '' }))}
+            style={{padding:'6px 12px',borderRadius:6,border:`1px solid ${C.border}`,background:'transparent',color:C.textMuted,fontSize:13,cursor:'pointer'}}>
+            Reset to blank
+          </button>
+        </div>
+        <textarea
+          value={transactions.prompt || DEFAULT_TXN_PROMPT}
+          onChange={e => setTransactions(prev => ({ ...prev, prompt: e.target.value }))}
+          placeholder="Leave blank to use the built-in default transaction import prompt…"
+          rows={28}
+          style={{width:'100%',padding:'10px 12px',borderRadius:8,border:`1px solid ${C.border}`,background:C.bg,color:C.text,
+            fontSize:13,outline:'none',resize:'vertical',boxSizing:'border-box',fontFamily:"'DM Mono',monospace",lineHeight:1.5}}
+        />
+        {transactions.prompt && <div style={{marginTop:6,fontSize:12,color:C.green}}>✓ Custom import prompt active — will be used instead of the default.</div>}
+        <button onClick={() => setPromptOpen(false)} style={{width:'100%',padding:'11px',borderRadius:8,border:'none',background:C.accent,color:'#fff',fontSize:14,fontWeight:600,cursor:'pointer',marginTop:12}}>
+          Save & Close
+        </button>
+      </div>
+    </div>}
+
+    {/* Import error modal */}
+    {importError && <div onClick={() => setImportError(null)} style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.7)',zIndex:200,display:'flex',alignItems:'center',justifyContent:'center',padding:24}}>
+      <div onClick={e => e.stopPropagation()} style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:16,width:'100%',maxWidth:480,padding:28,boxShadow:'0 24px 80px rgba(0,0,0,0.6)'}}>
+        <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:12}}>
+          <AlertTriangle size={20} style={{color:C.red,flexShrink:0}}/>
+          <h2 style={{margin:0,fontSize:18,fontWeight:700,color:C.text}}>Import Failed</h2>
+        </div>
+        <p style={{margin:'0 0 16px',fontSize:13,color:C.textMuted,lineHeight:1.5}}>{importError}</p>
+        <button onClick={() => setImportError(null)} style={{width:'100%',padding:'11px',borderRadius:8,border:'none',background:C.accent,color:'#fff',fontSize:14,fontWeight:600,cursor:'pointer'}}>
+          OK
+        </button>
       </div>
     </div>}
 
@@ -4735,6 +4849,7 @@ Negative amounts = expenses. Positive = income. Keep original sign from the data
             <SortTH col="amount" style={{ textAlign: 'right' }}>Amount</SortTH>
             <SortTH col="category">Category</SortTH>
             <SortTH col="type">Type</SortTH>
+            <th style={{ padding: '8px 10px', width: 32, borderBottom: `1px solid ${C.border}` }}></th>
           </tr></thead>
           <tbody>{filtered.map(t => <tr key={t.id} style={{ borderBottom: `1px solid ${C.border}22` }}>
             <td style={{ padding: '7px 10px', whiteSpace: 'nowrap', fontSize: 13 }}>{t.date}</td>
@@ -4746,6 +4861,7 @@ Negative amounts = expenses. Positive = income. Keep original sign from the data
               </select>
             </td>
             <td style={{ padding: '7px 10px', color: C.textMuted, fontSize: 12 }}>{t.type}</td>
+            <td style={{ padding: '7px 4px', textAlign: 'right' }}><button onClick={() => deleteTxn(t.id)} style={{ background: 'transparent', border: 'none', color: C.red, cursor: 'pointer', padding: 2, opacity: 0.5 }}><Trash2 size={13}/></button></td>
           </tr>)}</tbody>
         </table>
       </div>
@@ -4974,7 +5090,7 @@ export default function FinanceApp() {
         {/* Export / Import */}
         {sidebarOpen && <div style={{display:"flex",gap:4,marginTop:6}}>
           <button onClick={async()=>{
-            const keys=['accounts','scenarios','tracker','subscriptions_personal','yearly','taxes','insurance','settings','profile','ai_analysis'];
+            const keys=['accounts','scenarios','tracker','subscriptions_personal','yearly','taxes','insurance','settings','profile','ai_analysis','transactions'];
             const out={};
             for(const k of keys){ const r=await fetch(`${API_URL}/${k}`); out[k]=r.status===404?null:await r.json(); }
             const ts=new Date().toISOString().slice(0,16).replace('T','_').replace(':','');
