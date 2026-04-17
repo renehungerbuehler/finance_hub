@@ -3606,7 +3606,7 @@ function ChatPanel({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes,
             You are using <strong style={{color:C.accent}}>{aiProvider?.label || 'a cloud AI provider'}</strong>. Your financial context — balances, income, expenses, and scenarios — is sent with each message.
           </div>
           <div style={{fontSize:12,color:C.green,lineHeight:1.6,marginBottom:10,padding:'10px 14px',background:C.green+'15',borderRadius:9,border:`1px solid ${C.green}33`}}>
-            🛡 <strong>PII masked automatically.</strong> Names, AHV, IBAN, email, phone, and addresses are replaced with placeholders (PERSON_1, AHV_1…) before leaving this server. The provider never sees your identity. Real values are restored in the response shown to you.
+            <strong>PII masked automatically.</strong> Names, AHV, IBAN, email, phone, and addresses are replaced with placeholders (PERSON_1, AHV_1…) before leaving this server. The provider never sees your identity. Real values are restored in the response shown to you.
           </div>
           <div style={{fontSize:12,color:C.orange,lineHeight:1.6,marginBottom:10,padding:'10px 14px',background:C.orange+'15',borderRadius:9,border:`1px solid ${C.orange}33`}}>
             ⚠ <strong>File attachments are not fully masked.</strong> PDFs and images go to the provider as-is — anything written inside them (names, numbers, signatures) will be visible. Text files (CSV/JSON/TXT) get the regex pass but random names inside may slip through. Strip sensitive data before uploading if that matters to you.
@@ -3630,7 +3630,7 @@ function ChatPanel({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes,
             ? <span style={{fontSize:10,padding:'1px 7px',borderRadius:9,background:C.green+'22',color:C.green,fontWeight:700}}>🔒 Local</span>
             : aiProvider?.provider && <>
                 <span style={{fontSize:10,padding:'1px 7px',borderRadius:9,background:C.orange+'22',color:C.orange,fontWeight:700}}>☁ {aiProvider.label}</span>
-                <span title="Names, AHV, IBAN, email, phone and addresses are replaced with placeholders before leaving this server. The cloud provider never sees your real identity." style={{fontSize:10,padding:'1px 7px',borderRadius:9,background:C.green+'22',color:C.green,fontWeight:700,cursor:'help'}}>🛡 PII masked</span>
+                <span title="Names, AHV, IBAN, email, phone and addresses are replaced with placeholders before leaving this server. The cloud provider never sees your real identity." style={{fontSize:10,padding:'1px 7px',borderRadius:9,background:C.green+'22',color:C.green,fontWeight:700,cursor:'help'}}>PII masked</span>
               </>
           }
         </div>
