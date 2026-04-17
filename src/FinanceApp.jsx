@@ -4400,6 +4400,24 @@ function TransactionsPage({ transactions, setTransactions, hideBalances }) {
 
   const allTxns = (transactions.imports || []).flatMap(imp => imp.transactions.map(t => ({ ...t, importName: imp.name, currency: imp.currency })));
 
+  // FX rates for currency conversion to CHF
+  const [fxRates, setFxRates] = useState({ CHF: 1 });
+  useEffect(() => {
+    const currencies = [...new Set(allTxns.map(t => t.currency).filter(c => c && c !== 'CHF'))];
+    if (!currencies.length) return;
+    const symbols = currencies.map(c => c + 'CHF=X').join(',');
+    fetch(`${API_URL}/market/quotes?symbols=${symbols}`).then(r => r.json()).then(d => {
+      const fx = { CHF: 1 };
+      for (const c of currencies) { const key = c + 'CHF=X'; if (d.quotes?.[key]?.currentPrice) fx[c] = d.quotes[key].currentPrice; }
+      setFxRates(fx);
+    }).catch(() => {});
+  }, [allTxns.length]);
+  const toCHF = (amount, currency) => {
+    if (!currency || currency === 'CHF') return amount;
+    const rate = fxRates[currency];
+    return rate ? amount * rate : amount;
+  };
+
   const filtered = useMemo(() => {
     let list = allTxns;
     if (filter.search) { const s = filter.search.toLowerCase(); list = list.filter(t => t.description.toLowerCase().includes(s) || (t.category||'').toLowerCase().includes(s)); }
@@ -4416,12 +4434,14 @@ function TransactionsPage({ transactions, setTransactions, hideBalances }) {
     return list;
   }, [allTxns, filter, sort]);
 
-  const totalIncome = filtered.filter(t => t.amount > 0).reduce((s, t) => s + t.amount, 0);
-  const totalExpenses = filtered.filter(t => t.amount < 0).reduce((s, t) => s + Math.abs(t.amount), 0);
+  const totalIncome = filtered.filter(t => t.amount > 0).reduce((s, t) => s + toCHF(t.amount, t.currency), 0);
+  const totalExpenses = filtered.filter(t => t.amount < 0).reduce((s, t) => s + Math.abs(toCHF(t.amount, t.currency)), 0);
   const net = totalIncome - totalExpenses;
   const categoryTotals = {};
-  filtered.filter(t => t.amount < 0).forEach(t => { categoryTotals[t.category || 'Other'] = (categoryTotals[t.category || 'Other'] || 0) + Math.abs(t.amount); });
+  filtered.filter(t => t.amount < 0).forEach(t => { categoryTotals[t.category || 'Other'] = (categoryTotals[t.category || 'Other'] || 0) + Math.abs(toCHF(t.amount, t.currency)); });
   const topCategory = Object.entries(categoryTotals).sort((a, b) => b[1] - a[1])[0];
+  const hasMultipleCurrencies = new Set(allTxns.map(t => t.currency).filter(Boolean)).size > 1;
+  const hasNonCHF = allTxns.some(t => t.currency && t.currency !== 'CHF');
 
   const pieData = Object.entries(categoryTotals).map(([name, value]) => ({ name, value: Math.round(value * 100) / 100 })).sort((a, b) => b.value - a.value);
   const PIE_COLORS = [C.accent, C.green, C.blue, C.teal, C.orange, C.red, '#8884d8', '#82ca9d', '#ffc658', '#ff7c43', '#665191'];
@@ -4432,7 +4452,7 @@ function TransactionsPage({ transactions, setTransactions, hideBalances }) {
       const m = t.date.slice(0, 7);
       if (!months[m]) months[m] = {};
       const cat = t.category || 'Other';
-      months[m][cat] = (months[m][cat] || 0) + Math.abs(t.amount);
+      months[m][cat] = (months[m][cat] || 0) + Math.abs(toCHF(t.amount, t.currency));
     });
     return Object.entries(months).sort((a, b) => a[0].localeCompare(b[0])).map(([month, cats]) => ({ month, ...cats }));
   }, [filtered]);
@@ -4842,7 +4862,7 @@ Rules:
         { label: 'Net', value: net, color: net >= 0 ? C.green : C.red },
         { label: 'Top Category', value: topCategory ? topCategory[1] : 0, color: C.accent, sub: topCategory ? topCategory[0] : '-' },
       ].map((s, i) => <div key={i} style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: '14px 16px' }}>
-        <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.5 }}>{s.label}</div>
+        <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.5 }}>{s.label}{hasNonCHF ? ' (CHF)' : ''}</div>
         <div style={{ fontSize: 20, fontWeight: 600, color: s.color }}>{fmt(s.value)}</div>
         {s.sub && <div style={{ fontSize: 11, color: C.textDim, marginTop: 2 }}>{s.sub}</div>}
       </div>)}
@@ -4890,7 +4910,10 @@ Rules:
           <tbody>{filtered.map(t => <tr key={t.id} style={{ borderBottom: `1px solid ${C.border}22` }}>
             <td style={{ padding: '7px 10px', whiteSpace: 'nowrap', fontSize: 13 }}>{t.date}</td>
             <td style={{ padding: '7px 10px', fontSize: 13 }}>{t.description}</td>
-            <td style={{ padding: '7px 10px', textAlign: 'right', fontWeight: 500, fontSize: 13, color: t.amount < 0 ? C.red : C.green, fontVariantNumeric: 'tabular-nums' }}>{hideBalances ? '•••' : `${t.amount < 0 ? '' : '+'}${t.amount.toFixed(2)}`} {t.currency}</td>
+            <td style={{ padding: '7px 10px', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+              <div style={{ fontWeight: 500, fontSize: 13, color: t.amount < 0 ? C.red : C.green }}>{hideBalances ? '•••' : `${t.amount < 0 ? '' : '+'}${t.amount.toFixed(2)}`} {t.currency}</div>
+              {t.currency && t.currency !== 'CHF' && fxRates[t.currency] && !hideBalances && <div style={{ fontSize: 11, color: C.textDim }}>{toCHF(t.amount, t.currency) < 0 ? '' : '+'}{toCHF(t.amount, t.currency).toFixed(2)} CHF</div>}
+            </td>
             <td style={{ padding: '7px 10px' }}>
               <select value={t.category || 'Other'} onChange={e => handleCategoryChange(t.id, e.target.value)} style={{ background: C.input, color: C.text, border: `1px solid ${C.border}`, borderRadius: 4, padding: '2px 6px', fontSize: 12, cursor: 'pointer' }}>
                 {allCategories.map(c => <option key={c} value={c}>{c}</option>)}
