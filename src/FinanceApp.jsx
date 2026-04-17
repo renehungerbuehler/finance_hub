@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useCallback, useEffect, useRef } from "react";
-import { PieChart, Pie, Cell, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, BarChart, Bar, ResponsiveContainer, AreaChart, Area, ComposedChart, ReferenceLine } from "recharts";
+import { PieChart, Pie, Cell, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, BarChart, Bar, ResponsiveContainer, AreaChart, Area, ComposedChart } from "recharts";
 import { LayoutDashboard, Target, TrendingUp, Activity, CreditCard, Shield, Plus, Pencil, Trash2, Check, X, DollarSign, Wallet, PiggyBank, BarChart3, GripVertical, Power, Sparkles, AlertTriangle, ArrowUpRight, Info, Lightbulb, ShieldCheck, Landmark, Paperclip, Upload, Download, Sun, Moon, ChevronLeft, ChevronRight, User, Building2, Eye, EyeOff, RefreshCw, ChevronDown, MessageSquarePlus, ExternalLink, Maximize2, Minimize2, BookOpen, Settings, Key, Bot, WifiOff, Lock, Cloud, Pin, ClipboardList, Menu } from "lucide-react";
 import { jsPDF } from "jspdf";
 
@@ -2037,16 +2037,18 @@ function TrackerPage({ tracker, setTracker, accounts: portfolioAccounts, hideBal
   const mask = (v) => hideBalances ? "••••" : v;
   const winW = useWindowWidth(); const isMobile = winW < 768;
   const sortedYears = Object.keys(tracker).map(Number).sort((a,b)=>b-a);
-  const [selYear, setSelYear] = useState(sortedYears[0] || 2026);
+  const allYearsSorted = Object.keys(tracker).map(Number).sort((a,b)=>a-b);
+  const [startYear, setStartYear] = useState(allYearsSorted[0] || 2023);
+  const [endYear, setEndYear] = useState(sortedYears[0] || 2026);
   const [view, setView] = useState("grid");
   const [growthRate, setGrowthRate] = useState(5);
   const [monthlyAdd, setMonthlyAdd] = useState(2854);
   const [years, setYears] = useState(10);
 
-  const rows = tracker[selYear] || [];
-  const currentMonth = new Date().getMonth(); // 0-indexed
+  const rangeYears = Object.keys(tracker).map(Number).filter(y => y >= startYear && y <= endYear).sort((a,b)=>a-b);
+  const currentMonth = new Date().getMonth();
   const currentYear = new Date().getFullYear();
-  const [editCell, setEditCell] = useState(null); // {rowId, mi}
+  const [editCell, setEditCell] = useState(null); // {name, year, mi}
   const [editVal, setEditVal] = useState("");
   const [sortAsc, setSortAsc] = useState(null); // null=unsorted, true=asc, false=desc
 
@@ -2055,7 +2057,7 @@ function TrackerPage({ tracker, setTracker, accounts: portfolioAccounts, hideBal
     const balanceMap = Object.fromEntries(portfolioAccounts.map(a => [a.name, a.balance]));
     setTracker(p => ({
       ...p,
-      [selYear]: (p[selYear] || []).map(row => {
+      [currentYear]: (p[currentYear] || []).map(row => {
         const bal = balanceMap[row.name];
         if (bal == null) return row;
         const results = [...row.results];
@@ -2068,14 +2070,14 @@ function TrackerPage({ tracker, setTracker, accounts: portfolioAccounts, hideBal
 
   const addYear = () => {
     const newYear = Math.max(...Object.keys(tracker).map(Number)) + 1;
-    // seed startBal from last known result of previous year, carry names + recurring
     const prevRows = tracker[newYear - 1] || [];
     const newRows = prevRows.map(a => {
       const lastResult = [...a.results].reverse().find(r => r !== null);
       return { ...a, id: uid(), startBal: lastResult ?? a.startBal, results: Array(12).fill(null) };
     });
     setTracker(p => ({ ...p, [newYear]: newRows }));
-    setSelYear(newYear);
+    setStartYear(newYear);
+    setEndYear(newYear);
   };
 
   const deleteYear = (yr) => {
@@ -2085,23 +2087,66 @@ function TrackerPage({ tracker, setTracker, accounts: portfolioAccounts, hideBal
       delete next[yr];
       return next;
     });
-    if (selYear === yr) {
-      const remaining = Object.keys(tracker).map(Number).filter(y => y !== yr).sort((a,b) => b-a);
-      if (remaining.length) setSelYear(remaining[0]);
+    const remaining = Object.keys(tracker).map(Number).filter(y => y !== yr).sort((a,b) => a-b);
+    if (remaining.length) {
+      if (startYear === yr) setStartYear(remaining[0]);
+      if (endYear === yr) setEndYear(remaining[remaining.length - 1]);
     }
   };
 
-  const computed = useMemo(()=>{
-    const base = rows.map(a=>{
-      const f=[]; for(let m=0;m<12;m++){ if(m===0) f.push(a.startBal); else if(m<a.activeUntil) f.push(f[m-1]+a.recurring); else f.push(f[m-1]); }
-      return {...a, values:f};
-    });
-    if(sortAsc === null) return base;
-    return [...base].sort((a,b) => sortAsc ? a.name.localeCompare(b.name) : b.name.localeCompare(a.name));
-  },[rows, sortAsc]);
+  // Build column definitions for the range
+  const columns = useMemo(() =>
+    rangeYears.flatMap(yr => MONTHS.map((m, mi) => ({
+      year: yr, month: m, mi, label: rangeYears.length > 1 ? `${m.slice(0,3)} '${String(yr).slice(2)}` : m,
+      isCurrent: yr === currentYear && mi === currentMonth,
+      isJan: mi === 0,
+    }))),
+    [rangeYears.join(","), currentYear, currentMonth]
+  );
 
-  const upd = (id,fn)=>setTracker(p=>({...p,[selYear]:p[selYear].map(a=>a.id===id?fn({...a}):a)}));
-  const delRow = (id)=>setTracker(p=>({...p,[selYear]:p[selYear].filter(a=>a.id!==id)}));
+  // Build unified account data across range years
+  const multiYearAccounts = useMemo(() => {
+    const accountNames = [];
+    const seen = new Set();
+    rangeYears.forEach(yr => (tracker[yr] || []).forEach(a => {
+      if (!seen.has(a.name)) { seen.add(a.name); accountNames.push(a.name); }
+    }));
+
+    const accounts = accountNames.map(name => {
+      const yearData = rangeYears.map(yr => {
+        const row = (tracker[yr] || []).find(r => r.name === name);
+        if (!row) return { forecast: Array(12).fill(null), results: Array(12).fill(null), active: true, row: null, year: yr };
+        const f = [];
+        for (let m = 0; m < 12; m++) {
+          if (m === 0) f.push(row.startBal);
+          else if (m < (row.activeUntil ?? 12)) f.push(f[m-1] + (row.recurring ?? 0));
+          else f.push(f[m-1]);
+        }
+        return { forecast: f, results: row.results, active: row.active !== false, row, year: yr };
+      });
+
+      const active = yearData.some(d => d.active);
+      return { name, yearData, active };
+    });
+
+    if (sortAsc === null) return accounts;
+    return [...accounts].sort((a, b) => sortAsc ? a.name.localeCompare(b.name) : b.name.localeCompare(a.name));
+  }, [tracker, rangeYears.join(","), sortAsc]);
+
+  const upd = (year, name, fn) => setTracker(p => ({
+    ...p,
+    [year]: (p[year] || []).map(a => a.name === name ? fn({...a}) : a)
+  }));
+  const delRow = (name) => {
+    // Delete from all years in range
+    setTracker(p => {
+      const next = {...p};
+      rangeYears.forEach(yr => {
+        if (next[yr]) next[yr] = next[yr].filter(a => a.name !== name);
+      });
+      return next;
+    });
+  };
 
   // Auto-sync: keep tracker rows in sync with Accounts page
   useEffect(()=>{
@@ -2117,67 +2162,54 @@ function TrackerPage({ tracker, setTracker, accounts: portfolioAccounts, hideBal
   },[portfolioAccounts.map(a=>a.name).join(",")]);
 
   const debtNames = new Set(portfolioAccounts.filter(a=>a.type==="Debt").map(a=>a.name));
-  const totals = MONTHS.map((_,mi)=>({ month:MONTHS[mi], forecast:computed.filter(a=>a.active&&!debtNames.has(a.name)).reduce((s,a)=>s+a.values[mi],0), result:computed.filter(a=>a.active&&!debtNames.has(a.name)).reduce((s,a)=>s+(a.results[mi]??0),0), hasResult:computed.filter(a=>a.active&&!debtNames.has(a.name)).some(a=>a.results[mi]!==null) }));
+  const multiTotals = columns.map((col) => {
+    const yrIdx = rangeYears.indexOf(col.year);
+    let forecast = 0, result = 0, hasResult = false;
+    multiYearAccounts.forEach(acc => {
+      if (!acc.active || debtNames.has(acc.name)) return;
+      const yd = acc.yearData[yrIdx];
+      if (!yd) return;
+      forecast += yd.forecast[col.mi] ?? 0;
+      if (yd.results[col.mi] != null) { result += yd.results[col.mi]; hasResult = true; }
+    });
+    return { ...col, forecast, result, hasResult };
+  });
   const currentTotal = portfolioAccounts.filter(a=>a.type!=="Debt").reduce((s,a)=>s+a.balance,0);
-  const proj = useMemo(()=>{ const d=[]; let b=currentTotal; for(let y=0;y<=years;y++){ d.push({year:selYear+y,balance:Math.round(b),contributed:currentTotal+monthlyAdd*12*y}); b=(b+monthlyAdd*12)*(1+growthRate/100); } return d; },[growthRate,monthlyAdd,years,currentTotal,selYear]);
-
-  const multiYearData = useMemo(() => {
-    const trackedYears = Object.keys(tracker).map(Number).sort((a,b)=>a-b);
-    const historical = trackedYears.map(yr => {
-      const rows = tracker[yr] || [];
-      const activeRows = rows.filter(r => r.active !== false && !debtNames.has(r.name));
-      const withForecast = activeRows.map(a => {
-        const f = [];
-        for (let m = 0; m < 12; m++) {
-          if (m === 0) f.push(a.startBal);
-          else if (m < (a.activeUntil ?? 12)) f.push(f[m-1] + (a.recurring ?? 0));
-          else f.push(f[m-1]);
-        }
-        return { ...a, values: f };
-      });
-      const allHaveDecActual = withForecast.length > 0 && withForecast.every(r => r.results[11] !== null && r.results[11] !== undefined);
-      const decActual = allHaveDecActual ? withForecast.reduce((s, r) => s + (r.results[11] ?? 0), 0) : null;
-      const decForecast = withForecast.reduce((s, r) => s + r.values[11], 0);
-      return { year: yr, actual: decActual, forecast: decForecast };
-    });
-    const projYears = [];
-    let bal = currentTotal;
-    const startYear = new Date().getFullYear();
-    for (let y = 0; y <= years; y++) {
-      for (let m = 0; m < 12; m++) {
-        bal = (bal + monthlyAdd) * (1 + growthRate / 100 / 12);
-      }
-      projYears.push({ year: startYear + y + 1, projected: Math.round(bal) });
-    }
-    const allYears = new Map();
-    historical.forEach(h => allYears.set(h.year, { year: h.year, actual: h.actual, forecast: h.forecast }));
-    projYears.forEach(p => {
-      const existing = allYears.get(p.year) || { year: p.year };
-      allYears.set(p.year, { ...existing, projected: p.projected });
-    });
-    return Array.from(allYears.values()).sort((a,b) => a.year - b.year);
-  }, [tracker, currentTotal, growthRate, monthlyAdd, years]);
+  const proj = useMemo(()=>{ const d=[]; let b=currentTotal; for(let y=0;y<=years;y++){ d.push({year:endYear+y,balance:Math.round(b),contributed:currentTotal+monthlyAdd*12*y}); b=(b+monthlyAdd*12)*(1+growthRate/100); } return d; },[growthRate,monthlyAdd,years,currentTotal,endYear]);
 
   return <div>
-    {/* Year selector */}
+    {/* Year range selector */}
     <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:16,flexWrap:"wrap"}}>
-      {[...Object.keys(tracker).map(Number).sort((a,b)=>a-b)].map(yr=>(
+      <select value={startYear} onChange={e=>{const v=Number(e.target.value);setStartYear(v);if(v>endYear)setEndYear(v);}}
+        style={{padding:"6px 12px",borderRadius:8,border:`1px solid ${C.accent}`,background:C.card,color:C.text,fontSize:14,cursor:"pointer",outline:"none"}}>
+        {Object.keys(tracker).map(Number).sort((a,b)=>a-b).map(yr=>
+          <option key={yr} value={yr}>{yr}</option>
+        )}
+      </select>
+      <span style={{color:C.textDim,fontSize:14}}>to</span>
+      <select value={endYear} onChange={e=>{const v=Number(e.target.value);setEndYear(v);if(v<startYear)setStartYear(v);}}
+        style={{padding:"6px 12px",borderRadius:8,border:`1px solid ${C.accent}`,background:C.card,color:C.text,fontSize:14,cursor:"pointer",outline:"none"}}>
+        {Object.keys(tracker).map(Number).sort((a,b)=>a-b).map(yr=>
+          <option key={yr} value={yr}>{yr}</option>
+        )}
+      </select>
+      <span style={{width:8}}/>
+      {Object.keys(tracker).map(Number).sort((a,b)=>a-b).map(yr=>(
         <div key={yr} style={{display:"flex",alignItems:"center",gap:2}}>
-          <button onClick={()=>setSelYear(yr)} style={{padding:"6px 16px",borderRadius:8,border:`1px solid ${selYear===yr?C.accent:C.border}`,background:selYear===yr?C.accent+"18":C.card,color:selYear===yr?C.accentLight:C.textMuted,fontSize:14,fontWeight:selYear===yr?700:400,cursor:"pointer"}}>{yr}</button>
-          {yr !== currentYear && <button onClick={()=>deleteYear(yr)} style={{padding:"4px",borderRadius:6,border:"none",background:"transparent",color:C.textDim,cursor:"pointer",opacity:0.4,fontSize:12}} title={`Delete ${yr}`}><Trash2 size={12}/></button>}
+          <button onClick={()=>{setStartYear(yr);setEndYear(yr);}} style={{padding:"4px 10px",borderRadius:6,border:`1px solid ${(startYear<=yr&&yr<=endYear)?C.accent:C.border}`,background:(startYear<=yr&&yr<=endYear)?C.accent+"18":"transparent",color:(startYear<=yr&&yr<=endYear)?C.accentLight:C.textDim,fontSize:12,cursor:"pointer"}}>{yr}</button>
+          {yr !== currentYear && <button onClick={()=>deleteYear(yr)} style={{padding:"2px",borderRadius:4,border:"none",background:"transparent",color:C.textDim,cursor:"pointer",opacity:0.3}} title={`Delete ${yr}`}><Trash2 size={10}/></button>}
         </div>
       ))}
       <button onClick={addYear} style={{padding:"6px 12px",borderRadius:8,border:`1px dashed ${C.border}`,background:"transparent",color:C.textDim,fontSize:14,cursor:"pointer",display:"flex",alignItems:"center",gap:4}}><Plus size={13}/>New Year</button>
     </div>
     <div style={{display:"flex",gap:8,marginBottom:20,flexWrap:"wrap"}}>
-      <Tab active={view==="grid"} onClick={()=>setView("grid")}>{selYear} Tracker Grid</Tab>
+      <Tab active={view==="grid"} onClick={()=>setView("grid")}>{startYear === endYear ? `${startYear} Tracker Grid` : `${startYear}\u2013${endYear} Tracker Grid`}</Tab>
       <Tab active={view==="chart"} onClick={()=>setView("chart")}>Forecast vs Result</Tab>
       <Tab active={view==="compound"} onClick={()=>setView("compound")}>Compound Interest</Tab>
-      <Tab active={view==="multiyear"} onClick={()=>setView("multiyear")}>Multi-Year Trend</Tab>
     </div>
 
     {view==="grid" && <Card headerRight={
-      selYear === currentYear && <div style={{display:"flex",alignItems:"center",gap:6}}>
+      rangeYears.includes(currentYear) && <div style={{display:"flex",alignItems:"center",gap:6}}>
         <select value={syncMonth} onChange={e=>setSyncMonth(Number(e.target.value))} style={{padding:"5px 8px",borderRadius:8,border:`1px solid ${C.border}`,background:C.card,color:C.text,fontSize:13,cursor:"pointer",outline:"none"}}>
           {MONTHS.slice(0, currentMonth + 1).map((m,mi)=><option key={mi} value={mi}>{m}</option>)}
         </select>
@@ -2186,94 +2218,93 @@ function TrackerPage({ tracker, setTracker, accounts: portfolioAccounts, hideBal
         </button>
       </div>
     }>
-      <div style={{overflowX:"auto"}}><table style={{width:"100%",borderCollapse:"collapse",minWidth:1100}}>
+      <div style={{overflowX:"auto"}}><table style={{width:"100%",borderCollapse:"collapse",minWidth:Math.max(1100, columns.length * 62 + 200)}}>
         <thead>
           <tr style={{borderBottom:`2px solid ${C.border}`}}>
-            <th onClick={()=>setSortAsc(s=>s===null?true:s===true?false:null)} style={{padding:"8px 12px",textAlign:"left",fontSize:12,fontWeight:700,color:C.textDim,textTransform:"uppercase",letterSpacing:0.5,cursor:"pointer",userSelect:"none",width:200}}>
+            <th onClick={()=>setSortAsc(s=>s===null?true:s===true?false:null)} style={{padding:"8px 12px",textAlign:"left",fontSize:12,fontWeight:700,color:C.textDim,textTransform:"uppercase",letterSpacing:0.5,cursor:"pointer",userSelect:"none",width:200,position:"sticky",left:0,background:C.card,zIndex:2}}>
               Account {sortAsc===null?<span style={{opacity:0.3}}>↕</span>:sortAsc?"↑":"↓"}
             </th>
-            {MONTHS.map((m,mi)=>{
-              const isCur = selYear === currentYear && mi === currentMonth;
-              return <th key={m} style={{padding:"8px 6px",textAlign:"right",fontSize:12,fontWeight:700,color:isCur?C.accentLight:C.textDim,textTransform:"uppercase",letterSpacing:0.5,background:isCur?C.accent+"18":"transparent",minWidth:60}}>
-                {m}{isCur?" ◂":""}
-              </th>;
-            })}
+            {columns.map((col,ci)=>(
+              <th key={ci} style={{padding:"8px 4px",textAlign:"right",fontSize:11,fontWeight:700,color:col.isCurrent?C.accentLight:C.textDim,textTransform:"uppercase",letterSpacing:0.3,background:col.isCurrent?C.accent+"18":"transparent",minWidth:56,borderLeft:col.isJan&&ci>0?`2px solid ${C.border}`:"none"}}>
+                {col.label}{col.isCurrent?" ◂":""}
+              </th>
+            ))}
             <th style={{width:28}}/>
           </tr>
         </thead>
         <tbody>
-          {computed.map((acc,ai)=>{
+          {multiYearAccounts.map((acc)=>{
             const dim = !acc.active;
-            return <React.Fragment key={acc.id}>
+            const primaryYrIdx = acc.yearData.findIndex(d => d.row);
+            const primaryRow = primaryYrIdx >= 0 ? acc.yearData[primaryYrIdx].row : null;
+            const primaryYear = primaryYrIdx >= 0 ? acc.yearData[primaryYrIdx].year : rangeYears[0];
+            if (!primaryRow) return null;
+            return <React.Fragment key={acc.name}>
               {/* Forecast row */}
               <tr style={{opacity:dim?0.3:1,borderTop:`1px solid ${C.border}22`}}>
-                <td rowSpan={2} style={{padding:"10px 12px",verticalAlign:"top",borderRight:`1px solid ${C.border}22`}}>
+                <td rowSpan={2} style={{padding:"10px 12px",verticalAlign:"top",borderRight:`1px solid ${C.border}22`,position:"sticky",left:0,background:C.card,zIndex:1}}>
                   <div style={{display:"flex",alignItems:"flex-start",gap:8}}>
-                    <Toggle on={acc.active} onToggle={()=>upd(acc.id,a=>{a.active=!a.active;return a;})}/>
+                    <Toggle on={primaryRow.active} onToggle={()=>upd(primaryYear, acc.name, a=>{a.active=!a.active;return a;})}/>
                     <div style={{flex:1,minWidth:0}}>
-                      <InlineEdit value={acc.name} onChange={v=>upd(acc.id,a=>{a.name=v;return a;})}
-                        style={{fontSize:14,fontWeight:600,color:dim?C.textDim:C.text,display:"block"}} inputWidth={130}/>
-                      <div style={{display:"flex",alignItems:"center",gap:6,marginTop:4}}>
-                        <span style={{fontSize:12,color:C.textDim}}>+</span>
-                        <InlineNum value={acc.recurring} onChange={v=>upd(acc.id,a=>{a.recurring=v??0;return a;})}
-                          style={{fontSize:12,color:acc.recurring>0?C.accent:C.textDim,fontWeight:600}} width={46}/>
-                        <span style={{fontSize:12,color:C.textDim}}>/mo · until</span>
-                        <select value={acc.activeUntil} onChange={e=>upd(acc.id,a=>{a.activeUntil=Number(e.target.value);return a;})}
-                          style={{fontSize:12,background:"transparent",border:"none",color:acc.activeUntil<12?C.orange:C.textDim,cursor:"pointer",outline:"none",padding:0}}>
-                          {MONTHS.map((m,mi)=><option key={mi} value={mi+1}>{m}</option>)}<option value={12}>Dec</option>
-                        </select>
-                      </div>
-                      <div style={{display:"flex",alignItems:"center",gap:4,marginTop:3}}>
-                        <span style={{fontSize:10,color:C.textDim+"88"}}>start</span>
-                        <InlineNum value={acc.startBal} onChange={v=>upd(acc.id,a=>{a.startBal=v??0;return a;})}
-                          style={{fontSize:10,color:C.textDim+"aa"}} width={60}/>
-                      </div>
+                      <span style={{fontSize:14,fontWeight:600,color:dim?C.textDim:C.text,display:"block"}}>{acc.name}</span>
                     </div>
                   </div>
                 </td>
-                {acc.values.map((v,mi)=>{
-                  const past = mi >= acc.activeUntil;
-                  const isCur = selYear === currentYear && mi === currentMonth;
-                  return <td key={mi} style={{
-                    padding:"8px 6px",fontSize:13,textAlign:"right",fontVariantNumeric:"tabular-nums",
-                    color: past ? C.textDim+"66" : C.textMuted,
-                    background: isCur ? C.accent+"18" : past ? "transparent" : C.accent+"06",
-                    borderLeft: isCur ? `2px solid ${C.accent}44` : "none",
-                    borderRight: isCur ? `2px solid ${C.accent}44` : "none",
+                {columns.map((col,ci)=>{
+                  const yrIdx = rangeYears.indexOf(col.year);
+                  const yd = acc.yearData[yrIdx];
+                  const v = yd ? yd.forecast[col.mi] : null;
+                  const past = yd && yd.row ? col.mi >= (yd.row.activeUntil ?? 12) : false;
+                  return <td key={ci} style={{
+                    padding:"8px 4px",fontSize:12,textAlign:"right",fontVariantNumeric:"tabular-nums",
+                    color: v == null ? C.textDim+"33" : past ? C.textDim+"66" : C.textMuted,
+                    background: col.isCurrent ? C.accent+"18" : past ? "transparent" : v != null ? C.accent+"06" : "transparent",
+                    borderLeft: col.isJan&&ci>0 ? `2px solid ${C.border}` : col.isCurrent ? `2px solid ${C.accent}44` : "none",
+                    borderRight: col.isCurrent ? `2px solid ${C.accent}44` : "none",
                     fontStyle: past ? "italic" : "normal",
-                  }}>{past ? "" : mask(fmt(v))}</td>;
+                  }}>{v != null && !past ? mask(fmt(v)) : ""}</td>;
                 })}
                 <td rowSpan={2} style={{padding:"4px 6px",verticalAlign:"middle",textAlign:"center"}}>
-                  <DelBtn onClick={()=>delRow(acc.id)}/>
+                  <DelBtn onClick={()=>delRow(acc.name)}/>
                 </td>
               </tr>
               {/* Actual row */}
               <tr style={{opacity:dim?0.3:1,borderBottom:`2px solid ${C.border}22`}}>
-                {acc.results.map((v,mi)=>{
-                  const diff = v != null ? v - acc.values[mi] : null;
-                  const isEditing = editCell && editCell.rowId === acc.id && editCell.mi === mi;
-                  const isCur = selYear === currentYear && mi === currentMonth;
+                {columns.map((col,ci)=>{
+                  const yrIdx = rangeYears.indexOf(col.year);
+                  const yd = acc.yearData[yrIdx];
+                  const v = yd ? yd.results[col.mi] : null;
+                  const forecastV = yd ? yd.forecast[col.mi] : null;
+                  const diff = v != null && forecastV != null ? v - forecastV : null;
+                  const isEditing = editCell && editCell.name === acc.name && editCell.year === col.year && editCell.mi === col.mi;
                   const commitEdit = () => {
                     const n = editVal.trim() === "" ? null : Number(editVal.replace(/[',]/g,""));
-                    if (n === null || !isNaN(n)) upd(acc.id, a => { a.results = [...a.results]; a.results[mi] = n; return a; });
+                    if (n === null || !isNaN(n)) {
+                      setTracker(p => ({
+                        ...p,
+                        [col.year]: (p[col.year] || []).map(a =>
+                          a.name === acc.name ? { ...a, results: a.results.map((rv, i) => i === col.mi ? n : rv) } : a
+                        ),
+                      }));
+                    }
                     setEditCell(null);
                   };
-                  return <td key={mi}
-                    onClick={()=>{ if(!isEditing){ setEditCell({rowId:acc.id,mi}); setEditVal(v!=null?String(v):""); } }}
-                    onMouseEnter={e=>{ if(!isEditing) e.currentTarget.style.background = C.accent+"22"; }}
-                    onMouseLeave={e=>{ if(!isEditing) e.currentTarget.style.background = isCur ? C.accent+"18" : v!=null ? (diff>=0?C.green+"0a":C.red+"0a") : "transparent"; }}
-                    style={{padding:"4px 6px",textAlign:"right",cursor:"text",
-                      background: isCur ? C.accent+"18" : v != null ? (diff>=0 ? C.green+"0a" : C.red+"0a") : "transparent",
-                      borderLeft: isCur ? `2px solid ${C.accent}44` : "none",
-                      borderRight: isCur ? `2px solid ${C.accent}44` : "none",
+                  return <td key={ci}
+                    onClick={()=>{ if(!isEditing && yd?.row){ setEditCell({name:acc.name,year:col.year,mi:col.mi}); setEditVal(v!=null?String(v):""); } }}
+                    onMouseEnter={e=>{ if(!isEditing && yd?.row) e.currentTarget.style.background = C.accent+"22"; }}
+                    onMouseLeave={e=>{ if(!isEditing) e.currentTarget.style.background = col.isCurrent ? C.accent+"18" : v!=null ? (diff>=0?C.green+"0a":C.red+"0a") : "transparent"; }}
+                    style={{padding:"4px 4px",textAlign:"right",cursor:yd?.row?"text":"default",
+                      background: col.isCurrent ? C.accent+"18" : v != null ? (diff>=0 ? C.green+"0a" : C.red+"0a") : "transparent",
+                      borderLeft: col.isJan&&ci>0 ? `2px solid ${C.border}` : col.isCurrent ? `2px solid ${C.accent}44` : "none",
+                      borderRight: col.isCurrent ? `2px solid ${C.accent}44` : "none",
                     }}>
                     {isEditing
                       ? <input autoFocus value={editVal} onChange={e=>setEditVal(e.target.value)}
                           onKeyDown={e=>{ if(e.key==="Enter") commitEdit(); if(e.key==="Escape") setEditCell(null); }}
                           onBlur={commitEdit}
-                          style={{width:52,padding:"2px 4px",fontSize:13,background:C.bg,border:`1px solid ${C.accent}`,borderRadius:4,color:C.text,outline:"none",fontVariantNumeric:"tabular-nums",textAlign:"right"}}/>
-                      : <span style={{fontSize:13,fontWeight:v!=null?700:400,color:v==null?C.textDim+"55":(diff>=0?C.green:C.red),fontVariantNumeric:"tabular-nums"}}>
-                          {v != null ? mask(fmt(v)) : "·"}
+                          style={{width:48,padding:"2px 4px",fontSize:12,background:C.bg,border:`1px solid ${C.accent}`,borderRadius:4,color:C.text,outline:"none",fontVariantNumeric:"tabular-nums",textAlign:"right"}}/>
+                      : <span style={{fontSize:12,fontWeight:v!=null?700:400,color:v==null?C.textDim+"55":(diff>=0?C.green:C.red),fontVariantNumeric:"tabular-nums"}}>
+                          {v != null ? mask(fmt(v)) : yd?.row ? "\u00b7" : ""}
                         </span>
                     }
                   </td>;
@@ -2283,23 +2314,22 @@ function TrackerPage({ tracker, setTracker, accounts: portfolioAccounts, hideBal
           })}
           {/* Totals */}
           <tr style={{background:C.bg,borderTop:`2px solid ${C.border}`}}>
-            <td style={{padding:"10px 12px",fontWeight:700,fontSize:14,color:C.text}}>Total (active)</td>
-            {totals.map((t,i)=>{
-              const isCur = selYear === currentYear && i === currentMonth;
-              return <td key={i} style={{padding:"8px 6px",textAlign:"right",background:isCur?C.accent+"18":"transparent",
-                borderLeft:isCur?`2px solid ${C.accent}44`:"none",borderRight:isCur?`2px solid ${C.accent}44`:"none"}}>
-                <div style={{fontSize:13,color:C.accentLight,fontWeight:700,fontVariantNumeric:"tabular-nums"}}>{mask(fmt(t.forecast))}</div>
-                {t.hasResult && <div style={{fontSize:12,color:t.result>=t.forecast?C.green:C.red,fontWeight:700,fontVariantNumeric:"tabular-nums",marginTop:2}}>{mask(fmt(t.result))}</div>}
-              </td>;
-            })}
+            <td style={{padding:"10px 12px",fontWeight:700,fontSize:14,color:C.text,position:"sticky",left:0,background:C.bg,zIndex:1}}>Total (active)</td>
+            {multiTotals.map((t,i)=>(
+              <td key={i} style={{padding:"8px 4px",textAlign:"right",background:t.isCurrent?C.accent+"18":"transparent",
+                borderLeft:t.isJan&&i>0?`2px solid ${C.border}`:t.isCurrent?`2px solid ${C.accent}44`:"none",borderRight:t.isCurrent?`2px solid ${C.accent}44`:"none"}}>
+                <div style={{fontSize:12,color:C.accentLight,fontWeight:700,fontVariantNumeric:"tabular-nums"}}>{mask(fmt(t.forecast))}</div>
+                {t.hasResult && <div style={{fontSize:11,color:t.result>=t.forecast?C.green:C.red,fontWeight:700,fontVariantNumeric:"tabular-nums",marginTop:2}}>{mask(fmt(t.result))}</div>}
+              </td>
+            ))}
             <td/>
           </tr>
         </tbody>
       </table></div>
     </Card>}
 
-    {view==="chart" && <Card title={`${selYear}: Forecast vs Actual`}>
-      <ResponsiveContainer width="100%" height={isMobile?220:350}><ComposedChart data={totals}><CartesianGrid strokeDasharray="3 3" stroke={C.border}/><XAxis dataKey="month" tick={{fill:C.textDim,fontSize:12}}/><YAxis tick={{fill:C.textDim,fontSize:11}} tickFormatter={v=>`${Math.round(v/1000)}k`}/><Tooltip formatter={v=>`CHF ${fmt(v)}`} contentStyle={{background:C.card,border:`1px solid ${C.border}`,borderRadius:8,color:C.text,fontSize:13}} labelStyle={{color:C.textMuted}} itemStyle={{color:C.text}}/><Legend/><Area type="monotone" dataKey="forecast" fill={C.accent+"22"} stroke={C.accent} strokeWidth={2} name="Forecast"/><Line type="monotone" dataKey="result" stroke={C.green} strokeWidth={2.5} dot={{fill:C.green,r:4}} name="Result" connectNulls={false}/></ComposedChart></ResponsiveContainer>
+    {view==="chart" && <Card title={startYear === endYear ? `${startYear}: Forecast vs Actual` : `${startYear}\u2013${endYear}: Forecast vs Actual`}>
+      <ResponsiveContainer width="100%" height={isMobile?220:350}><ComposedChart data={multiTotals}><CartesianGrid strokeDasharray="3 3" stroke={C.border}/><XAxis dataKey="label" tick={{fill:C.textDim,fontSize:11}} interval={rangeYears.length > 1 ? 2 : 0}/><YAxis tick={{fill:C.textDim,fontSize:11}} tickFormatter={v=>`${Math.round(v/1000)}k`}/><Tooltip formatter={v=>`CHF ${fmt(v)}`} contentStyle={{background:C.card,border:`1px solid ${C.border}`,borderRadius:8,color:C.text,fontSize:13}} labelStyle={{color:C.textMuted}} itemStyle={{color:C.text}}/><Legend/><Area type="monotone" dataKey="forecast" fill={C.accent+"22"} stroke={C.accent} strokeWidth={2} name="Forecast"/><Line type="monotone" dataKey="result" stroke={C.green} strokeWidth={2.5} dot={{fill:C.green,r:4}} name="Result" connectNulls={false}/></ComposedChart></ResponsiveContainer>
     </Card>}
 
     {view==="compound" && <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"320px 1fr",gap:16}}>
@@ -2312,42 +2342,6 @@ function TrackerPage({ tracker, setTracker, accounts: portfolioAccounts, hideBal
       </div></Card>
       <Card title="Compound Growth Projection">
         <ResponsiveContainer width="100%" height={isMobile?250:400}><AreaChart data={proj}><CartesianGrid strokeDasharray="3 3" stroke={C.border}/><XAxis dataKey="year" tick={{fill:C.textDim,fontSize:11}}/><YAxis tick={{fill:C.textDim,fontSize:11}} tickFormatter={v=>v>=1e6?`${(v/1e6).toFixed(1)}M`:`${Math.round(v/1000)}k`}/><Tooltip formatter={v=>`CHF ${fmt(v)}`} contentStyle={{background:C.card,border:`1px solid ${C.border}`,borderRadius:8,color:C.text,fontSize:13}} labelStyle={{color:C.textMuted}} itemStyle={{color:C.text}}/><Legend/><Area type="monotone" dataKey="contributed" fill={C.blue+"33"} stroke={C.blue} strokeWidth={1.5} name="Contributed"/><Area type="monotone" dataKey="balance" fill={C.green+"33"} stroke={C.green} strokeWidth={2} name="With Growth"/></AreaChart></ResponsiveContainer>
-      </Card>
-    </div>}
-    {view==="multiyear" && <div>
-      <div style={{display:"flex",gap:16,flexWrap:"wrap",marginBottom:16,padding:"16px 20px",background:C.card,borderRadius:12,border:`1px solid ${C.border}`}}>
-        <div style={{flex:1,minWidth:160}}>
-          <label style={{fontSize:13,color:C.textMuted,display:"flex",justifyContent:"space-between"}}><span>Annual Growth Rate</span><span style={{color:C.accent,fontWeight:600}}>{growthRate}%</span></label>
-          <input type="range" min={0} max={15} step={0.5} value={growthRate} onChange={e=>setGrowthRate(Number(e.target.value))} style={{width:"100%",accentColor:C.accent}}/>
-        </div>
-        <div style={{flex:1,minWidth:160}}>
-          <label style={{fontSize:13,color:C.textMuted,display:"flex",justifyContent:"space-between"}}><span>Monthly Contribution</span><span style={{color:C.accent,fontWeight:600}}>CHF {fmt(monthlyAdd)}</span></label>
-          <input type="range" min={0} max={8000} step={100} value={monthlyAdd} onChange={e=>setMonthlyAdd(Number(e.target.value))} style={{width:"100%",accentColor:C.accent}}/>
-        </div>
-        <div style={{flex:1,minWidth:160}}>
-          <label style={{fontSize:13,color:C.textMuted,display:"flex",justifyContent:"space-between"}}><span>Projection Horizon</span><span style={{color:C.accent,fontWeight:600}}>{years} years</span></label>
-          <input type="range" min={1} max={40} step={1} value={years} onChange={e=>setYears(Number(e.target.value))} style={{width:"100%",accentColor:C.accent}}/>
-        </div>
-      </div>
-      <Card title="Multi-Year Net Worth Trend">
-        <ResponsiveContainer width="100%" height={isMobile?260:420}>
-          <ComposedChart data={multiYearData} margin={{top:8,right:16,bottom:8,left:8}}>
-            <CartesianGrid strokeDasharray="3 3" stroke={C.border}/>
-            <XAxis dataKey="year" tick={{fill:C.textDim,fontSize:11}}/>
-            <YAxis tick={{fill:C.textDim,fontSize:11}} tickFormatter={v=>v>=1e6?`${(v/1e6).toFixed(1)}M`:`${Math.round(v/1000)}k`}/>
-            <Tooltip formatter={v=>`CHF ${fmt(v)}`} contentStyle={{background:C.card,border:`1px solid ${C.border}`,borderRadius:8,color:C.text,fontSize:13}} labelStyle={{color:C.textMuted}} itemStyle={{color:C.text}}/>
-            <Legend/>
-            <ReferenceLine x={new Date().getFullYear()} stroke={C.accent} strokeDasharray="4 4" label={{value:"Today",fill:C.accentLight,fontSize:11}}/>
-            <Area type="monotone" dataKey="projected" fill={C.blue+"33"} stroke={C.blue} strokeWidth={1.5} name="Projected" connectNulls/>
-            <Line type="monotone" dataKey="forecast" stroke={C.accent} strokeWidth={2} strokeDasharray="5 3" dot={false} name="Tracker Forecast" connectNulls/>
-            <Line type="monotone" dataKey="actual" stroke={C.green} strokeWidth={2.5} dot={{fill:C.green,r:4}} name="Actual" connectNulls={false}/>
-          </ComposedChart>
-        </ResponsiveContainer>
-        <div style={{display:"flex",gap:16,marginTop:12,flexWrap:"wrap"}}>
-          <div style={{fontSize:13,color:C.textDim}}><span style={{color:C.green,fontWeight:600}}>● Actual</span> — verified Dec balances from tracker</div>
-          <div style={{fontSize:13,color:C.textDim}}><span style={{color:C.accent,fontWeight:600}}>– – Tracker Forecast</span> — Dec forecast from tracker rows</div>
-          <div style={{fontSize:13,color:C.textDim}}><span style={{color:C.blue,fontWeight:600}}>▐ Projected</span> — compound growth from today</div>
-        </div>
       </Card>
     </div>}
   </div>;
