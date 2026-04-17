@@ -2078,6 +2078,19 @@ function TrackerPage({ tracker, setTracker, accounts: portfolioAccounts, hideBal
     setSelYear(newYear);
   };
 
+  const deleteYear = (yr) => {
+    if (!window.confirm(`Delete tracker data for ${yr}? This cannot be undone.`)) return;
+    setTracker(p => {
+      const next = { ...p };
+      delete next[yr];
+      return next;
+    });
+    if (selYear === yr) {
+      const remaining = Object.keys(tracker).map(Number).filter(y => y !== yr).sort((a,b) => b-a);
+      if (remaining.length) setSelYear(remaining[0]);
+    }
+  };
+
   const computed = useMemo(()=>{
     const base = rows.map(a=>{
       const f=[]; for(let m=0;m<12;m++){ if(m===0) f.push(a.startBal); else if(m<a.activeUntil) f.push(f[m-1]+a.recurring); else f.push(f[m-1]); }
@@ -2149,7 +2162,10 @@ function TrackerPage({ tracker, setTracker, accounts: portfolioAccounts, hideBal
     {/* Year selector */}
     <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:16,flexWrap:"wrap"}}>
       {[...Object.keys(tracker).map(Number).sort((a,b)=>a-b)].map(yr=>(
-        <button key={yr} onClick={()=>setSelYear(yr)} style={{padding:"6px 16px",borderRadius:8,border:`1px solid ${selYear===yr?C.accent:C.border}`,background:selYear===yr?C.accent+"18":C.card,color:selYear===yr?C.accentLight:C.textMuted,fontSize:14,fontWeight:selYear===yr?700:400,cursor:"pointer"}}>{yr}</button>
+        <div key={yr} style={{display:"flex",alignItems:"center",gap:2}}>
+          <button onClick={()=>setSelYear(yr)} style={{padding:"6px 16px",borderRadius:8,border:`1px solid ${selYear===yr?C.accent:C.border}`,background:selYear===yr?C.accent+"18":C.card,color:selYear===yr?C.accentLight:C.textMuted,fontSize:14,fontWeight:selYear===yr?700:400,cursor:"pointer"}}>{yr}</button>
+          {yr !== currentYear && <button onClick={()=>deleteYear(yr)} style={{padding:"4px",borderRadius:6,border:"none",background:"transparent",color:C.textDim,cursor:"pointer",opacity:0.4,fontSize:12}} title={`Delete ${yr}`}><Trash2 size={12}/></button>}
+        </div>
       ))}
       <button onClick={addYear} style={{padding:"6px 12px",borderRadius:8,border:`1px dashed ${C.border}`,background:"transparent",color:C.textDim,fontSize:14,cursor:"pointer",display:"flex",alignItems:"center",gap:4}}><Plus size={13}/>New Year</button>
     </div>
