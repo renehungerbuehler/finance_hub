@@ -165,56 +165,6 @@ const INIT_SCENARIOS = [];
 
 const INIT_TRACKER = [];
 
-const HISTORICAL_TRACKER = {
-  2023: [
-    {id:"ht-23-1",name:"ZKB (Blocked Account Flat)",startBal:2900,recurring:0,activeUntil:12,active:true,
-     results:[2900,2900,2900,2900,2900,2900,2900,2900,2900,2900,2900,2900]},
-    {id:"ht-23-2",name:"SwissLife - 2A Pillar",startBal:26569,recurring:690,activeUntil:12,active:true,
-     results:[null,null,26569,27259,27949,28640,29330,30020,31945,32583,33325,34015]},
-    {id:"ht-23-3",name:"Frankly - 3A Pillar",startBal:19200,recurring:600,activeUntil:12,active:true,
-     results:[null,null,19326,20257,21033,21765,22580,22638,22473,22825,24532,25841]},
-    {id:"ht-23-4",name:"Crypto (CoinStats)",startBal:12000,recurring:0,activeUntil:12,active:true,
-     results:[12000,12000,12000,12000,12000,12000,12000,12000,12000,12000,15753,19000]},
-    {id:"ht-23-5",name:"Yuh Invest",startBal:0,recurring:1000,activeUntil:12,active:true,
-     results:[null,null,1006,2524,3520,3513,5023,5084,5082,5562,6504,7569]},
-    {id:"ht-23-6",name:"Yuh Golden Egg",startBal:0,recurring:1000,activeUntil:12,active:true,
-     results:[0,0,0,0,0,0,0,0,0,0,0,0]},
-    {id:"ht-23-7",name:"Yuh Emergency",startBal:0,recurring:1000,activeUntil:12,active:true,
-     results:[0,0,0,0,0,0,3000,0,0,0,0,0]},
-  ],
-  2024: [
-    {id:"ht-24-1",name:"ZKB (Blocked Account Flat)",startBal:2900,recurring:0,activeUntil:12,active:true,
-     results:[2900,2900,2900,2900,2900,2900,2900,2900,2900,2900,2900,2900]},
-    {id:"ht-24-2",name:"SwissLife - 2A Pillar",startBal:34495,recurring:480,activeUntil:12,active:true,
-     results:[34705,34975,35455,35935,36415,36895,37375,37375,38335,38815,39295,39854]},
-    {id:"ht-24-3",name:"Frankly - 3A Pillar",startBal:26429,recurring:588,activeUntil:12,active:true,
-     results:[26426,27793,29236,29615,31192,31714,32379,33027,33983,34926,35756,36086]},
-    {id:"ht-24-4",name:"Crypto (CoinStats)",startBal:0,recurring:0,activeUntil:12,active:true,
-     results:[0,0,0,0,0,607,626,556,545,576,707,700]},
-    {id:"ht-24-5",name:"Yuh Invest",startBal:8569,recurring:1000,activeUntil:12,active:true,
-     results:[9213,10509,11003,11002,11750,11864,12689,12872,12980,13320,13260,13628]},
-    {id:"ht-24-6",name:"Yuh Golden Egg",startBal:0,recurring:0,activeUntil:12,active:true,
-     results:[0,0,0,0,0,0,0,0,0,0,0,0]},
-    {id:"ht-24-7",name:"Yuh Emergency",startBal:0,recurring:1500,activeUntil:12,active:true,
-     results:[0,1000,1500,2000,2500,5000,5000,6000,9000,12000,15000,15000]},
-  ],
-  2025: [
-    {id:"ht-25-1",name:"ZKB (Blocked Account Flat)",startBal:8901,recurring:0,activeUntil:12,active:true,
-     results:[8901,8901,8901,8901,8901,8901,8901,8901,8901,8901,8901,8901]},
-    {id:"ht-25-2",name:"SwissLife - 2A Pillar",startBal:48212,recurring:690,activeUntil:12,active:true,
-     results:[48212,48902,48272,50282,50972,51662,52352,53042,53732,54422,55112,61685]},
-    {id:"ht-25-3",name:"Frankly - 3A Pillar",startBal:35919,recurring:600,activeUntil:12,active:true,
-     results:[37866,38692,38870,37548,39679,40672,42109,43277,44192,45989,46904,48170]},
-    {id:"ht-25-4",name:"Crypto (CoinStats)",startBal:500,recurring:0,activeUntil:12,active:true,
-     results:[500,500,539,544,632,585,725,639,732,721,548,523]},
-    {id:"ht-25-5",name:"Yuh Invest",startBal:14689,recurring:1000,activeUntil:12,active:true,
-     results:[14524,14704,15227,15343,16449,17472,17790,18045,18384,19058,20265,20984]},
-    {id:"ht-25-6",name:"Yuh Golden Egg",startBal:0,recurring:200,activeUntil:12,active:true,
-     results:[0,0,0,0,0,0,0,0,0,0,0,0]},
-    {id:"ht-25-7",name:"Yuh Emergency",startBal:15000,recurring:0,activeUntil:12,active:true,
-     results:[4000,15000,15000,15000,15000,15000,15000,15000,13000,12500,15000,15000]},
-  ],
-};
 
 const INIT_SUBS_PERSONAL = [];
 
@@ -2178,34 +2128,45 @@ function TrackerPage({ tracker, setTracker, accounts: portfolioAccounts, hideBal
   const proj = useMemo(()=>{ const d=[]; let b=currentTotal; for(let y=0;y<=years;y++){ d.push({year:endYear+y,balance:Math.round(b),contributed:currentTotal+monthlyAdd*12*y}); b=(b+monthlyAdd*12)*(1+growthRate/100); } return d; },[growthRate,monthlyAdd,years,currentTotal,endYear]);
 
   return <div>
-    {/* Year range selector */}
-    <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:16,flexWrap:"wrap"}}>
-      <select value={startYear} onChange={e=>{const v=Number(e.target.value);setStartYear(v);if(v>endYear)setEndYear(v);}}
-        style={{padding:"6px 12px",borderRadius:8,border:`1px solid ${C.accent}`,background:C.card,color:C.text,fontSize:14,cursor:"pointer",outline:"none"}}>
-        {Object.keys(tracker).map(Number).sort((a,b)=>a-b).map(yr=>
-          <option key={yr} value={yr}>{yr}</option>
+    {/* Year selector + view tabs — unified bar */}
+    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,marginBottom:20,flexWrap:"wrap"}}>
+      <div style={{display:"flex",alignItems:"center",gap:4,background:C.bg,borderRadius:10,padding:4}}>
+        {Object.keys(tracker).map(Number).sort((a,b)=>a-b).map(yr=>{
+          const inRange = yr >= startYear && yr <= endYear;
+          const isEdge = yr === startYear || yr === endYear;
+          const isOnly = startYear === endYear && yr === startYear;
+          return <button key={yr}
+            onClick={()=>{
+              if (isOnly) return; // already the only selected year
+              // Shift-click or if already in range: toggle range edge
+              if (inRange && !isOnly) {
+                // Clicking inside range: focus single year
+                setStartYear(yr); setEndYear(yr);
+              } else {
+                // Clicking outside range: extend range to include this year
+                setStartYear(Math.min(startYear, yr));
+                setEndYear(Math.max(endYear, yr));
+              }
+            }}
+            onContextMenu={e=>{
+              e.preventDefault();
+              if (yr !== currentYear) deleteYear(yr);
+            }}
+            style={{
+              padding:"6px 14px",borderRadius:8,border:"none",fontSize:13,fontWeight:inRange?600:400,
+              cursor:"pointer",transition:"all 0.15s ease",position:"relative",
+              background: isEdge ? C.accent+"22" : inRange ? C.accent+"0c" : "transparent",
+              color: isEdge ? C.accentLight : inRange ? C.accentLight+"cc" : C.textDim,
+            }}>{yr}</button>;
+        })}
+        <button onClick={addYear} style={{padding:"6px 8px",borderRadius:8,border:"none",background:"transparent",color:C.textDim,cursor:"pointer",display:"flex",alignItems:"center",opacity:0.5}} title="Add year"><Plus size={14}/></button>
+      </div>
+      {startYear !== endYear && <span style={{fontSize:12,color:C.textDim,letterSpacing:0.5}}>{startYear}–{endYear}</span>}
+      <div style={{display:"flex",gap:4,background:C.bg,borderRadius:10,padding:4}}>
+        {[["grid","Grid"],["chart","Chart"],["compound","Compound Interest"]].map(([k,l])=>
+          <button key={k} onClick={()=>setView(k)} style={{padding:"6px 14px",borderRadius:8,border:"none",fontSize:13,fontWeight:view===k?600:400,cursor:"pointer",background:view===k?C.accent+"22":"transparent",color:view===k?C.accentLight:C.textDim,transition:"all 0.15s ease"}}>{l}</button>
         )}
-      </select>
-      <span style={{color:C.textDim,fontSize:14}}>to</span>
-      <select value={endYear} onChange={e=>{const v=Number(e.target.value);setEndYear(v);if(v<startYear)setStartYear(v);}}
-        style={{padding:"6px 12px",borderRadius:8,border:`1px solid ${C.accent}`,background:C.card,color:C.text,fontSize:14,cursor:"pointer",outline:"none"}}>
-        {Object.keys(tracker).map(Number).sort((a,b)=>a-b).map(yr=>
-          <option key={yr} value={yr}>{yr}</option>
-        )}
-      </select>
-      <span style={{width:8}}/>
-      {Object.keys(tracker).map(Number).sort((a,b)=>a-b).map(yr=>(
-        <div key={yr} style={{display:"flex",alignItems:"center",gap:2}}>
-          <button onClick={()=>{setStartYear(yr);setEndYear(yr);}} style={{padding:"4px 10px",borderRadius:6,border:`1px solid ${(startYear<=yr&&yr<=endYear)?C.accent:C.border}`,background:(startYear<=yr&&yr<=endYear)?C.accent+"18":"transparent",color:(startYear<=yr&&yr<=endYear)?C.accentLight:C.textDim,fontSize:12,cursor:"pointer"}}>{yr}</button>
-          {yr !== currentYear && <button onClick={()=>deleteYear(yr)} style={{padding:"2px",borderRadius:4,border:"none",background:"transparent",color:C.textDim,cursor:"pointer",opacity:0.3}} title={`Delete ${yr}`}><Trash2 size={10}/></button>}
-        </div>
-      ))}
-      <button onClick={addYear} style={{padding:"6px 12px",borderRadius:8,border:`1px dashed ${C.border}`,background:"transparent",color:C.textDim,fontSize:14,cursor:"pointer",display:"flex",alignItems:"center",gap:4}}><Plus size={13}/>New Year</button>
-    </div>
-    <div style={{display:"flex",gap:8,marginBottom:20,flexWrap:"wrap"}}>
-      <Tab active={view==="grid"} onClick={()=>setView("grid")}>{startYear === endYear ? `${startYear} Tracker Grid` : `${startYear}\u2013${endYear} Tracker Grid`}</Tab>
-      <Tab active={view==="chart"} onClick={()=>setView("chart")}>Forecast vs Result</Tab>
-      <Tab active={view==="compound"} onClick={()=>setView("compound")}>Compound Interest</Tab>
+      </div>
     </div>
 
     {view==="grid" && <Card headerRight={
@@ -4423,7 +4384,7 @@ export default function FinanceApp() {
   const loaded = useRef(false);
   const [accounts, setAccounts] = useState(INIT_ACCOUNTS);
   const [scenarios, setScenarios] = useState(INIT_SCENARIOS);
-  const [tracker, setTracker] = useState({ ...HISTORICAL_TRACKER, 2026: [] });
+  const [tracker, setTracker] = useState({ 2026: [] });
   const [subsP, setSubsP] = useState(INIT_SUBS_PERSONAL);
   const [subsPInScenario, setSubsPInScenario] = useState(true);
   const [yearly, setYearly] = useState(INIT_YEARLY);
