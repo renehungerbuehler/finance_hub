@@ -4398,7 +4398,7 @@ function TransactionsPage({ transactions, setTransactions, hideBalances }) {
   const DEFAULT_CATEGORIES = ['Groceries','Dining & Restaurants','Transport','Entertainment','Shopping','Health & Fitness','Subscriptions & Fees','Housing','Transfers','Income','Other'];
   const allCategories = [...DEFAULT_CATEGORIES, ...(transactions.customCategories || [])];
 
-  const allTxns = (transactions.imports || []).flatMap(imp => imp.transactions.map(t => ({ ...t, importName: imp.name, currency: imp.currency })));
+  const allTxns = (transactions.imports || []).flatMap(imp => imp.transactions.map(t => ({ ...t, importName: imp.name, currency: t.currency || imp.currency || 'CHF' })));
 
   // FX rates for currency conversion to CHF
   const [fxRates, setFxRates] = useState({ CHF: 1 });
@@ -4481,13 +4481,14 @@ function TransactionsPage({ transactions, setTransactions, hideBalances }) {
 Respond with ONLY a raw JSON object — no explanation, no markdown, no code fences, no extra text before or after. Just the JSON.
 
 Required JSON shape:
-{"currency":"CHF","transactions":[{"date":"YYYY-MM-DD","description":"Merchant name","amount":-12.50,"fee":0,"category":"Category","type":"Card Payment"}]}
+{"transactions":[{"date":"YYYY-MM-DD","description":"Merchant name","amount":-12.50,"fee":0,"currency":"CHF","category":"Category","type":"Card Payment"}]}
 
 Rules:
 - date: use the completed/settled date in YYYY-MM-DD format
 - description: merchant or transfer description as shown
 - amount: negative for expenses, positive for income. Keep original sign from the data.
 - fee: any fee charged, 0 if none
+- currency: the ORIGINAL currency of each transaction as shown in the statement (e.g. CHF, EUR, USD, IDR). Each row may have a different currency — extract it per row, do NOT assume all rows share one currency.
 - category: assign one of these categories: ${allCategories.join(', ')}
 - type: original transaction type from the statement (e.g. Card Payment, Transfer, Charge)
 - Auto-detect the file format and column mapping
