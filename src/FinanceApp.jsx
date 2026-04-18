@@ -200,7 +200,9 @@ const ONBOARDING_STEPS = [
   { id: 'aiAdviser', label: 'Customise the AI Adviser prompt', desc: 'The AI Adviser chat uses a default system prompt. You can edit it to focus on your goals, risk tolerance, or any topic you care about.', type: 'one-time', icon: Sparkles, action: 'prompt', badge: 'prompt' },
   { id: 'accounts', label: 'Add or import accounts', desc: 'Add accounts manually — or click Import on the Accounts page and upload a bank statement or PDF. AI extracts balances and investment positions automatically. Each account also has a notes field for AI-specific context.', type: 'one-time', icon: Landmark, action: 'accounts', badge: 'import' },
   { id: 'expenses', label: 'Add or Import your expenses', desc: 'Each Expenses tab (Insurances, Taxes, Recurring, Subscriptions) has an Import button. Upload a bank statement CSV, insurance PDF, or tax notice — AI extracts the data. Use the Prompt ✓ button to customise the extraction prompt per section.', type: 'one-time', icon: CreditCard, action: 'expenses', badge: 'import' },
+  { id: 'transactions', label: 'Import your transactions', desc: 'Upload bank statement CSVs on the Transactions page — AI extracts dates, amounts, merchants, and currencies automatically. Filter, search, and track spending across accounts.', type: 'one-time', icon: Receipt, action: 'transactions', badge: 'import' },
   { id: 'scenario', label: 'Create a budget scenario', desc: 'Build a scenario manually or use Import Payroll on the Scenarios page — upload a payroll PDF and AI generates your income, net salary, and all deductions (AHV, BVG, etc.) including percentage-based items.', type: 'one-time', icon: Target, action: 'scenarios', badge: 'import' },
+  { id: 'aiSettings', label: 'Review AI settings', desc: 'Choose your AI provider (Anthropic, OpenAI, Gemini, or Ollama for full privacy), set API keys, and pick chat/import models. Switch any time in AI Settings.', type: 'one-time', icon: Settings, action: 'ai-settings' },
   { id: 'backup', label: 'Create a backup', desc: 'Download a full JSON backup of your data and store it somewhere safe (cloud drive, external disk). Restore it any time via the Import button in the sidebar.', type: 'one-time', icon: Download, action: 'backup' },
   { id: 'monthlyBalances', label: 'Update account balances', desc: 'Import or edit your account balances this month.', type: 'recurring', icon: RefreshCw, action: 'accounts' },
   { id: 'monthlyTracker', label: 'Sync Tracker', desc: 'Sync your tracker with current account balances.', type: 'recurring', icon: Activity, action: 'tracker' },
@@ -625,6 +627,8 @@ function OnboardingChecklist({ accounts, scenarios, subsP, yearly, profile, onbo
       case 'profile': return !!(profile.firstName);
       case 'aiAdviser': return onboarding.aiAdviserAck === true;
       case 'backup': return onboarding.backupDone === true;
+      case 'transactions': return onboarding.transactionsAck === true;
+      case 'aiSettings': return onboarding.aiSettingsAck === true;
       case 'accounts': return accounts.length >= 1;
       case 'expenses': return subsP.length >= 1 || yearly.length >= 1;
       case 'scenario': return scenarios.length >= 1;
@@ -655,6 +659,8 @@ function OnboardingChecklist({ accounts, scenarios, subsP, yearly, profile, onbo
       case 'accounts': setPage('accounts'); break;
       case 'expenses': setPage('expenses'); break;
       case 'scenarios': setPage('scenarios'); break;
+      case 'transactions': setPage('transactions'); setOnboarding(o => ({ ...o, transactionsAck: true })); break;
+      case 'ai-settings': setPage('ai-settings'); setOnboarding(o => ({ ...o, aiSettingsAck: true })); break;
       case 'tracker': setPage('tracker'); break;
       case 'backup':
         (async () => {
@@ -5042,7 +5048,7 @@ export default function FinanceApp() {
   const [recPrompt, setRecPrompt] = useState('');
   const [subPrompt, setSubPrompt] = useState('');
   const [hideBalances, setHideBalances] = useState(false);
-  const [onboarding, setOnboarding] = useState({ dismissed: false, welcomeAck: false, aiAdviserAck: false, dataCleared: false, backupDone: false, lastMonthlyUpdate: null, lastTrackerSync: null });
+  const [onboarding, setOnboarding] = useState({ dismissed: false, welcomeAck: false, aiAdviserAck: false, dataCleared: false, backupDone: false, transactionsAck: false, aiSettingsAck: false, lastMonthlyUpdate: null, lastTrackerSync: null });
   const [darkMode, setDarkMode] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
   const [chatInput, setChatInput] = useState("");
