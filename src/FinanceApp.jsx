@@ -4389,7 +4389,7 @@ function TransactionsPage({ transactions, setTransactions, hideBalances }) {
   const [importPreview, setImportPreview] = useState(null);
   const [importName, setImportName] = useState('');
   const [importError, setImportError] = useState(null);
-  const [filter, setFilter] = useState({ search: '', category: '', dateFrom: '', dateTo: '' });
+  const [filter, setFilter] = useState({ search: '', categories: [], dateFrom: '', dateTo: '' });
   const [sort, setSort] = useState({ col: 'date', asc: false });
   const [editingRules, setEditingRules] = useState(false);
   const [promptOpen, setPromptOpen] = useState(false);
@@ -4402,26 +4402,51 @@ function TransactionsPage({ transactions, setTransactions, hideBalances }) {
 
   // FX rates for currency conversion to CHF
   const [fxRates, setFxRates] = useState({ CHF: 1 });
+  const [fxLoaded, setFxLoaded] = useState(false);
   useEffect(() => {
     const currencies = [...new Set(allTxns.map(t => t.currency).filter(c => c && c !== 'CHF'))];
-    if (!currencies.length) return;
-    const symbols = currencies.map(c => c + 'CHF=X').join(',');
-    fetch(`${API_URL}/market/quotes?symbols=${symbols}`).then(r => r.json()).then(d => {
+    if (!currencies.length) { setFxLoaded(true); return; }
+    (async () => {
       const fx = { CHF: 1 };
-      for (const c of currencies) { const key = c + 'CHF=X'; if (d.quotes?.[key]?.currentPrice) fx[c] = d.quotes[key].currentPrice; }
+      // Try direct pairs first (e.g. EURCHF=X)
+      const symbols = currencies.map(c => c + 'CHF=X').join(',');
+      try {
+        const d = await fetch(`${API_URL}/market/quotes?symbols=${symbols}`).then(r => r.json());
+        for (const c of currencies) {
+          const key = c + 'CHF=X';
+          const price = d.quotes?.[key]?.currentPrice;
+          if (price && price > 0) fx[c] = price;
+        }
+      } catch {}
+      // For currencies with no direct rate (e.g. IDR), try inverse (CHFIDR=X) and invert
+      const missing = currencies.filter(c => !fx[c]);
+      if (missing.length) {
+        const invSymbols = missing.map(c => 'CHF' + c + '=X').join(',');
+        try {
+          const d2 = await fetch(`${API_URL}/market/quotes?symbols=${invSymbols}`).then(r => r.json());
+          for (const c of missing) {
+            const key = 'CHF' + c + '=X';
+            const price = d2.quotes?.[key]?.currentPrice;
+            if (price && price > 0) fx[c] = 1 / price;
+          }
+        } catch {}
+      }
       setFxRates(fx);
-    }).catch(() => {});
+      setFxLoaded(true);
+    })();
   }, [allTxns.length]);
   const toCHF = (amount, currency) => {
     if (!currency || currency === 'CHF') return amount;
     const rate = fxRates[currency];
-    return rate ? amount * rate : amount;
+    if (rate && rate > 0) return Math.round(amount * rate * 100) / 100;
+    // No rate available — don't include unconvertible amounts in totals
+    return 0;
   };
 
   const filtered = useMemo(() => {
     let list = allTxns;
-    if (filter.search) { const s = filter.search.toLowerCase(); list = list.filter(t => t.description.toLowerCase().includes(s) || (t.category||'').toLowerCase().includes(s)); }
-    if (filter.category) list = list.filter(t => t.category === filter.category);
+    if (filter.search) { const s = filter.search.toLowerCase(); list = list.filter(t => t.description.toLowerCase().includes(s) || (t.merchant||'').toLowerCase().includes(s) || (t.category||'').toLowerCase().includes(s)); }
+    if (filter.categories.length) list = list.filter(t => filter.categories.includes(t.category || 'Other'));
     if (filter.dateFrom) list = list.filter(t => t.date >= filter.dateFrom);
     if (filter.dateTo) list = list.filter(t => t.date <= filter.dateTo);
     list.sort((a, b) => {
@@ -4452,7 +4477,7 @@ function TransactionsPage({ transactions, setTransactions, hideBalances }) {
       const m = t.date.slice(0, 7);
       if (!months[m]) months[m] = {};
       const cat = t.category || 'Other';
-      months[m][cat] = (months[m][cat] || 0) + Math.abs(toCHF(t.amount, t.currency));
+      months[m][cat] = Math.round(((months[m][cat] || 0) + Math.abs(toCHF(t.amount, t.currency))) * 100) / 100;
     });
     return Object.entries(months).sort((a, b) => a[0].localeCompare(b[0])).map(([month, cats]) => ({ month, ...cats }));
   }, [filtered]);
@@ -4481,11 +4506,12 @@ function TransactionsPage({ transactions, setTransactions, hideBalances }) {
 Respond with ONLY a raw JSON object — no explanation, no markdown, no code fences, no extra text before or after. Just the JSON.
 
 Required JSON shape:
-{"transactions":[{"date":"YYYY-MM-DD","description":"Merchant name","amount":-12.50,"fee":0,"currency":"CHF","category":"Category","type":"Card Payment"}]}
+{"transactions":[{"date":"YYYY-MM-DD","description":"Full transaction description","merchant":"Clean Merchant Name","amount":-12.50,"fee":0,"currency":"CHF","category":"Category","type":"Card Payment"}]}
 
 Rules:
 - date: use the completed/settled date in YYYY-MM-DD format
-- description: merchant or transfer description as shown
+- description: full transaction description as shown in the statement
+- merchant: clean, human-readable merchant or payee name (e.g. "Migros", "Coop", "Netflix", "SBB"). For transfers, use the counterparty name. Omit transaction codes, reference numbers, and locations — just the brand/company name.
 - amount: negative for expenses, positive for income. Keep original sign from the data.
 - fee: any fee charged, 0 if none
 - currency: the ORIGINAL currency of each transaction as shown in the statement (e.g. CHF, EUR, USD, IDR). Each row may have a different currency — extract it per row, do NOT assume all rows share one currency.
@@ -4808,6 +4834,7 @@ Rules:
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead style={{ position: 'sticky', top: 0, background: C.card }}><tr>
               <th style={{ padding: '6px 8px', textAlign: 'left', borderBottom: `1px solid ${C.border}`, fontSize: 11, color: C.textDim }}>Date</th>
+              <th style={{ padding: '6px 8px', textAlign: 'left', borderBottom: `1px solid ${C.border}`, fontSize: 11, color: C.textDim }}>Merchant</th>
               <th style={{ padding: '6px 8px', textAlign: 'left', borderBottom: `1px solid ${C.border}`, fontSize: 11, color: C.textDim }}>Description</th>
               <th style={{ padding: '6px 8px', textAlign: 'right', borderBottom: `1px solid ${C.border}`, fontSize: 11, color: C.textDim }}>Amount</th>
               <th style={{ padding: '6px 8px', textAlign: 'left', borderBottom: `1px solid ${C.border}`, fontSize: 11, color: C.textDim }}>Category</th>
@@ -4815,7 +4842,8 @@ Rules:
             </tr></thead>
             <tbody>{importPreview.transactions.map((t, i) => <tr key={i} style={{ borderBottom: `1px solid ${C.border}22` }}>
               <td style={{ padding: '5px 8px', whiteSpace: 'nowrap' }}>{t.date}</td>
-              <td style={{ padding: '5px 8px' }}>{t.description}</td>
+              <td style={{ padding: '5px 8px', fontWeight: 500 }}>{t.merchant || ''}</td>
+              <td style={{ padding: '5px 8px', fontSize: 12, color: C.textMuted }}>{t.description}</td>
               <td style={{ padding: '5px 8px', textAlign: 'right', color: t.amount < 0 ? C.red : C.green, fontWeight: 500 }}>{t.amount < 0 ? '' : '+'}{t.amount.toFixed(2)}</td>
               <td style={{ padding: '5px 8px' }}>
                 <select value={t.category || 'Other'} onChange={e => {
@@ -4843,15 +4871,52 @@ Rules:
     {/* Filter bar */}
     {allTxns.length > 0 && <Card>
       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+        {[
+          { label: '3D', days: 3 },
+          { label: '1W', days: 7 },
+          { label: '2W', days: 14 },
+          { label: '1M', days: 30 },
+          { label: '3M', days: 90 },
+          { label: '6M', days: 180 },
+          { label: 'YTD', days: 'ytd' },
+          { label: '1Y', days: 365 },
+          { label: 'All', days: 0 },
+        ].map(s => {
+          const today = new Date();
+          let from = '';
+          if (s.days === 'ytd') { from = `${today.getFullYear()}-01-01`; }
+          else if (s.days > 0) { const d = new Date(today); d.setDate(d.getDate() - s.days); from = d.toISOString().slice(0, 10); }
+          const isActive = s.days === 0 ? (!filter.dateFrom && !filter.dateTo) : (filter.dateFrom === from && !filter.dateTo);
+          return <button key={s.label} onClick={() => setFilter(f => s.days === 0 ? { ...f, dateFrom: '', dateTo: '' } : { ...f, dateFrom: from, dateTo: '' })} style={{ padding: '3px 8px', borderRadius: 5, border: `1px solid ${isActive ? C.accent : C.border}`, background: isActive ? C.accent + '22' : 'transparent', color: isActive ? C.accent : C.textMuted, fontSize: 11, fontWeight: 600, cursor: 'pointer', letterSpacing: 0.3 }}>{s.label}</button>;
+        })}
+        <div style={{ width: 1, height: 20, background: C.border }} />
         <input type="date" value={filter.dateFrom} onChange={e => setFilter(f => ({ ...f, dateFrom: e.target.value }))} style={{ background: C.input, color: C.text, border: `1px solid ${C.border}`, borderRadius: 6, padding: '5px 8px', fontSize: 12 }} />
         <span style={{ color: C.textDim, fontSize: 12 }}>to</span>
         <input type="date" value={filter.dateTo} onChange={e => setFilter(f => ({ ...f, dateTo: e.target.value }))} style={{ background: C.input, color: C.text, border: `1px solid ${C.border}`, borderRadius: 6, padding: '5px 8px', fontSize: 12 }} />
-        <select value={filter.category} onChange={e => setFilter(f => ({ ...f, category: e.target.value }))} style={{ background: C.input, color: C.text, border: `1px solid ${C.border}`, borderRadius: 6, padding: '5px 8px', fontSize: 12 }}>
-          <option value="">All Categories</option>
-          {allCategories.map(c => <option key={c} value={c}>{c}</option>)}
-        </select>
+        <div style={{ position: 'relative', display: 'inline-block' }}>
+          <button onClick={() => setFilter(f => ({ ...f, _catOpen: !f._catOpen }))} style={{ background: C.input, color: filter.categories.length ? C.text : C.textMuted, border: `1px solid ${C.border}`, borderRadius: 6, padding: '5px 8px', fontSize: 12, cursor: 'pointer', minWidth: 130, textAlign: 'left', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 4 }}>
+            {filter.categories.length ? `${filter.categories.length} categor${filter.categories.length === 1 ? 'y' : 'ies'}` : 'All Categories'}
+            <ChevronDown size={12} />
+          </button>
+          {filter._catOpen && <>
+            <div onClick={() => setFilter(f => ({ ...f, _catOpen: false }))} style={{ position: 'fixed', inset: 0, zIndex: 149 }} />
+            <div style={{ position: 'absolute', top: '100%', left: 0, marginTop: 4, background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, padding: 6, zIndex: 150, minWidth: 200, maxHeight: 280, overflowY: 'auto', boxShadow: '0 8px 24px rgba(0,0,0,0.4)' }}>
+              {allCategories.map(c => {
+                const sel = filter.categories.includes(c);
+                return <button key={c} onClick={() => setFilter(f => ({ ...f, categories: sel ? f.categories.filter(x => x !== c) : [...f.categories, c] }))} style={{ display: 'flex', alignItems: 'center', gap: 6, width: '100%', padding: '5px 8px', border: 'none', background: sel ? C.accent + '22' : 'transparent', color: sel ? C.accent : C.text, borderRadius: 4, cursor: 'pointer', fontSize: 12, textAlign: 'left' }}>
+                  <span style={{ width: 14, height: 14, borderRadius: 3, border: `1.5px solid ${sel ? C.accent : C.border}`, background: sel ? C.accent : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, color: '#000', fontWeight: 700, flexShrink: 0 }}>{sel ? '✓' : ''}</span>
+                  {c}
+                </button>;
+              })}
+              <div style={{ display: 'flex', gap: 4, marginTop: 4, borderTop: `1px solid ${C.border}`, paddingTop: 4 }}>
+                <button onClick={() => setFilter(f => ({ ...f, categories: [...allCategories] }))} style={{ flex: 1, padding: '5px 8px', border: 'none', background: 'transparent', color: C.textMuted, borderRadius: 4, cursor: 'pointer', fontSize: 11, textAlign: 'center' }}>Select all</button>
+                {filter.categories.length > 0 && <button onClick={() => setFilter(f => ({ ...f, categories: [] }))} style={{ flex: 1, padding: '5px 8px', border: 'none', background: 'transparent', color: C.textMuted, borderRadius: 4, cursor: 'pointer', fontSize: 11, textAlign: 'center' }}>Clear all</button>}
+              </div>
+            </div>
+          </>}
+        </div>
         <input placeholder="Search…" value={filter.search} onChange={e => setFilter(f => ({ ...f, search: e.target.value }))} style={{ flex: 1, minWidth: 120, background: C.input, color: C.text, border: `1px solid ${C.border}`, borderRadius: 6, padding: '5px 8px', fontSize: 12 }} />
-        {(filter.search || filter.category || filter.dateFrom || filter.dateTo) && <button onClick={() => setFilter({ search: '', category: '', dateFrom: '', dateTo: '' })} style={{ background: 'transparent', border: 'none', color: C.textMuted, cursor: 'pointer', fontSize: 11 }}>Clear</button>}
+        {(filter.search || filter.categories.length || filter.dateFrom || filter.dateTo) && <button onClick={() => setFilter({ search: '', categories: [], dateFrom: '', dateTo: '' })} style={{ background: 'transparent', border: 'none', color: C.textMuted, cursor: 'pointer', fontSize: 11 }}>Clear</button>}
       </div>
     </Card>}
 
@@ -4888,7 +4953,7 @@ Rules:
             <CartesianGrid strokeDasharray="3 3" stroke={C.border} />
             <XAxis dataKey="month" tick={{ fontSize: 11, fill: C.textMuted }} />
             <YAxis tick={{ fontSize: 11, fill: C.textMuted }} />
-            <Tooltip contentStyle={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 12 }} />
+            <Tooltip formatter={v => fmt(v)} contentStyle={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 12 }} />
             <Legend wrapperStyle={{ fontSize: 11 }} />
             {allChartCategories.map((cat, i) => <Bar key={cat} dataKey={cat} stackId="a" fill={PIE_COLORS[i % PIE_COLORS.length]} />)}
           </BarChart>
@@ -4902,6 +4967,7 @@ Rules:
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead><tr>
             <SortTH col="date">Date</SortTH>
+            <SortTH col="merchant">Merchant</SortTH>
             <SortTH col="description">Description</SortTH>
             <SortTH col="amount" style={{ textAlign: 'right' }}>Amount</SortTH>
             <SortTH col="category">Category</SortTH>
@@ -4910,7 +4976,8 @@ Rules:
           </tr></thead>
           <tbody>{filtered.map(t => <tr key={t.id} style={{ borderBottom: `1px solid ${C.border}22` }}>
             <td style={{ padding: '7px 10px', whiteSpace: 'nowrap', fontSize: 13 }}>{t.date}</td>
-            <td style={{ padding: '7px 10px', fontSize: 13 }}>{t.description}</td>
+            <td style={{ padding: '7px 10px', fontSize: 13, fontWeight: 500 }}>{t.merchant || ''}</td>
+            <td style={{ padding: '7px 10px', fontSize: 12, color: C.textMuted, maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.description}</td>
             <td style={{ padding: '7px 10px', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
               <div style={{ fontWeight: 500, fontSize: 13, color: t.amount < 0 ? C.red : C.green }}>{hideBalances ? '•••' : `${t.amount < 0 ? '' : '+'}${t.amount.toFixed(2)}`} {t.currency}</div>
               {t.currency && t.currency !== 'CHF' && fxRates[t.currency] && !hideBalances && <div style={{ fontSize: 11, color: C.textDim }}>{toCHF(t.amount, t.currency) < 0 ? '' : '+'}{toCHF(t.amount, t.currency).toFixed(2)} CHF</div>}
