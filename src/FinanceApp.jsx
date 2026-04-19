@@ -3091,6 +3091,10 @@ function PillarPage({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes
   const totalProgress = moneySystemTarget > 0 ? Math.min(100, (totalWealth / moneySystemTarget) * 100) : 0;
   // Years to target based on current monthly savings
   const monthlySavInv = sc ? [...sc.savings,...sc.investments].reduce((s,x)=>s+getA(x),0) : 0;
+  // Liquid-only savings: exclude pension contributions (BVG, 2A, 3A) to avoid double-counting
+  // Pension growth is projected separately in the Coasting FIRE calculation
+  const isPensionItem = (x) => /bvg|pension|pensionskasse|2a|3a|pillar|saule|säule/i.test(x.label || "");
+  const liquidMonthlySavInv = sc ? [...sc.savings,...sc.investments].filter(x => !isPensionItem(x)).reduce((s,x)=>s+getA(x),0) : 0;
   const yearsToTarget = monthlySavInv > 0 && moneySystemTarget > liquidTotal
     ? Math.ceil((moneySystemTarget - liquidTotal) / (monthlySavInv * 12))
     : null;
@@ -3108,60 +3112,96 @@ function PillarPage({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes
 
   // Step 1: portfolio needed at retirement so spend-down covers essential costs until coastSpendDownAge
   const annualNeed = essentialTotal * 12;
-  const portfolioNeededAtRetirement = rRet > 0
+  const grossPortfolioNeeded = rRet > 0
     ? annualNeed * (1 - Math.pow(1 + rRet, -retirementYears)) / rRet
     : annualNeed * retirementYears;
 
-  // Step 2: find coasting start — iterate year by year to find when portfolio (with savings)
-  // is enough to compound on its own to portfolioNeededAtRetirement by retirement
+  // Step 2: project pension accounts to retirement (they unlock at retirement as lump sum)
+  // BVG (2A): conservative guaranteed rate (default 1.75%) + ongoing employer+employee contributions
+  // 3A (Frankly etc.): conservative ETF growth (use account rate or default 4%)
+  // Apply Kapitalbezugssteuer (lump sum withdrawal tax) ~6-8% in ZH depending on amount
+  const rGrow = coastReturnRate / 100;
+  const yearsToRetirement = currentAge != null ? Math.max(0, coastRetirementAge - currentAge) : 30;
+
+  const pension2A = accounts.filter(a => a.type === "Pension 2A");
+  const pension3A = accounts.filter(a => a.type === "Pension 3A");
+  const bvgRate = 0.0175; // BVG minimum interest rate 2025
+  const default3ARate = 0.04; // conservative for ETF-based 3a
+  // BVG contributions: use scenario savings tagged as pension, or estimate from accounts
+  // For simplicity, project current balance at guaranteed rate (contributions already flow in)
+  const projected2A = pension2A.reduce((s, a) => {
+    const r = a.rate ? a.rate / 100 : bvgRate;
+    return s + a.balance * Math.pow(1 + r, yearsToRetirement);
+  }, 0);
+  const projected3A = pension3A.reduce((s, a) => {
+    const r = a.rate ? a.rate / 100 : default3ARate;
+    return s + a.balance * Math.pow(1 + r, yearsToRetirement);
+  }, 0);
+  const projectedPensionGross = projected2A + projected3A;
+  // Kapitalbezugssteuer (lump sum withdrawal tax) — ZH ~6-8%, use 7% as conservative estimate
+  const pensionWithdrawalTax = 0.07;
+  const projectedPensionNet = projectedPensionGross * (1 - pensionWithdrawalTax);
+
+  // Step 3: liquid portfolio needed at retirement = total needed - pension lump sum
+  const portfolioNeededAtRetirement = Math.max(0, grossPortfolioNeeded - projectedPensionNet);
+
+  // Step 4: "Coast FI Now" = liquid amount needed TODAY so compound growth alone covers the gap
+  const coastFiNow = portfolioNeededAtRetirement / Math.pow(1 + rGrow, yearsToRetirement);
+  const isCoastingNow = liquidTotal >= coastFiNow && coastFiNow > 0;
+  const coastFiProgress = coastFiNow > 0 ? Math.min(100, (liquidTotal / coastFiNow) * 100) : 0;
+
+  // Step 5: find when liquid portfolio (with liquid savings + compound growth) reaches the coasting threshold
+  // Uses liquidMonthlySavInv (excludes pension contributions) to avoid double-counting
   const coastCalc = useMemo(() => {
-    if (currentAge == null || monthlySavInv <= 0 || portfolioNeededAtRetirement <= 0) {
-      // Still calculate a static coasting FI number if possible
-      const maxCoastYears = currentAge != null ? Math.max(0, coastRetirementAge - currentAge) : 30;
-      const staticCoastFi = portfolioNeededAtRetirement / Math.pow(1 + coastReturnRate / 100, maxCoastYears);
-      return { coastFiNumber: staticCoastFi, coastFiAge: null, coastingYears: maxCoastYears, yearsToCoast: null };
+    if (currentAge == null || grossPortfolioNeeded <= 0) {
+      return { coastFiAge: null, coastingYears: yearsToRetirement, yearsToCoast: null };
     }
-    const rGrow = coastReturnRate / 100;
-    const annualSav = monthlySavInv * 12;
-    // Project portfolio year by year with savings, check if it can coast from that point
+    if (isCoastingNow) {
+      return { coastFiAge: currentAge, coastingYears: yearsToRetirement, yearsToCoast: 0 };
+    }
+    if (liquidMonthlySavInv <= 0) {
+      return { coastFiAge: null, coastingYears: yearsToRetirement, yearsToCoast: null };
+    }
+    const annualSav = liquidMonthlySavInv * 12;
     let portfolio = liquidTotal;
-    for (let y = 0; y <= coastRetirementAge - currentAge; y++) {
-      const remainingYears = coastRetirementAge - (currentAge + y);
-      const neededNow = portfolioNeededAtRetirement / Math.pow(1 + rGrow, remainingYears);
-      if (portfolio >= neededNow) {
-        return { coastFiNumber: neededNow, coastFiAge: currentAge + y, coastingYears: remainingYears, yearsToCoast: y };
+    for (let y = 1; y <= yearsToRetirement; y++) {
+      portfolio = portfolio * (1 + rGrow) + annualSav;
+      const remainingYears = yearsToRetirement - y;
+      const neededAtThisAge = portfolioNeededAtRetirement / Math.pow(1 + rGrow, remainingYears);
+      if (portfolio >= neededAtThisAge) {
+        return { coastFiAge: currentAge + y, coastingYears: remainingYears, yearsToCoast: y };
       }
-      portfolio += annualSav; // add a year of savings
     }
-    // Can't reach it before retirement — show what's needed now
-    const neededNow = portfolioNeededAtRetirement / Math.pow(1 + rGrow, Math.max(0, coastRetirementAge - currentAge));
-    return { coastFiNumber: neededNow, coastFiAge: null, coastingYears: Math.max(0, coastRetirementAge - currentAge), yearsToCoast: null };
-  }, [currentAge, liquidTotal, monthlySavInv, coastRetirementAge, coastReturnRate, portfolioNeededAtRetirement]);
+    return { coastFiAge: null, coastingYears: 0, yearsToCoast: null };
+  }, [currentAge, liquidTotal, liquidMonthlySavInv, yearsToRetirement, rGrow, portfolioNeededAtRetirement, isCoastingNow]);
 
-  const { coastFiNumber, coastFiAge, coastingYears, yearsToCoast } = coastCalc;
-  const coastFiProgress = coastFiNumber > 0 ? Math.min(100, (liquidTotal / coastFiNumber) * 100) : 0;
-  const isCoastingNow = liquidTotal >= coastFiNumber && coastFiNumber > 0;
+  const { coastFiAge, coastingYears, yearsToCoast } = coastCalc;
 
-  // Projected portfolio at retirement
-  const coastProjectedValue = isCoastingNow
-    ? liquidTotal * Math.pow(1 + coastReturnRate / 100, Math.max(0, coastRetirementAge - (currentAge || 0)))
+  // Projected total at retirement (liquid + pension)
+  const liquidAtRetirement = isCoastingNow
+    ? liquidTotal * Math.pow(1 + rGrow, yearsToRetirement)
     : portfolioNeededAtRetirement;
-  const coastingGrowthPct = coastFiNumber > 0 ? ((coastProjectedValue / coastFiNumber) - 1) * 100 : 0;
+  const totalAtRetirement = liquidAtRetirement + projectedPensionNet;
+  const coastProjectedValue = totalAtRetirement;
+  const coastingGrowthPct = coastFiNow > 0 ? ((liquidAtRetirement / coastFiNow) - 1) * 100 : 0;
 
-  // Spend-down withdrawal from the projected portfolio
+  // Spend-down withdrawal from total portfolio at retirement (liquid + pension combined)
   const spendDownWithdrawal = rRet > 0
     ? coastProjectedValue * rRet / (1 - Math.pow(1 + rRet, -retirementYears))
     : coastProjectedValue / retirementYears;
 
   const safeWithdrawalAtRetirement = coastProjectedValue * 0.04;
-  const savingsVsPerpetual = moneySystemTarget > 0 ? Math.round(((moneySystemTarget - coastFiNumber) / moneySystemTarget) * 100) : 0;
+  const savingsVsPerpetual = moneySystemTarget > 0 ? Math.round(((moneySystemTarget - coastFiNow) / moneySystemTarget) * 100) : 0;
 
   // Coasting FIRE projection chart data — full lifecycle
   const coastChartData = useMemo(() => {
-    const startAge = isCoastingNow ? currentAge : coastFiAge;
-    if (startAge == null || coastRetirementAge <= startAge) return [];
+    if (currentAge == null || portfolioNeededAtRetirement <= 0) return [];
+    // Use coastFiAge if available, otherwise show projection starting from current age with coastFiNow
+    const startAge = isCoastingNow ? currentAge : (coastFiAge != null ? coastFiAge : currentAge);
+    if (coastRetirementAge <= startAge) return [];
     const data = [];
-    const startValue = isCoastingNow ? liquidTotal : coastFiNumber;
+    const coastStartThreshold = coastFiAge != null ? portfolioNeededAtRetirement / Math.pow(1 + rGrow, coastRetirementAge - coastFiAge) : coastFiNow;
+    const startValue = isCoastingNow ? liquidTotal : coastStartThreshold;
     const compoundYrs = coastRetirementAge - startAge;
     // Phase 1: coasting (compound growth, no contributions)
     for (let y = 0; y <= compoundYrs; y++) {
@@ -3171,8 +3211,9 @@ function PillarPage({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes
         phase: "Coasting",
       });
     }
-    // Phase 2: spend-down (retirement withdrawals)
-    const peakValue = startValue * Math.pow(1 + coastReturnRate / 100, compoundYrs);
+    // Phase 2: spend-down (retirement withdrawals) — add pension lump sum at retirement
+    const liquidPeak = startValue * Math.pow(1 + coastReturnRate / 100, compoundYrs);
+    const peakValue = liquidPeak + projectedPensionNet;
     const annualW = rRet > 0 ? peakValue * rRet / (1 - Math.pow(1 + rRet, -retirementYears)) : peakValue / retirementYears;
     let bal = peakValue;
     for (let y = 1; y <= retirementYears && bal > 0; y++) {
@@ -3185,7 +3226,7 @@ function PillarPage({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes
       });
     }
     return data;
-  }, [isCoastingNow, coastFiNumber, coastFiAge, coastReturnRate, coastRetirementAge, currentAge, liquidTotal, rRet, retirementYears]);
+  }, [isCoastingNow, coastFiNow, coastFiAge, coastReturnRate, coastRetirementAge, currentAge, liquidTotal, rRet, retirementYears, projectedPensionNet]);
 
   // Indentured Time
   // CH: 52 weeks - 5 vacation weeks (OR Art. 329a) - 1.8 weeks public holidays (ZH: 9 days) = 45.2 -> 45 working weeks
@@ -3319,7 +3360,8 @@ function PillarPage({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes
     <h2 style={{fontSize:18,fontWeight:700,color:C.text,margin:"0 0 4px"}}>Coasting FIRE Strategy</h2>
     <p style={{fontSize:14,color:C.textMuted,marginBottom:12}}>Two-phase model: accumulate aggressively until FI Number, then coast — stop saving entirely and let compound growth carry you to retirement</p>
     <div style={{padding:"12px 16px",borderRadius:8,background:C.accent+"0a",border:`1px solid ${C.accent}15`,fontSize:13,color:C.textDim,lineHeight:1.8,marginBottom:16}}>
-      <strong style={{color:C.text}}>How Coasting FIRE works:</strong> Instead of retiring the moment you hit your FI Number, you stop all savings contributions and spend your full salary on lifestyle. Your invested portfolio compounds untouched at market returns ({coastReturnRate}%) until your chosen retirement age ({coastRetirementAge}). The result: a <strong style={{color:C.green}}>much larger portfolio</strong> at retirement with zero additional savings effort.
+      <strong style={{color:C.text}}>How Coasting FIRE works:</strong> Instead of retiring the moment you hit your FI Number, you stop all savings contributions and spend your full salary on lifestyle. Your invested portfolio compounds untouched at market returns ({coastReturnRate}%) until your chosen retirement age ({coastRetirementAge}). At retirement, your pension lump sums (2A + 3A) are added to the portfolio for spend-down. The result: a <strong style={{color:C.green}}>much larger portfolio</strong> at retirement with zero additional savings effort.<br/>
+      <span style={{color:C.textDim}}>Note: AHV (1st pillar) is not included in these calculations. If it still exists at your retirement, it provides an additional CHF ~2'520/mo (2025 max) on top of everything shown here — treat it as a bonus.</span>
     </div>
 
     <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:16,marginBottom:16}}>
@@ -3334,23 +3376,46 @@ function PillarPage({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes
               {currentAge != null && <div style={{fontSize:12,color:C.textDim}}>Age {currentAge}</div>}
             </div>
             {isCoastingNow ? <>
-              <div style={{fontSize:13,color:C.textDim,marginBottom:4}}>Portfolio is <strong style={{color:C.green}}>above</strong> Coasting FI Number — you can stop saving</div>
+              <div style={{fontSize:13,color:C.textDim,marginBottom:4}}>Portfolio is <strong style={{color:C.green}}>above</strong> Coast FI Number — you can stop saving now</div>
               <div style={{fontSize:26,fontWeight:400,fontFamily:"'Fraunces',serif",color:C.green}}>CHF {mask(fmt(Math.round(liquidTotal)))}</div>
-              <div style={{fontSize:12,color:C.textDim,marginTop:2}}>{((liquidTotal/coastFiNumber-1)*100).toFixed(0)}% above Coasting FI Number of CHF {mask(fmt(Math.round(coastFiNumber)))}</div>
-              {currentAge != null && <div style={{fontSize:12,color:C.yellow,marginTop:4}}>{Math.max(0,coastRetirementAge-currentAge)} years to retirement at age {coastRetirementAge}</div>}
+              <div style={{fontSize:12,color:C.textDim,marginTop:2}}>{((liquidTotal/coastFiNow-1)*100).toFixed(0)}% above Coast FI of CHF {mask(fmt(Math.round(coastFiNow)))}</div>
+              {currentAge != null && <div style={{fontSize:12,color:C.yellow,marginTop:4}}>{yearsToRetirement} years to retirement at age {coastRetirementAge} → portfolio compounds to CHF {mask(fmt(Math.round(liquidTotal * Math.pow(1+rGrow, yearsToRetirement))))}</div>}
             </> : <>
-              <div style={{fontSize:13,color:C.textDim,marginBottom:4}}>Save until you reach the Coasting FI Number</div>
-              <div style={{fontSize:26,fontWeight:400,fontFamily:"'Fraunces',serif",color:C.accent}}>CHF {mask(fmt(Math.round(liquidTotal)))} <span style={{fontSize:16,color:C.textDim}}>/ {mask(fmt(Math.round(coastFiNumber)))}</span></div>
-              <div style={{marginTop:8,marginBottom:4}}>
+              <div style={{fontSize:12,fontFamily:"'DM Mono',monospace",color:C.textMuted,marginBottom:4,textTransform:"uppercase",letterSpacing:"0.08em"}}>Coast FI Number</div>
+              <div style={{fontSize:26,fontWeight:400,fontFamily:"'Fraunces',serif",color:C.accent}}>CHF {mask(fmt(Math.round(coastFiNow)))}</div>
+              <div style={{fontSize:12,color:C.textDim,marginTop:2}}>If you had this much today, you could stop saving — it compounds to CHF {mask(fmt(Math.round(portfolioNeededAtRetirement)))} by age {coastRetirementAge}</div>
+              <div style={{marginTop:10,marginBottom:4}}>
+                <div style={{display:"flex",justifyContent:"space-between",fontSize:12,color:C.textDim,marginBottom:4}}>
+                  <span>Liquid: CHF {mask(fmt(Math.round(liquidTotal)))}</span>
+                  <span>{coastFiProgress.toFixed(1)}%</span>
+                </div>
                 <div style={{height:8,borderRadius:4,background:C.border,overflow:"hidden"}}>
                   <div style={{width:`${coastFiProgress}%`,background:C.accent,borderRadius:4,transition:"width .3s"}}/>
                 </div>
-                <div style={{fontSize:11,color:C.textDim,marginTop:4}}>{coastFiProgress.toFixed(1)}% to Coasting FI Number{yearsToCoast != null ? ` — ~${yearsToCoast} years remaining` : ""}</div>
+                {pensionTotal > 0 && <div style={{fontSize:11,color:C.textDim,marginTop:6}}>
+                  Total wealth: CHF {mask(fmt(Math.round(liquidTotal + pensionTotal)))} <span style={{color:C.blue}}>(incl. CHF {mask(fmt(Math.round(pensionTotal)))} in pensions — already factored into Coast FI)</span>
+                </div>}
               </div>
-              {coastFiAge != null && <div style={{fontSize:12,color:C.yellow,marginTop:4}}>Estimated coasting start: age {coastFiAge} → retirement at {coastRetirementAge} ({coastingYears} years of compound growth)</div>}
+              {yearsToCoast != null && coastFiAge != null ? <div style={{padding:"8px 12px",borderRadius:6,background:C.yellow+"0d",border:`1px solid ${C.yellow}22`,fontSize:12,color:C.textDim,lineHeight:1.6,marginTop:8}}>
+                <strong style={{color:C.yellow}}>At your current liquid savings rate of CHF {mask(fmt(Math.round(liquidMonthlySavInv)))}/mo:</strong> you'll reach your Coast FI at <strong style={{color:C.text}}>age {coastFiAge}</strong> (~{yearsToCoast} years). After that, stop saving — {coastingYears} years of {coastReturnRate}% compounding grows it to CHF {mask(fmt(Math.round(portfolioNeededAtRetirement)))} by retirement.{liquidMonthlySavInv < monthlySavInv && <><br/><span style={{fontSize:11,color:C.textDim}}>Pension contributions (CHF {mask(fmt(Math.round(monthlySavInv - liquidMonthlySavInv)))}/mo) are excluded — projected separately above.</span></>}
+              </div> : liquidMonthlySavInv <= 0 ? <div style={{padding:"8px 12px",borderRadius:6,background:C.orange+"0d",border:`1px solid ${C.orange}22`,fontSize:12,color:C.textDim,lineHeight:1.6,marginTop:8}}>
+                <strong style={{color:C.orange}}>{monthlySavInv > 0 ? "Only pension contributions found" : "No savings configured"}.</strong> {monthlySavInv > 0 ? "Add liquid savings/investments (non-pension) to your scenario." : "Add savings/investments to your active scenario to see when you can start coasting."}
+              </div> : <div style={{padding:"8px 12px",borderRadius:6,background:C.orange+"0d",border:`1px solid ${C.orange}22`,fontSize:12,color:C.textDim,lineHeight:1.6,marginTop:8}}>
+                <strong style={{color:C.orange}}>At your current savings rate</strong>, you won't reach Coast FI before retirement. Consider increasing savings or adjusting parameters.
+              </div>}
             </>}
+            {projectedPensionNet > 0 && <div style={{padding:"8px 12px",borderRadius:6,background:C.blue+"0a",border:`1px solid ${C.blue}15`,fontSize:12,color:C.textDim,lineHeight:1.8,marginTop:8}}>
+              <strong style={{color:C.blue}}>Pension accounts included (conservative)</strong><br/>
+              {projected2A > 0 && <>Pillar 2A (BVG): CHF {mask(fmt(Math.round(pensionTotal > 0 ? pension2A.reduce((s,a)=>s+a.balance,0) : 0)))} today → CHF {mask(fmt(Math.round(projected2A)))} at {coastRetirementAge} ({(pension2A[0]?.rate || 1.75)}% p.a.)<br/></>}
+              {projected3A > 0 && <>Pillar 3A: CHF {mask(fmt(Math.round(pension3A.reduce((s,a)=>s+a.balance,0))))} today → CHF {mask(fmt(Math.round(projected3A)))} at {coastRetirementAge} ({pension3A[0]?.rate || 4}% p.a.)<br/></>}
+              After ~{(pensionWithdrawalTax*100).toFixed(0)}% Kapitalbezugssteuer (ZH): <strong style={{color:C.text}}>CHF {mask(fmt(Math.round(projectedPensionNet)))}</strong> net at retirement<br/>
+              This reduces the liquid portfolio you need from CHF {mask(fmt(Math.round(grossPortfolioNeeded)))} to <strong style={{color:C.green}}>CHF {mask(fmt(Math.round(portfolioNeededAtRetirement)))}</strong>
+            </div>}
+            {projectedPensionNet === 0 && <div style={{padding:"8px 12px",borderRadius:6,background:C.orange+"0a",border:`1px solid ${C.orange}15`,fontSize:12,color:C.textDim,lineHeight:1.6,marginTop:8}}>
+              <strong style={{color:C.orange}}>No pension accounts found.</strong> Add your BVG (Pension 2A) and 3A (Pension 3A) accounts to reduce your Coast FI Number — they provide a significant lump sum at retirement.
+            </div>}
             <div style={{padding:"8px 12px",borderRadius:6,background:C.green+"0a",border:`1px solid ${C.green}15`,fontSize:12,color:C.textDim,lineHeight:1.6,marginTop:8}}>
-              <strong style={{color:C.green}}>You need {savingsVsPerpetual}% less</strong> than the perpetual FI Number (CHF {mask(fmt(Math.round(moneySystemTarget)))}), because your portfolio only needs to last until age {coastSpendDownAge}, not forever.
+              <strong style={{color:C.green}}>{savingsVsPerpetual}% less than perpetual FIRE</strong> (CHF {mask(fmt(Math.round(moneySystemTarget)))}). Your portfolio only needs to last until age {coastSpendDownAge}{projectedPensionNet > 0 ? ", and your pensions cover a large chunk at retirement" : ""}.
             </div>
           </div>
           <div style={{display:"flex",flexDirection:"column",gap:12}}>
@@ -3391,7 +3456,7 @@ function PillarPage({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes
               <YAxis tick={{fontSize:11,fill:C.textDim}} tickLine={false} axisLine={false} tickFormatter={v=>v>=1e6?`${(v/1e6).toFixed(1)}M`:`${Math.round(v/1000)}k`}/>
               <Tooltip contentStyle={{background:C.card,border:`1px solid ${C.border}`,borderRadius:8,fontSize:12}} formatter={(v,n,p)=>[`CHF ${fmt(v)}`,p.payload.phase]} labelFormatter={l=>`Age ${l}`}/>
               <ReferenceLine x={coastRetirementAge} stroke={C.yellow} strokeDasharray="5 5" label={{value:`Retire ${coastRetirementAge}`,position:"top",fontSize:10,fill:C.yellow}}/>
-              <ReferenceLine y={coastFiNumber} stroke={C.accent} strokeDasharray="5 5" label={{value:"Coasting FI#",position:"insideTopRight",fontSize:10,fill:C.accent}}/>
+              <ReferenceLine y={coastFiNow} stroke={C.accent} strokeDasharray="5 5" label={{value:"Coasting FI#",position:"insideTopRight",fontSize:10,fill:C.accent}}/>
               <Area type="monotone" dataKey="value" stroke={C.green} fill="url(#coastGrad)" strokeWidth={2}/>
             </AreaChart>
           </ResponsiveContainer>
@@ -3405,9 +3470,12 @@ function PillarPage({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes
         <div style={{fontSize:12,fontFamily:"'DM Mono',monospace",color:C.textMuted,marginBottom:8,textTransform:"uppercase",letterSpacing:"0.08em"}}>Retirement Income Calculator</div>
         <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:12}}>
           <div style={{padding:"8px 12px",borderRadius:6,background:C.green+"0d",border:`1px solid ${C.green}22`}}>
-            <div style={{fontSize:12,color:C.textDim}}>Projected portfolio at retirement (age {coastRetirementAge})</div>
+            <div style={{fontSize:12,color:C.textDim}}>Total at retirement (age {coastRetirementAge})</div>
             <div style={{fontSize:20,fontWeight:600,color:C.green}}>CHF {mask(fmt(Math.round(coastProjectedValue)))}</div>
-            <div style={{fontSize:11,color:C.textDim}}>+{coastingGrowthPct.toFixed(0)}% growth from {coastingYears} years compounding</div>
+            <div style={{fontSize:11,color:C.textDim}}>
+              Liquid: CHF {mask(fmt(Math.round(liquidAtRetirement)))}
+              {projectedPensionNet > 0 && <> + Pensions: CHF {mask(fmt(Math.round(projectedPensionNet)))} (net after tax)</>}
+            </div>
           </div>
         </div>
         {/* Spend-down sliders */}
