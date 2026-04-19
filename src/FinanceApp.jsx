@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useCallback, useEffect, useRef } from "react";
-import { PieChart, Pie, Cell, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, BarChart, Bar, ResponsiveContainer, AreaChart, Area, ComposedChart } from "recharts";
+import { PieChart, Pie, Cell, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, BarChart, Bar, ResponsiveContainer, AreaChart, Area, ComposedChart, ReferenceLine } from "recharts";
 import { LayoutDashboard, Target, TrendingUp, Activity, CreditCard, Shield, Plus, Pencil, Trash2, Check, X, DollarSign, Wallet, PiggyBank, BarChart3, GripVertical, Power, Sparkles, AlertTriangle, ArrowUpRight, Info, Lightbulb, ShieldCheck, Landmark, Paperclip, Upload, Download, Sun, Moon, ChevronLeft, ChevronRight, User, Building2, Eye, EyeOff, RefreshCw, ChevronDown, MessageSquarePlus, ExternalLink, Maximize2, Minimize2, BookOpen, Settings, Key, Bot, WifiOff, Lock, Cloud, Pin, ClipboardList, Menu, Receipt } from "lucide-react";
 import { jsPDF } from "jspdf";
 
@@ -3048,12 +3048,16 @@ function InsurancePage({ insurance, setInsurance }) {
 // ───────────────────────────────────────────────────────────────
 // STRATEGY PILLARS
 // ───────────────────────────────────────────────────────────────
-function PillarPage({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes, insurance, hideBalances }) {
+function PillarPage({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes, insurance, hideBalances, profile }) {
   const mask = (v) => hideBalances ? "••••" : v;
   const winW = useWindowWidth(); const isMobile = winW < 768;
   const [yieldRate, setYieldRate] = useState(4);
   const [hoursPerWeek, setHoursPerWeek] = useState(40);
   const [purchase, setPurchase] = useState("");
+  const [coastRetirementAge, setCoastRetirementAge] = useState(65);
+  const [coastReturnRate, setCoastReturnRate] = useState(7);
+  const [coastSpendDownAge, setCoastSpendDownAge] = useState(110);
+  const [coastRetirementReturn, setCoastRetirementReturn] = useState(4);
 
   // Derive essential monthly costs (same logic as Dashboard)
   const sc = scenarios.find(s=>s.isActive);
@@ -3096,6 +3100,92 @@ function PillarPage({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes
   // So gross revenue needed is higher: divide by ~0.65 to get pre-tax equivalent
   const businessTarget = essentialTotal * 5;
   const businessTargetGross = businessTarget / 0.65; // approx. pre-tax for self-employed in CH
+
+  // Coasting FIRE calculations
+  const currentAge = profile && profile.birthDate ? Math.floor((new Date() - new Date(profile.birthDate)) / (365.25 * 24 * 60 * 60 * 1000)) : null;
+  const retirementYears = Math.max(1, coastSpendDownAge - coastRetirementAge);
+  const rRet = coastRetirementReturn / 100;
+
+  // Step 1: portfolio needed at retirement so spend-down covers essential costs until coastSpendDownAge
+  const annualNeed = essentialTotal * 12;
+  const portfolioNeededAtRetirement = rRet > 0
+    ? annualNeed * (1 - Math.pow(1 + rRet, -retirementYears)) / rRet
+    : annualNeed * retirementYears;
+
+  // Step 2: find coasting start — iterate year by year to find when portfolio (with savings)
+  // is enough to compound on its own to portfolioNeededAtRetirement by retirement
+  const coastCalc = useMemo(() => {
+    if (currentAge == null || monthlySavInv <= 0 || portfolioNeededAtRetirement <= 0) {
+      // Still calculate a static coasting FI number if possible
+      const maxCoastYears = currentAge != null ? Math.max(0, coastRetirementAge - currentAge) : 30;
+      const staticCoastFi = portfolioNeededAtRetirement / Math.pow(1 + coastReturnRate / 100, maxCoastYears);
+      return { coastFiNumber: staticCoastFi, coastFiAge: null, coastingYears: maxCoastYears, yearsToCoast: null };
+    }
+    const rGrow = coastReturnRate / 100;
+    const annualSav = monthlySavInv * 12;
+    // Project portfolio year by year with savings, check if it can coast from that point
+    let portfolio = liquidTotal;
+    for (let y = 0; y <= coastRetirementAge - currentAge; y++) {
+      const remainingYears = coastRetirementAge - (currentAge + y);
+      const neededNow = portfolioNeededAtRetirement / Math.pow(1 + rGrow, remainingYears);
+      if (portfolio >= neededNow) {
+        return { coastFiNumber: neededNow, coastFiAge: currentAge + y, coastingYears: remainingYears, yearsToCoast: y };
+      }
+      portfolio += annualSav; // add a year of savings
+    }
+    // Can't reach it before retirement — show what's needed now
+    const neededNow = portfolioNeededAtRetirement / Math.pow(1 + rGrow, Math.max(0, coastRetirementAge - currentAge));
+    return { coastFiNumber: neededNow, coastFiAge: null, coastingYears: Math.max(0, coastRetirementAge - currentAge), yearsToCoast: null };
+  }, [currentAge, liquidTotal, monthlySavInv, coastRetirementAge, coastReturnRate, portfolioNeededAtRetirement]);
+
+  const { coastFiNumber, coastFiAge, coastingYears, yearsToCoast } = coastCalc;
+  const coastFiProgress = coastFiNumber > 0 ? Math.min(100, (liquidTotal / coastFiNumber) * 100) : 0;
+  const isCoastingNow = liquidTotal >= coastFiNumber && coastFiNumber > 0;
+
+  // Projected portfolio at retirement
+  const coastProjectedValue = isCoastingNow
+    ? liquidTotal * Math.pow(1 + coastReturnRate / 100, Math.max(0, coastRetirementAge - (currentAge || 0)))
+    : portfolioNeededAtRetirement;
+  const coastingGrowthPct = coastFiNumber > 0 ? ((coastProjectedValue / coastFiNumber) - 1) * 100 : 0;
+
+  // Spend-down withdrawal from the projected portfolio
+  const spendDownWithdrawal = rRet > 0
+    ? coastProjectedValue * rRet / (1 - Math.pow(1 + rRet, -retirementYears))
+    : coastProjectedValue / retirementYears;
+
+  const safeWithdrawalAtRetirement = coastProjectedValue * 0.04;
+  const savingsVsPerpetual = moneySystemTarget > 0 ? Math.round(((moneySystemTarget - coastFiNumber) / moneySystemTarget) * 100) : 0;
+
+  // Coasting FIRE projection chart data — full lifecycle
+  const coastChartData = useMemo(() => {
+    const startAge = isCoastingNow ? currentAge : coastFiAge;
+    if (startAge == null || coastRetirementAge <= startAge) return [];
+    const data = [];
+    const startValue = isCoastingNow ? liquidTotal : coastFiNumber;
+    const compoundYrs = coastRetirementAge - startAge;
+    // Phase 1: coasting (compound growth, no contributions)
+    for (let y = 0; y <= compoundYrs; y++) {
+      data.push({
+        age: startAge + y,
+        value: Math.round(startValue * Math.pow(1 + coastReturnRate / 100, y)),
+        phase: "Coasting",
+      });
+    }
+    // Phase 2: spend-down (retirement withdrawals)
+    const peakValue = startValue * Math.pow(1 + coastReturnRate / 100, compoundYrs);
+    const annualW = rRet > 0 ? peakValue * rRet / (1 - Math.pow(1 + rRet, -retirementYears)) : peakValue / retirementYears;
+    let bal = peakValue;
+    for (let y = 1; y <= retirementYears && bal > 0; y++) {
+      bal = bal * (1 + rRet) - annualW;
+      if (bal < 0) bal = 0;
+      data.push({
+        age: coastRetirementAge + y,
+        value: Math.round(bal),
+        phase: "Spend-down",
+      });
+    }
+    return data;
+  }, [isCoastingNow, coastFiNumber, coastFiAge, coastReturnRate, coastRetirementAge, currentAge, liquidTotal, rRet, retirementYears]);
 
   // Indentured Time
   // CH: 52 weeks - 5 vacation weeks (OR Art. 329a) - 1.8 weeks public holidays (ZH: 9 days) = 45.2 -> 45 working weeks
@@ -3221,6 +3311,174 @@ function PillarPage({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes
         </div>
         <div style={{padding:"8px 12px",borderRadius:8,background:C.bg,border:`1px solid ${C.border}33`,fontSize:12,color:C.textDim,lineHeight:1.7}}>
           <strong style={{color:C.textMuted}}>Why × 5?</strong> A business generating 5× your essential costs gives you a comfortable buffer for taxes, reinvestment, savings, and lifestyle. The /0.65 adjusts for Swiss self-employed deductions: ~10% AHV/IV/EO on net profit + ~25% income tax (Zurich marginal rate).
+        </div>
+      </Card>
+    </div>
+
+    {/* ── Coasting FIRE Strategy ── */}
+    <h2 style={{fontSize:18,fontWeight:700,color:C.text,margin:"0 0 4px"}}>Coasting FIRE Strategy</h2>
+    <p style={{fontSize:14,color:C.textMuted,marginBottom:12}}>Two-phase model: accumulate aggressively until FI Number, then coast — stop saving entirely and let compound growth carry you to retirement</p>
+    <div style={{padding:"12px 16px",borderRadius:8,background:C.accent+"0a",border:`1px solid ${C.accent}15`,fontSize:13,color:C.textDim,lineHeight:1.8,marginBottom:16}}>
+      <strong style={{color:C.text}}>How Coasting FIRE works:</strong> Instead of retiring the moment you hit your FI Number, you stop all savings contributions and spend your full salary on lifestyle. Your invested portfolio compounds untouched at market returns ({coastReturnRate}%) until your chosen retirement age ({coastRetirementAge}). The result: a <strong style={{color:C.green}}>much larger portfolio</strong> at retirement with zero additional savings effort.
+    </div>
+
+    <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:16,marginBottom:16}}>
+      {/* Card 1 — Status & Phase */}
+      <Card style={{gridColumn:isMobile?"1":"1/3"}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:16,flexWrap:"wrap",gap:12}}>
+          <div>
+            <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
+              <div style={{padding:"4px 12px",borderRadius:20,fontSize:12,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.08em",background:isCoastingNow?C.green+"22":C.orange+"22",color:isCoastingNow?C.green:C.orange}}>
+                {isCoastingNow ? "Coasting" : "Accumulating"}
+              </div>
+              {currentAge != null && <div style={{fontSize:12,color:C.textDim}}>Age {currentAge}</div>}
+            </div>
+            {isCoastingNow ? <>
+              <div style={{fontSize:13,color:C.textDim,marginBottom:4}}>Portfolio is <strong style={{color:C.green}}>above</strong> Coasting FI Number — you can stop saving</div>
+              <div style={{fontSize:26,fontWeight:400,fontFamily:"'Fraunces',serif",color:C.green}}>CHF {mask(fmt(Math.round(liquidTotal)))}</div>
+              <div style={{fontSize:12,color:C.textDim,marginTop:2}}>{((liquidTotal/coastFiNumber-1)*100).toFixed(0)}% above Coasting FI Number of CHF {mask(fmt(Math.round(coastFiNumber)))}</div>
+              {currentAge != null && <div style={{fontSize:12,color:C.yellow,marginTop:4}}>{Math.max(0,coastRetirementAge-currentAge)} years to retirement at age {coastRetirementAge}</div>}
+            </> : <>
+              <div style={{fontSize:13,color:C.textDim,marginBottom:4}}>Save until you reach the Coasting FI Number</div>
+              <div style={{fontSize:26,fontWeight:400,fontFamily:"'Fraunces',serif",color:C.accent}}>CHF {mask(fmt(Math.round(liquidTotal)))} <span style={{fontSize:16,color:C.textDim}}>/ {mask(fmt(Math.round(coastFiNumber)))}</span></div>
+              <div style={{marginTop:8,marginBottom:4}}>
+                <div style={{height:8,borderRadius:4,background:C.border,overflow:"hidden"}}>
+                  <div style={{width:`${coastFiProgress}%`,background:C.accent,borderRadius:4,transition:"width .3s"}}/>
+                </div>
+                <div style={{fontSize:11,color:C.textDim,marginTop:4}}>{coastFiProgress.toFixed(1)}% to Coasting FI Number{yearsToCoast != null ? ` — ~${yearsToCoast} years remaining` : ""}</div>
+              </div>
+              {coastFiAge != null && <div style={{fontSize:12,color:C.yellow,marginTop:4}}>Estimated coasting start: age {coastFiAge} → retirement at {coastRetirementAge} ({coastingYears} years of compound growth)</div>}
+            </>}
+            <div style={{padding:"8px 12px",borderRadius:6,background:C.green+"0a",border:`1px solid ${C.green}15`,fontSize:12,color:C.textDim,lineHeight:1.6,marginTop:8}}>
+              <strong style={{color:C.green}}>You need {savingsVsPerpetual}% less</strong> than the perpetual FI Number (CHF {mask(fmt(Math.round(moneySystemTarget)))}), because your portfolio only needs to last until age {coastSpendDownAge}, not forever.
+            </div>
+          </div>
+          <div style={{display:"flex",flexDirection:"column",gap:12}}>
+            <div>
+              <div style={{display:"flex",justifyContent:"space-between",fontSize:12,color:C.textDim,marginBottom:4}}>
+                <span>Retirement age</span>
+                <span style={{color:C.accent,fontWeight:600}}>{coastRetirementAge}</span>
+              </div>
+              <input type="range" min={55} max={70} step={1} value={coastRetirementAge} onChange={e=>setCoastRetirementAge(Number(e.target.value))} style={{width:isMobile?"100%":160,accentColor:C.accent}}/>
+              <div style={{display:"flex",justifyContent:"space-between",fontSize:10,color:C.textDim,marginTop:2}}>
+                <span>55</span><span>AHV 65</span><span>70</span>
+              </div>
+            </div>
+            <div>
+              <div style={{display:"flex",justifyContent:"space-between",fontSize:12,color:C.textDim,marginBottom:4}}>
+                <span>Expected return</span>
+                <span style={{color:C.accent,fontWeight:600}}>{coastReturnRate}%</span>
+              </div>
+              <input type="range" min={4} max={10} step={0.5} value={coastReturnRate} onChange={e=>setCoastReturnRate(Number(e.target.value))} style={{width:isMobile?"100%":160,accentColor:C.accent}}/>
+              <div style={{display:"flex",justifyContent:"space-between",fontSize:10,color:C.textDim,marginTop:2}}>
+                <span>4% conservative</span><span>10%</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        {/* Projection Chart — full lifecycle */}
+        {coastChartData.length > 1 && <div style={{marginTop:8}}>
+          <div style={{fontSize:12,color:C.textMuted,marginBottom:8}}>Full lifecycle: coasting phase → spend-down to age {coastSpendDownAge}</div>
+          <ResponsiveContainer width="100%" height={220}>
+            <AreaChart data={coastChartData} margin={{top:5,right:20,bottom:5,left:20}}>
+              <defs>
+                <linearGradient id="coastGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor={C.green} stopOpacity={0.3}/>
+                  <stop offset="95%" stopColor={C.green} stopOpacity={0}/>
+                </linearGradient>
+              </defs>
+              <XAxis dataKey="age" tick={{fontSize:11,fill:C.textDim}} tickLine={false} axisLine={false} label={{value:"Age",position:"insideBottom",offset:-2,fontSize:11,fill:C.textDim}}/>
+              <YAxis tick={{fontSize:11,fill:C.textDim}} tickLine={false} axisLine={false} tickFormatter={v=>v>=1e6?`${(v/1e6).toFixed(1)}M`:`${Math.round(v/1000)}k`}/>
+              <Tooltip contentStyle={{background:C.card,border:`1px solid ${C.border}`,borderRadius:8,fontSize:12}} formatter={(v,n,p)=>[`CHF ${fmt(v)}`,p.payload.phase]} labelFormatter={l=>`Age ${l}`}/>
+              <ReferenceLine x={coastRetirementAge} stroke={C.yellow} strokeDasharray="5 5" label={{value:`Retire ${coastRetirementAge}`,position:"top",fontSize:10,fill:C.yellow}}/>
+              <ReferenceLine y={coastFiNumber} stroke={C.accent} strokeDasharray="5 5" label={{value:"Coasting FI#",position:"insideTopRight",fontSize:10,fill:C.accent}}/>
+              <Area type="monotone" dataKey="value" stroke={C.green} fill="url(#coastGrad)" strokeWidth={2}/>
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>}
+      </Card>
+    </div>
+
+    <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:16,marginBottom:24}}>
+      {/* Card 2 — Retirement Income Calculator */}
+      <Card>
+        <div style={{fontSize:12,fontFamily:"'DM Mono',monospace",color:C.textMuted,marginBottom:8,textTransform:"uppercase",letterSpacing:"0.08em"}}>Retirement Income Calculator</div>
+        <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:12}}>
+          <div style={{padding:"8px 12px",borderRadius:6,background:C.green+"0d",border:`1px solid ${C.green}22`}}>
+            <div style={{fontSize:12,color:C.textDim}}>Projected portfolio at retirement (age {coastRetirementAge})</div>
+            <div style={{fontSize:20,fontWeight:600,color:C.green}}>CHF {mask(fmt(Math.round(coastProjectedValue)))}</div>
+            <div style={{fontSize:11,color:C.textDim}}>+{coastingGrowthPct.toFixed(0)}% growth from {coastingYears} years compounding</div>
+          </div>
+        </div>
+        {/* Spend-down sliders */}
+        <div style={{display:"flex",gap:16,flexWrap:"wrap",marginBottom:12}}>
+          <div style={{flex:1,minWidth:140}}>
+            <div style={{display:"flex",justifyContent:"space-between",fontSize:12,color:C.textDim,marginBottom:4}}>
+              <span>Spend down to age</span>
+              <span style={{color:C.accent,fontWeight:600}}>{coastSpendDownAge}</span>
+            </div>
+            <input type="range" min={80} max={110} step={1} value={coastSpendDownAge} onChange={e=>setCoastSpendDownAge(Number(e.target.value))} style={{width:"100%",accentColor:C.accent}}/>
+            <div style={{display:"flex",justifyContent:"space-between",fontSize:10,color:C.textDim,marginTop:2}}>
+              <span>80</span><span>95 avg</span><span>110</span>
+            </div>
+          </div>
+          <div style={{flex:1,minWidth:140}}>
+            <div style={{display:"flex",justifyContent:"space-between",fontSize:12,color:C.textDim,marginBottom:4}}>
+              <span>Return in retirement</span>
+              <span style={{color:C.accent,fontWeight:600}}>{coastRetirementReturn}%</span>
+            </div>
+            <input type="range" min={0} max={6} step={0.5} value={coastRetirementReturn} onChange={e=>setCoastRetirementReturn(Number(e.target.value))} style={{width:"100%",accentColor:C.accent}}/>
+            <div style={{display:"flex",justifyContent:"space-between",fontSize:10,color:C.textDim,marginTop:2}}>
+              <span>0% (mattress)</span><span>6%</span>
+            </div>
+          </div>
+        </div>
+        {/* Spend-down result */}
+        <div style={{padding:"10px 12px",borderRadius:6,background:C.accent+"0d",border:`1px solid ${C.accent}22`,marginBottom:8}}>
+          <div style={{fontSize:12,color:C.textDim}}>Spend-down withdrawal (portfolio → 0 at age {coastSpendDownAge})</div>
+          <div style={{fontSize:20,fontWeight:600,color:C.accent}}>CHF {mask(fmt(Math.round(spendDownWithdrawal)))}/yr</div>
+          <div style={{fontSize:13,color:C.textDim}}>= <strong style={{color:C.accent}}>CHF {mask(fmt(Math.round(spendDownWithdrawal/12)))}/mo</strong> for {retirementYears} years</div>
+        </div>
+        {/* Comparison: perpetual vs spend-down */}
+        <div style={{padding:"8px 12px",borderRadius:8,background:C.bg,border:`1px solid ${C.border}33`,fontSize:12,color:C.textDim,lineHeight:1.8}}>
+          <strong style={{color:C.textMuted}}>Perpetual (4% rule) vs Spend-down:</strong><br/>
+          4% rule (never touch principal): CHF {mask(fmt(Math.round(safeWithdrawalAtRetirement)))}/yr = {mask(fmt(Math.round(safeWithdrawalAtRetirement/12)))}/mo<br/>
+          Spend to 0 by age {coastSpendDownAge}: <strong style={{color:C.accent}}>CHF {mask(fmt(Math.round(spendDownWithdrawal)))}/yr</strong> = {mask(fmt(Math.round(spendDownWithdrawal/12)))}/mo<br/>
+          <span style={{color:C.green}}>+{safeWithdrawalAtRetirement>0?((spendDownWithdrawal/safeWithdrawalAtRetirement-1)*100).toFixed(0):0}% more income</span> when you plan to use it all
+        </div>
+        <div style={{padding:"8px 12px",borderRadius:8,background:C.yellow+"0a",border:`1px solid ${C.yellow}15`,fontSize:12,color:C.textDim,lineHeight:1.7,marginTop:8}}>
+          <strong style={{color:C.yellow}}>Why spend down?</strong> The 4% rule preserves capital forever — great for legacy, but you die with most of your money. A spend-down plan uses your full portfolio over your expected lifespan, giving you significantly more income. Adjust the age slider to match your comfort level (higher = more conservative).
+        </div>
+      </Card>
+
+      {/* Card 3 — Phase Comparison Table */}
+      <Card>
+        <div style={{fontSize:12,fontFamily:"'DM Mono',monospace",color:C.textMuted,marginBottom:8,textTransform:"uppercase",letterSpacing:"0.08em"}}>Phase Comparison</div>
+        <table style={{width:"100%",fontSize:12,borderCollapse:"collapse"}}>
+          <thead>
+            <tr>
+              <th style={{padding:"8px 10px",textAlign:"left",color:C.textDim,borderBottom:`1px solid ${C.border}33`}}/>
+              <th style={{padding:"8px 10px",textAlign:"left",color:C.orange,fontWeight:600,borderBottom:`1px solid ${C.border}33`}}>Accumulation</th>
+              <th style={{padding:"8px 10px",textAlign:"left",color:C.green,fontWeight:600,borderBottom:`1px solid ${C.border}33`}}>Coasting</th>
+            </tr>
+          </thead>
+          <tbody>
+            {[
+              ["Duration",yearsToCoast!=null?`~${yearsToCoast} years`:"—",`${coastingYears} years`],
+              ["Savings Rate","Maximum possible","0% — spend it all"],
+              ["Portfolio","Active contributions","Untouched, compounding"],
+              ["Lifestyle","Frugal, disciplined","Full salary, relaxed"],
+              ["Career Pressure","High — income critical","Low — any job works"],
+              ["Stress Level","Higher","Much lower"],
+            ].map(([label,acc,coast],i)=><tr key={i} style={{background:i%2===0?"transparent":C.bg}}>
+              <td style={{padding:"6px 10px",color:C.textMuted,fontWeight:600}}>{label}</td>
+              <td style={{padding:"6px 10px",color:C.textDim}}>{acc}</td>
+              <td style={{padding:"6px 10px",color:C.textDim}}>{coast}</td>
+            </tr>)}
+          </tbody>
+        </table>
+        <div style={{padding:"8px 12px",borderRadius:8,background:C.yellow+"0a",border:`1px solid ${C.yellow}15`,fontSize:12,color:C.textDim,lineHeight:1.7,marginTop:12}}>
+          <strong style={{color:C.yellow}}>Key insight:</strong> Coasting FIRE trades a few extra working years for dramatically reduced financial stress. You still work, but the pressure to save vanishes — your portfolio does all the heavy lifting.
         </div>
       </Card>
     </div>
@@ -5281,7 +5539,7 @@ export default function FinanceApp() {
         {page==="tracker" && <TrackerPage tracker={tracker} setTracker={setTracker} accounts={accounts} hideBalances={hideBalances} onTrackerSynced={() => setOnboarding(o => ({...o, lastTrackerSync: new Date().toISOString()}))}/>}
         {page==="expenses" && <ExpensesPage subsP={subsP} setSubsP={setSubsP} subsPInScenario={subsPInScenario} setSubsPInScenario={setSubsPInScenario} yearly={yearly} setYearly={setYearly} taxes={taxes} setTaxes={setTaxes} insurance={insurance} setInsurance={setInsurance} hideBalances={hideBalances} profile={profile} accounts={accounts} scenarios={scenarios} darkMode={darkMode} insPrompt={insPrompt} setInsPrompt={setInsPrompt} taxPrompt={taxPrompt} setTaxPrompt={setTaxPrompt} recPrompt={recPrompt} setRecPrompt={setRecPrompt} subPrompt={subPrompt} setSubPrompt={setSubPrompt}/>}
         {page==="transactions" && <TransactionsPage transactions={transactions} setTransactions={setTransactions} hideBalances={hideBalances}/>}
-        {page==="pillars" && <PillarPage accounts={accounts} scenarios={scenarios} subsP={subsP} subsPInScenario={subsPInScenario} yearly={yearly} taxes={taxes} insurance={insurance} hideBalances={hideBalances}/>}
+        {page==="pillars" && <PillarPage accounts={accounts} scenarios={scenarios} subsP={subsP} subsPInScenario={subsPInScenario} yearly={yearly} taxes={taxes} insurance={insurance} hideBalances={hideBalances} profile={profile}/>}
         {page==="ai-settings" && <AISettingsPage/>}
       </div>
     </div>
