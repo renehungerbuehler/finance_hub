@@ -3056,7 +3056,7 @@ function PillarPage({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes
   const [purchase, setPurchase] = useState("");
   const [coastRetirementAge, setCoastRetirementAge] = useState(65);
   const [coastReturnRate, setCoastReturnRate] = useState(7);
-  const [coastSpendDownAge, setCoastSpendDownAge] = useState(110);
+  const [coastSpendDownAge, setCoastSpendDownAge] = useState(100);
   const [coastRetirementReturn, setCoastRetirementReturn] = useState(4);
 
   // Derive essential monthly costs (same logic as Dashboard)
