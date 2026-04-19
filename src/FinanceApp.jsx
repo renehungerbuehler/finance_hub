@@ -3127,16 +3127,28 @@ function PillarPage({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes
   const pension3A = accounts.filter(a => a.type === "Pension 3A");
   const bvgRate = 0.0175; // BVG minimum interest rate 2025
   const default3ARate = 0.04; // conservative for ETF-based 3a
-  // BVG contributions: use scenario savings tagged as pension, or estimate from accounts
-  // For simplicity, project current balance at guaranteed rate (contributions already flow in)
+
+  // Extract monthly pension contributions from scenario savings/investments
+  const is3aItem = (x) => { const n = (x.label || "").toLowerCase(); return n.includes("3a") || n.includes("pillar 3") || n.includes("frankly") || n.includes("viac") || n.includes("finpension"); };
+  const is2aItem = (x) => { const n = (x.label || "").toLowerCase(); return (n.includes("2a") || n.includes("bvg") || n.includes("pension") || n.includes("pensionskasse")) && !is3aItem(x); };
+  const allSavInv = sc ? [...sc.savings, ...sc.investments] : [];
+  const monthly3AContrib = allSavInv.filter(is3aItem).reduce((s, x) => s + getA(x), 0);
+  const monthly2AContrib = allSavInv.filter(is2aItem).reduce((s, x) => s + getA(x), 0);
+  const annual3AContrib = monthly3AContrib * 12;
+  const annual2AContrib = monthly2AContrib * 12;
+
+  // FV of annuity: annual_contrib * ((1+r)^n - 1) / r — contributions made while working
+  const fvAnnuity = (annualContrib, r, n) => r > 0 ? annualContrib * (Math.pow(1 + r, n) - 1) / r : annualContrib * n;
+
+  // Project pension: current balance compounded + future contributions (while working until retirement)
   const projected2A = pension2A.reduce((s, a) => {
     const r = a.rate ? a.rate / 100 : bvgRate;
     return s + a.balance * Math.pow(1 + r, yearsToRetirement);
-  }, 0);
+  }, 0) + fvAnnuity(annual2AContrib, bvgRate, yearsToRetirement);
   const projected3A = pension3A.reduce((s, a) => {
     const r = a.rate ? a.rate / 100 : default3ARate;
     return s + a.balance * Math.pow(1 + r, yearsToRetirement);
-  }, 0);
+  }, 0) + fvAnnuity(annual3AContrib, default3ARate, yearsToRetirement);
   const projectedPensionGross = projected2A + projected3A;
   // Kapitalbezugssteuer (lump sum withdrawal tax) — ZH ~6-8%, use 7% as conservative estimate
   const pensionWithdrawalTax = 0.07;
@@ -3360,7 +3372,7 @@ function PillarPage({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes
     <h2 style={{fontSize:18,fontWeight:700,color:C.text,margin:"0 0 4px"}}>Coasting FIRE Strategy</h2>
     <p style={{fontSize:14,color:C.textMuted,marginBottom:12}}>Two-phase model: accumulate aggressively until FI Number, then coast — stop saving entirely and let compound growth carry you to retirement</p>
     <div style={{padding:"12px 16px",borderRadius:8,background:C.accent+"0a",border:`1px solid ${C.accent}15`,fontSize:13,color:C.textDim,lineHeight:1.8,marginBottom:16}}>
-      <strong style={{color:C.text}}>How Coasting FIRE works:</strong> Instead of retiring the moment you hit your FI Number, you stop all savings contributions and spend your full salary on lifestyle. Your invested portfolio compounds untouched at market returns ({coastReturnRate}%) until your chosen retirement age ({coastRetirementAge}). At retirement, your pension lump sums (2A + 3A) are added to the portfolio for spend-down. The result: a <strong style={{color:C.green}}>much larger portfolio</strong> at retirement with zero additional savings effort.<br/>
+      <strong style={{color:C.text}}>How Coasting FIRE works:</strong> Instead of retiring the moment you hit your FI Number, you stop all liquid savings and spend more of your salary on lifestyle. Your invested portfolio compounds untouched at market returns ({coastReturnRate}%) until your chosen retirement age ({coastRetirementAge}). While working (even coasting), you continue contributing to Pillar 3A (max) and 2A (BVG) — these grow alongside your liquid portfolio. At retirement, pension lump sums are added for spend-down. The result: a <strong style={{color:C.green}}>much larger portfolio</strong> at retirement with zero additional liquid savings effort.<br/>
       <span style={{color:C.textDim}}>Note: AHV (1st pillar) is not included in these calculations. If it still exists at your retirement, it provides an additional CHF ~2'520/mo (2025 max) on top of everything shown here — treat it as a bonus.</span>
     </div>
 
@@ -3389,8 +3401,8 @@ function PillarPage({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes
                   <span>Liquid: CHF {mask(fmt(Math.round(liquidTotal)))}</span>
                   <span>{coastFiProgress.toFixed(1)}%</span>
                 </div>
-                <div style={{height:8,borderRadius:4,background:C.border,overflow:"hidden"}}>
-                  <div style={{width:`${coastFiProgress}%`,background:C.accent,borderRadius:4,transition:"width .3s"}}/>
+                <div style={{height:8,borderRadius:4,background:C.border,overflow:"hidden",minHeight:8}}>
+                  <div style={{width:`${coastFiProgress}%`,height:"100%",background:C.accent,borderRadius:4,transition:"width .3s"}}/>
                 </div>
                 {pensionTotal > 0 && <div style={{fontSize:11,color:C.textDim,marginTop:6}}>
                   Total wealth: CHF {mask(fmt(Math.round(liquidTotal + pensionTotal)))} <span style={{color:C.blue}}>(incl. CHF {mask(fmt(Math.round(pensionTotal)))} in pensions — already factored into Coast FI)</span>
@@ -3406,10 +3418,9 @@ function PillarPage({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes
             </>}
             {projectedPensionNet > 0 && <div style={{padding:"8px 12px",borderRadius:6,background:C.blue+"0a",border:`1px solid ${C.blue}15`,fontSize:12,color:C.textDim,lineHeight:1.8,marginTop:8}}>
               <strong style={{color:C.blue}}>Pension accounts included (conservative)</strong><br/>
-              {projected2A > 0 && <>Pillar 2A (BVG): CHF {mask(fmt(Math.round(pensionTotal > 0 ? pension2A.reduce((s,a)=>s+a.balance,0) : 0)))} today → CHF {mask(fmt(Math.round(projected2A)))} at {coastRetirementAge} ({(pension2A[0]?.rate || 1.75)}% p.a.)<br/></>}
-              {projected3A > 0 && <>Pillar 3A: CHF {mask(fmt(Math.round(pension3A.reduce((s,a)=>s+a.balance,0))))} today → CHF {mask(fmt(Math.round(projected3A)))} at {coastRetirementAge} ({pension3A[0]?.rate || 4}% p.a.)<br/></>}
-              After ~{(pensionWithdrawalTax*100).toFixed(0)}% Kapitalbezugssteuer (ZH): <strong style={{color:C.text}}>CHF {mask(fmt(Math.round(projectedPensionNet)))}</strong> net at retirement<br/>
-              This reduces the liquid portfolio you need from CHF {mask(fmt(Math.round(grossPortfolioNeeded)))} to <strong style={{color:C.green}}>CHF {mask(fmt(Math.round(portfolioNeededAtRetirement)))}</strong>
+              {projected2A > 0 && <>Pillar 2A (BVG): CHF {mask(fmt(Math.round(pensionTotal > 0 ? pension2A.reduce((s,a)=>s+a.balance,0) : 0)))} today → CHF {mask(fmt(Math.round(projected2A)))} at {coastRetirementAge} ({(pension2A[0]?.rate || 1.75)}% p.a.{annual2AContrib > 0 ? ` + CHF ${fmt(Math.round(annual2AContrib))}/yr contributions` : ""})<br/></>}
+              {projected3A > 0 && <>Pillar 3A: CHF {mask(fmt(Math.round(pension3A.reduce((s,a)=>s+a.balance,0))))} today → CHF {mask(fmt(Math.round(projected3A)))} at {coastRetirementAge} ({pension3A[0]?.rate || 4}% p.a.{annual3AContrib > 0 ? ` + CHF ${fmt(Math.round(annual3AContrib))}/yr contributions` : ""})<br/></>}
+              After ~{(pensionWithdrawalTax*100).toFixed(0)}% Kapitalbezugssteuer (ZH): <strong style={{color:C.text}}>CHF {mask(fmt(Math.round(projectedPensionNet)))}</strong> net at retirement
             </div>}
             {projectedPensionNet === 0 && <div style={{padding:"8px 12px",borderRadius:6,background:C.orange+"0a",border:`1px solid ${C.orange}15`,fontSize:12,color:C.textDim,lineHeight:1.6,marginTop:8}}>
               <strong style={{color:C.orange}}>No pension accounts found.</strong> Add your BVG (Pension 2A) and 3A (Pension 3A) accounts to reduce your Coast FI Number — they provide a significant lump sum at retirement.
