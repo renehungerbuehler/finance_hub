@@ -12,7 +12,7 @@ const PORT = process.env.API_PORT || 3001;
 const VALID_KEYS = [
   'accounts', 'scenarios', 'tracker',
   'subscriptions_personal', 'subscriptions_business',
-  'yearly', 'taxes', 'insurance', 'settings', 'profile', 'ai_analysis', 'transactions',
+  'yearly', 'taxes', 'insurance', 'settings', 'profile', 'ai_analysis', 'transactions', 'strategy_overrides',
 ];
 
 app.use(cors());

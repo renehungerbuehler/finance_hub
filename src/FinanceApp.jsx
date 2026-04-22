@@ -3048,7 +3048,7 @@ function InsurancePage({ insurance, setInsurance }) {
 // ───────────────────────────────────────────────────────────────
 // STRATEGY PILLARS
 // ───────────────────────────────────────────────────────────────
-function PillarPage({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes, insurance, hideBalances, profile }) {
+function PillarPage({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes, insurance, hideBalances, profile, strategyOverrides, setStrategyOverrides }) {
   const mask = (v) => hideBalances ? "••••" : v;
   const winW = useWindowWidth(); const isMobile = winW < 768;
   const [yieldRate, setYieldRate] = useState(4);
@@ -3058,6 +3058,15 @@ function PillarPage({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes
   const [coastReturnRate, setCoastReturnRate] = useState(7);
   const [coastSpendDownAge, setCoastSpendDownAge] = useState(100);
   const [coastRetirementReturn, setCoastRetirementReturn] = useState(4);
+  const [tab, setTab] = useState("pillars");
+
+  // Persisted strategy overrides (null = use calculated)
+  const { oEssential, oMonthlySav, oTotalRetirement, oSpendDown } = strategyOverrides;
+  const setO = (key, val) => setStrategyOverrides(o => ({ ...o, [key]: val }));
+  const setOEssential = v => setO('oEssential', v);
+  const setOMonthlySav = v => setO('oMonthlySav', v);
+  const setOTotalRetirement = v => setO('oTotalRetirement', v);
+  const setOSpendDown = v => setO('oSpendDown', v);
 
   // Derive essential monthly costs (same logic as Dashboard)
   const sc = scenarios.find(s=>s.isActive);
@@ -3072,6 +3081,7 @@ function PillarPage({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes
   const essentialExp = sc ? sc.expenses.filter(e=>e.essential!==false).reduce((s,x)=>s+getA(x),0) : 0;
   const essentialSav = sc ? sc.savings.filter(e=>e.essential!==false).reduce((s,x)=>s+getA(x),0) : 0;
   const essentialTotal = essentialExp + linkedTotal + essentialSav;
+  const cEssentialTotal = oEssential ?? essentialTotal;
 
   // Net worth
   const liquidTypes = ["Checking","Savings","Investment","Crypto"];
@@ -3086,7 +3096,7 @@ function PillarPage({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes
   // Wealth tax (Vermogenssteuer) ~0.2-0.3%/yr in ZH — subtract from yield
   const wealthTaxDrag = 0.25; // ~0.25% effective wealth tax in Kanton Zurich
   const effectiveYield = yieldRate - wealthTaxDrag;
-  const moneySystemTarget = essentialTotal > 0 ? (essentialTotal * 12) / (effectiveYield / 100) : 0;
+  const moneySystemTarget = cEssentialTotal > 0 ? (cEssentialTotal * 12) / (effectiveYield / 100) : 0;
   const moneySystemProgress = moneySystemTarget > 0 ? Math.min(100, (liquidTotal / moneySystemTarget) * 100) : 0;
   const totalProgress = moneySystemTarget > 0 ? Math.min(100, (totalWealth / moneySystemTarget) * 100) : 0;
   // Years to target based on current monthly savings
@@ -3102,16 +3112,17 @@ function PillarPage({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes
   // Business system: monthly gross revenue needed at 5x essential costs
   // Note: as sole proprietorship (Einzelunternehmen) in CH, AHV ~10% on net profit + income tax ~25-30%
   // So gross revenue needed is higher: divide by ~0.65 to get pre-tax equivalent
-  const businessTarget = essentialTotal * 5;
+  const businessTarget = cEssentialTotal * 5;
   const businessTargetGross = businessTarget / 0.65; // approx. pre-tax for self-employed in CH
 
-  // Coasting FIRE calculations
+  // Coasting FIRE calculations — use overrides where set
+  const cLiquidMonthlySavInv = oMonthlySav ?? liquidMonthlySavInv;
   const currentAge = profile && profile.birthDate ? Math.floor((new Date() - new Date(profile.birthDate)) / (365.25 * 24 * 60 * 60 * 1000)) : null;
   const retirementYears = Math.max(1, coastSpendDownAge - coastRetirementAge);
   const rRet = coastRetirementReturn / 100;
 
   // Step 1: portfolio needed at retirement so spend-down covers essential costs until coastSpendDownAge
-  const annualNeed = essentialTotal * 12;
+  const annualNeed = cEssentialTotal * 12;
   const grossPortfolioNeeded = rRet > 0
     ? annualNeed * (1 - Math.pow(1 + rRet, -retirementYears)) / rRet
     : annualNeed * retirementYears;
@@ -3163,7 +3174,7 @@ function PillarPage({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes
   const coastFiProgress = coastFiNow > 0 ? Math.min(100, (liquidTotal / coastFiNow) * 100) : 0;
 
   // Step 5: find when liquid portfolio (with liquid savings + compound growth) reaches the coasting threshold
-  // Uses liquidMonthlySavInv (excludes pension contributions) to avoid double-counting
+  // Uses cLiquidMonthlySavInv (excludes pension contributions, supports manual override)
   const coastCalc = useMemo(() => {
     if (currentAge == null || grossPortfolioNeeded <= 0) {
       return { coastFiAge: null, coastingYears: yearsToRetirement, yearsToCoast: null };
@@ -3171,10 +3182,10 @@ function PillarPage({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes
     if (isCoastingNow) {
       return { coastFiAge: currentAge, coastingYears: yearsToRetirement, yearsToCoast: 0 };
     }
-    if (liquidMonthlySavInv <= 0) {
+    if (cLiquidMonthlySavInv <= 0) {
       return { coastFiAge: null, coastingYears: yearsToRetirement, yearsToCoast: null };
     }
-    const annualSav = liquidMonthlySavInv * 12;
+    const annualSav = cLiquidMonthlySavInv * 12;
     let portfolio = liquidTotal;
     for (let y = 1; y <= yearsToRetirement; y++) {
       portfolio = portfolio * (1 + rGrow) + annualSav;
@@ -3185,7 +3196,7 @@ function PillarPage({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes
       }
     }
     return { coastFiAge: null, coastingYears: 0, yearsToCoast: null };
-  }, [currentAge, liquidTotal, liquidMonthlySavInv, yearsToRetirement, rGrow, portfolioNeededAtRetirement, isCoastingNow]);
+  }, [currentAge, liquidTotal, cLiquidMonthlySavInv, yearsToRetirement, rGrow, portfolioNeededAtRetirement, isCoastingNow]);
 
   const { coastFiAge, coastingYears, yearsToCoast } = coastCalc;
 
@@ -3194,13 +3205,14 @@ function PillarPage({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes
     ? liquidTotal * Math.pow(1 + rGrow, yearsToRetirement)
     : portfolioNeededAtRetirement;
   const totalAtRetirement = liquidAtRetirement + projectedPensionNet;
-  const coastProjectedValue = totalAtRetirement;
+  const coastProjectedValue = oTotalRetirement ?? totalAtRetirement;
   const coastingGrowthPct = coastFiNow > 0 ? ((liquidAtRetirement / coastFiNow) - 1) * 100 : 0;
 
   // Spend-down withdrawal from total portfolio at retirement (liquid + pension combined)
-  const spendDownWithdrawal = rRet > 0
+  const spendDownCalc = rRet > 0
     ? coastProjectedValue * rRet / (1 - Math.pow(1 + rRet, -retirementYears))
     : coastProjectedValue / retirementYears;
+  const spendDownWithdrawal = oSpendDown ?? spendDownCalc;
 
   const safeWithdrawalAtRetirement = coastProjectedValue * 0.04;
   const savingsVsPerpetual = moneySystemTarget > 0 ? Math.round(((moneySystemTarget - coastFiNow) / moneySystemTarget) * 100) : 0;
@@ -3261,7 +3273,40 @@ function PillarPage({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes
     { num:"5", name:"Investments", items:["ETFs (e.g. global equity index funds)","Crypto (capital gains tax-free)","Real Estate"], color:C.orange, desc:"Long-term wealth building. Capital gains are tax-free in CH for private investors (Art. 16 Abs. 3 DBG). Dividends taxed as income." },
   ];
 
+  // Inline-editable number for manual overrides — shows calculated value when overridden
+  const EditNum = ({calc, override, setOverride, color=C.accent, size=26, pre="CHF ", suf=""}) => {
+    const [editing, setEditing] = useState(false);
+    const [draft, setDraft] = useState("");
+    const display = override ?? calc;
+    const isOver = override != null;
+    const start = () => { setDraft(String(Math.round(display))); setEditing(true); };
+    const save = () => {
+      const n = parseFloat(String(draft).replace(/'/g,"").replace(/,/g,""));
+      if (!isNaN(n) && n > 0) setOverride(n); else setOverride(null);
+      setEditing(false);
+    };
+    if (editing) return <input type="text" autoFocus value={draft}
+      onChange={e=>setDraft(e.target.value)} onBlur={save}
+      onKeyDown={e=>{if(e.key==="Enter")save();if(e.key==="Escape")setEditing(false);}}
+      style={{fontSize:size,fontWeight:400,fontFamily:"'Fraunces',serif",color,background:"transparent",border:"none",borderBottom:`2px solid ${C.accent}`,outline:"none",width:"100%",padding:0,boxSizing:"border-box"}}/>;
+    return <span>
+      <span style={{cursor:"pointer",borderBottom:`1px dashed ${isOver?C.yellow:color}44`}} onClick={start} title="Click to adjust">
+        {pre}{mask(fmt(Math.round(display)))}{suf}
+      </span>
+      {isOver && <> <span style={{fontSize:Math.max(11,size*0.45),color:C.textDim}}>(calc: {pre}{mask(fmt(Math.round(calc)))}{suf})</span>
+      <span onClick={e=>{e.stopPropagation();setOverride(null);}} style={{marginLeft:4,fontSize:11,color:C.yellow,cursor:"pointer",verticalAlign:"super"}} title="Reset to calculated">↺</span></>}
+    </span>;
+  };
+
   return <div>
+    <div style={{display:"flex",gap:8,marginBottom:16,flexWrap:"wrap"}}>
+      <Tab active={tab==="pillars"} onClick={()=>setTab("pillars")}>5-Pillar Strategy</Tab>
+      <Tab active={tab==="fire"} onClick={()=>setTab("fire")}>FIRE</Tab>
+      <Tab active={tab==="coasting"} onClick={()=>setTab("coasting")}>Coasting FIRE</Tab>
+      <Tab active={tab==="indentured"} onClick={()=>setTab("indentured")}>Indentured Time</Tab>
+    </div>
+
+    {tab==="pillars" && <>
     <h2 style={{fontSize:18,fontWeight:700,color:C.text,margin:"0 0 6px"}}>Personal 5-Pillar Finance Strategy</h2>
     <p style={{fontSize:14,color:C.textMuted,marginBottom:20}}>The official Swiss 3-pillar system extended with two personal pillars for savings and investments</p>
 
@@ -3291,9 +3336,12 @@ function PillarPage({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes
       </Card>)}
     </div>
 
+    </>}
+
+    {tab==="fire" && <>
     {/* ── Freedom Targets ── */}
     <h2 style={{fontSize:18,fontWeight:700,color:C.text,margin:"0 0 4px"}}>Financial Freedom Targets</h2>
-    <p style={{fontSize:14,color:C.textMuted,marginBottom:12}}>Based on your essential monthly costs of <strong style={{color:C.text}}>CHF {mask(fmt(Math.round(essentialTotal)))}/mo</strong> from the active scenario</p>
+    <p style={{fontSize:14,color:C.textMuted,marginBottom:12}}>Based on your essential monthly costs of <strong style={{color:C.text}}>CHF {mask(fmt(Math.round(cEssentialTotal)))}/mo</strong>{oEssential!=null&&<span style={{fontSize:12,color:C.textDim}}> (scenario: CHF {mask(fmt(Math.round(essentialTotal)))})</span>} from the active scenario</p>
     <div style={{padding:"12px 16px",borderRadius:8,background:C.accent+"0a",border:`1px solid ${C.accent}15`,fontSize:13,color:C.textDim,lineHeight:1.8,marginBottom:16}}>
       <strong style={{color:C.text}}>How this works:</strong> Financial freedom means your invested capital generates enough passive income to cover all essential living costs — indefinitely, without touching the principal.
       The calculation: <strong style={{color:C.accent}}>Essential costs × 12 months ÷ net yield %</strong> = capital needed.
@@ -3309,18 +3357,28 @@ function PillarPage({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes
             <div style={{fontSize:30,fontWeight:400,fontFamily:"'Fraunces',serif",color:C.accent}}>CHF {mask(fmt(Math.round(moneySystemTarget)))}</div>
             <div style={{fontSize:13,color:C.textDim,marginTop:2}}>Capital needed so {effectiveYield.toFixed(1)}% net yield/yr covers all essential costs</div>
           </div>
-          <div style={{textAlign:"right"}}>
-            <div style={{fontSize:12,color:C.textDim,marginBottom:2}}>Yield assumption</div>
-            <div style={{display:"flex",alignItems:"center",gap:8}}>
-              <input type="range" min={2} max={8} step={0.5} value={yieldRate} onChange={e=>setYieldRate(Number(e.target.value))} style={{width:80,accentColor:C.accent}}/>
-              <span style={{fontSize:14,fontWeight:600,color:C.accent}}>{yieldRate}%</span>
+          <div style={{display:"flex",flexDirection:"column",gap:10,textAlign:"right"}}>
+            <div>
+              <div style={{fontSize:12,color:C.textDim,marginBottom:2}}>Essential costs/mo</div>
+              <div style={{display:"flex",alignItems:"center",gap:8,justifyContent:"flex-end"}}>
+                <input type="number" value={oEssential??""} placeholder={fmt(Math.round(essentialTotal))} onChange={e=>{const v=parseFloat(e.target.value);setOEssential(v>0?v:null);setOTotalRetirement(null);setOSpendDown(null);}} style={{width:100,padding:"4px 8px",background:C.bg,border:`1px solid ${C.border}`,borderRadius:6,color:C.text,fontSize:12,outline:"none",textAlign:"right",boxSizing:"border-box"}}/>
+                {oEssential!=null&&<span onClick={()=>{setOEssential(null);setOTotalRetirement(null);setOSpendDown(null);}} style={{fontSize:11,color:C.yellow,cursor:"pointer"}} title="Reset">↺</span>}
+              </div>
+              {oEssential!=null&&<div style={{fontSize:10,color:C.textDim,marginTop:2}}>Scenario: CHF {mask(fmt(Math.round(essentialTotal)))}</div>}
             </div>
-            <div style={{fontSize:10,color:C.textDim,marginTop:2}}>-{wealthTaxDrag}% wealth tax (Vermogenssteuer) ZH = {effectiveYield.toFixed(1)}% net</div>
+            <div>
+              <div style={{fontSize:12,color:C.textDim,marginBottom:2}}>Yield assumption</div>
+              <div style={{display:"flex",alignItems:"center",gap:8,justifyContent:"flex-end"}}>
+                <input type="range" min={2} max={8} step={0.5} value={yieldRate} onChange={e=>setYieldRate(Number(e.target.value))} style={{width:80,accentColor:C.accent}}/>
+                <span style={{fontSize:14,fontWeight:600,color:C.accent}}>{yieldRate}%</span>
+              </div>
+              <div style={{fontSize:10,color:C.textDim,marginTop:2}}>-{wealthTaxDrag}% wealth tax (Vermogenssteuer) ZH = {effectiveYield.toFixed(1)}% net</div>
+            </div>
           </div>
         </div>
         {/* Explanation box */}
         <div style={{padding:"10px 12px",borderRadius:8,background:C.bg,border:`1px solid ${C.border}33`,fontSize:12,color:C.textDim,lineHeight:1.8,marginBottom:12}}>
-          <strong style={{color:C.textMuted}}>The math:</strong> CHF {mask(fmt(Math.round(essentialTotal)))} × 12 months = CHF {mask(fmt(Math.round(essentialTotal*12)))}/yr ÷ {effectiveYield.toFixed(1)}% net yield = <strong style={{color:C.accent}}>CHF {mask(fmt(Math.round(moneySystemTarget)))}</strong><br/>
+          <strong style={{color:C.textMuted}}>The math:</strong> CHF {mask(fmt(Math.round(cEssentialTotal)))} × 12 months = CHF {mask(fmt(Math.round(cEssentialTotal*12)))}/yr ÷ {effectiveYield.toFixed(1)}% net yield = <strong style={{color:C.accent}}>CHF {mask(fmt(Math.round(moneySystemTarget)))}</strong><br/>
           <strong style={{color:C.textMuted}}>Yield {yieldRate}%:</strong> Historical average return of a global stock/bond portfolio (e.g. 60/40 or 80/20 ETF). Adjust the slider to be more conservative or aggressive.<br/>
           <strong style={{color:C.textMuted}}>Wealth tax drag:</strong> Kanton Zurich charges ~{wealthTaxDrag}% per year on net assets (Vermogenssteuer), reducing your effective yield from {yieldRate}% to {effectiveYield.toFixed(1)}%.
         </div>
@@ -3368,6 +3426,9 @@ function PillarPage({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes
       </Card>
     </div>
 
+    </>}
+
+    {tab==="coasting" && <>
     {/* ── Coasting FIRE Strategy ── */}
     <h2 style={{fontSize:18,fontWeight:700,color:C.text,margin:"0 0 4px"}}>Coasting FIRE Strategy</h2>
     <p style={{fontSize:14,color:C.textMuted,marginBottom:12}}>Two-phase model: accumulate aggressively until FI Number, then coast — stop saving entirely and let compound growth carry you to retirement</p>
@@ -3409,8 +3470,8 @@ function PillarPage({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes
                 </div>}
               </div>
               {yearsToCoast != null && coastFiAge != null ? <div style={{padding:"8px 12px",borderRadius:6,background:C.yellow+"0d",border:`1px solid ${C.yellow}22`,fontSize:12,color:C.textDim,lineHeight:1.6,marginTop:8}}>
-                <strong style={{color:C.yellow}}>At your current liquid savings rate of CHF {mask(fmt(Math.round(liquidMonthlySavInv)))}/mo:</strong> you'll reach your Coast FI at <strong style={{color:C.text}}>age {coastFiAge}</strong> (~{yearsToCoast} years). After that, stop saving — {coastingYears} years of {coastReturnRate}% compounding grows it to CHF {mask(fmt(Math.round(portfolioNeededAtRetirement)))} by retirement.{liquidMonthlySavInv < monthlySavInv && <><br/><span style={{fontSize:11,color:C.textDim}}>Pension contributions (CHF {mask(fmt(Math.round(monthlySavInv - liquidMonthlySavInv)))}/mo) are excluded — projected separately above.</span></>}
-              </div> : liquidMonthlySavInv <= 0 ? <div style={{padding:"8px 12px",borderRadius:6,background:C.orange+"0d",border:`1px solid ${C.orange}22`,fontSize:12,color:C.textDim,lineHeight:1.6,marginTop:8}}>
+                <strong style={{color:C.yellow}}>At your current liquid savings rate of <EditNum calc={liquidMonthlySavInv} override={oMonthlySav} setOverride={setOMonthlySav} color={C.yellow} size={12} suf="/mo"/>:</strong> you'll reach your Coast FI at <strong style={{color:C.text}}>age {coastFiAge}</strong> (~{yearsToCoast} years). After that, stop saving — {coastingYears} years of {coastReturnRate}% compounding grows it to CHF {mask(fmt(Math.round(portfolioNeededAtRetirement)))} by retirement.{cLiquidMonthlySavInv < monthlySavInv && <><br/><span style={{fontSize:11,color:C.textDim}}>Pension contributions (CHF {mask(fmt(Math.round(monthlySavInv - liquidMonthlySavInv)))}/mo) are excluded — projected separately above.</span></>}
+              </div> : cLiquidMonthlySavInv <= 0 ? <div style={{padding:"8px 12px",borderRadius:6,background:C.orange+"0d",border:`1px solid ${C.orange}22`,fontSize:12,color:C.textDim,lineHeight:1.6,marginTop:8}}>
                 <strong style={{color:C.orange}}>{monthlySavInv > 0 ? "Only pension contributions found" : "No savings configured"}.</strong> {monthlySavInv > 0 ? "Add liquid savings/investments (non-pension) to your scenario." : "Add savings/investments to your active scenario to see when you can start coasting."}
               </div> : <div style={{padding:"8px 12px",borderRadius:6,background:C.orange+"0d",border:`1px solid ${C.orange}22`,fontSize:12,color:C.textDim,lineHeight:1.6,marginTop:8}}>
                 <strong style={{color:C.orange}}>At your current savings rate</strong>, you won't reach Coast FI before retirement. Consider increasing savings or adjusting parameters.
@@ -3430,6 +3491,13 @@ function PillarPage({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes
             </div>
           </div>
           <div style={{display:"flex",flexDirection:"column",gap:12}}>
+            <div>
+              <div style={{display:"flex",justifyContent:"space-between",fontSize:12,color:C.textDim,marginBottom:4}}>
+                <span>Essential costs/mo</span>
+                <span style={{color:C.accent,fontWeight:600}}>CHF {fmt(Math.round(cEssentialTotal))}{oEssential!=null&&<span onClick={()=>{setOEssential(null);setOTotalRetirement(null);setOSpendDown(null);}} style={{marginLeft:4,color:C.yellow,cursor:"pointer"}} title="Reset">↺</span>}</span>
+              </div>
+              <input type="number" value={oEssential??""} placeholder={fmt(Math.round(essentialTotal))} onChange={e=>{const v=parseFloat(e.target.value);setOEssential(v>0?v:null);setOTotalRetirement(null);setOSpendDown(null);}} style={{width:isMobile?"100%":160,padding:"4px 8px",background:C.bg,border:`1px solid ${C.border}`,borderRadius:6,color:C.text,fontSize:12,outline:"none",boxSizing:"border-box"}}/>
+            </div>
             <div>
               <div style={{display:"flex",justifyContent:"space-between",fontSize:12,color:C.textDim,marginBottom:4}}>
                 <span>Retirement age</span>
@@ -3482,7 +3550,7 @@ function PillarPage({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes
         <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:12}}>
           <div style={{padding:"8px 12px",borderRadius:6,background:C.green+"0d",border:`1px solid ${C.green}22`}}>
             <div style={{fontSize:12,color:C.textDim}}>Total at retirement (age {coastRetirementAge})</div>
-            <div style={{fontSize:20,fontWeight:600,color:C.green}}>CHF {mask(fmt(Math.round(coastProjectedValue)))}</div>
+            <div style={{fontSize:20,fontWeight:600,color:C.green}}><EditNum calc={totalAtRetirement} override={oTotalRetirement} setOverride={v=>{setOTotalRetirement(v);setOSpendDown(null);}} color={C.green} size={20}/></div>
             <div style={{fontSize:11,color:C.textDim}}>
               Liquid: CHF {mask(fmt(Math.round(liquidAtRetirement)))}
               {projectedPensionNet > 0 && <> + Pensions: CHF {mask(fmt(Math.round(projectedPensionNet)))} (net after tax)</>}
@@ -3515,7 +3583,7 @@ function PillarPage({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes
         {/* Spend-down result */}
         <div style={{padding:"10px 12px",borderRadius:6,background:C.accent+"0d",border:`1px solid ${C.accent}22`,marginBottom:8}}>
           <div style={{fontSize:12,color:C.textDim}}>Spend-down withdrawal (portfolio → 0 at age {coastSpendDownAge})</div>
-          <div style={{fontSize:20,fontWeight:600,color:C.accent}}>CHF {mask(fmt(Math.round(spendDownWithdrawal)))}/yr</div>
+          <div style={{fontSize:20,fontWeight:600,color:C.accent}}><EditNum calc={spendDownCalc} override={oSpendDown} setOverride={setOSpendDown} color={C.accent} size={20} suf="/yr"/></div>
           <div style={{fontSize:13,color:C.textDim}}>= <strong style={{color:C.accent}}>CHF {mask(fmt(Math.round(spendDownWithdrawal/12)))}/mo</strong> for {retirementYears} years</div>
         </div>
         {/* Comparison: perpetual vs spend-down */}
@@ -3562,6 +3630,9 @@ function PillarPage({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes
       </Card>
     </div>
 
+    </>}
+
+    {tab==="indentured" && <>
     {/* ── Indentured Time Calculator ── */}
     <h2 style={{fontSize:18,fontWeight:700,color:C.text,margin:"0 0 4px"}}>Indentured Time Calculator</h2>
     <p style={{fontSize:14,color:C.textMuted,marginBottom:12}}>How many hours of your life does a purchase actually cost?</p>
@@ -3623,6 +3694,7 @@ function PillarPage({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes
         </div>}
       </Card>
     </div>
+    </>}
   </div>;
 }
 
@@ -5392,15 +5464,16 @@ export default function FinanceApp() {
   const [notesVersion, setNotesVersion] = useState(0);
   const [ollamaDetected, setOllamaDetected] = useState(false);
   const [serverProviderLabel, setServerProviderLabel] = useState('');
+  const [strategyOverrides, setStrategyOverrides] = useState({ oEssential:null, oMonthlySav:null, oTotalRetirement:null, oSpendDown:null });
   const [ollamaBannerDismissed, setOllamaBannerDismissed] = useState(() => sessionStorage.getItem('ollama_banner_dismissed') === 'true');
   const importJsonRef = useRef(null);
   C = darkMode ? DARK : LIGHT;
 
   // Load all data from API on mount
   useEffect(() => {
-    const keys = ['accounts','scenarios','tracker','subscriptions_personal','yearly','taxes','insurance','settings','profile','transactions'];
+    const keys = ['accounts','scenarios','tracker','subscriptions_personal','yearly','taxes','insurance','settings','profile','transactions','strategy_overrides'];
     Promise.all(keys.map(k => fetch(`${API_URL}/${k}`).then(r => r.status === 404 ? null : r.json())))
-      .then(([acc, sc, tr, subP, yr, tx, ins, settings, prof, txns]) => {
+      .then(([acc, sc, tr, subP, yr, tx, ins, settings, prof, txns, strat]) => {
         if (acc) setAccounts(acc);
         if (sc) { const seen = new Set(); sc.forEach(s => { if (seen.has(s.id)) s.id = uid(); seen.add(s.id); }); setScenarios(sc); }
         if (tr) setTracker(tr);
@@ -5431,6 +5504,7 @@ export default function FinanceApp() {
         // profile key is loaded separately
         if (prof) setProfile(prof);
         if (txns) setTransactions(txns);
+        if (strat) setStrategyOverrides(o => ({ ...o, ...strat }));
         loaded.current = true; // only enable auto-save after successful load
       })
       .catch(err => {
@@ -5464,6 +5538,7 @@ export default function FinanceApp() {
   useEffect(() => { save('profile', profile); }, [profile, save]);
   useEffect(() => { save('transactions', transactions); }, [transactions, save]);
   useEffect(() => { save('settings', { subsPInScenario, promptTemplate, extractionPrompt, payrollExtractionPrompt, insPrompt, taxPrompt, recPrompt, subPrompt, onboarding }); }, [subsPInScenario, promptTemplate, extractionPrompt, payrollExtractionPrompt, insPrompt, taxPrompt, recPrompt, subPrompt, onboarding, save]);
+  useEffect(() => { save('strategy_overrides', strategyOverrides); }, [strategyOverrides, save]);
 
   if (loading) return <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", background: darkMode ? "#141310" : "#f5f3ee", color: darkMode ? "#9a9688" : "#7a7a72", fontSize: 16, fontFamily: "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif" }}>Loading…</div>;
 
@@ -5618,7 +5693,7 @@ export default function FinanceApp() {
         {page==="tracker" && <TrackerPage tracker={tracker} setTracker={setTracker} accounts={accounts} hideBalances={hideBalances} onTrackerSynced={() => setOnboarding(o => ({...o, lastTrackerSync: new Date().toISOString()}))}/>}
         {page==="expenses" && <ExpensesPage subsP={subsP} setSubsP={setSubsP} subsPInScenario={subsPInScenario} setSubsPInScenario={setSubsPInScenario} yearly={yearly} setYearly={setYearly} taxes={taxes} setTaxes={setTaxes} insurance={insurance} setInsurance={setInsurance} hideBalances={hideBalances} profile={profile} accounts={accounts} scenarios={scenarios} darkMode={darkMode} insPrompt={insPrompt} setInsPrompt={setInsPrompt} taxPrompt={taxPrompt} setTaxPrompt={setTaxPrompt} recPrompt={recPrompt} setRecPrompt={setRecPrompt} subPrompt={subPrompt} setSubPrompt={setSubPrompt}/>}
         {page==="transactions" && <TransactionsPage transactions={transactions} setTransactions={setTransactions} hideBalances={hideBalances}/>}
-        {page==="pillars" && <PillarPage accounts={accounts} scenarios={scenarios} subsP={subsP} subsPInScenario={subsPInScenario} yearly={yearly} taxes={taxes} insurance={insurance} hideBalances={hideBalances} profile={profile}/>}
+        {page==="pillars" && <PillarPage accounts={accounts} scenarios={scenarios} subsP={subsP} subsPInScenario={subsPInScenario} yearly={yearly} taxes={taxes} insurance={insurance} hideBalances={hideBalances} profile={profile} strategyOverrides={strategyOverrides} setStrategyOverrides={setStrategyOverrides}/>}
         {page==="ai-settings" && <AISettingsPage/>}
       </div>
     </div>
