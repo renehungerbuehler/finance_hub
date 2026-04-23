@@ -872,7 +872,7 @@ function Dashboard({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes,
         const allocated = rem === 0;
         const over = rem < 0;
         const subText = allocated ? t('dashboard.zeroBudget') : over ? t('dashboard.exceedsIncome') : `${inc>0?((inc-rem)/inc*100).toFixed(1):0}${t('dashboard.allocated')}`;
-        return <StatCard label={t('dashboard.unallocated')} value={`CHF ${mask(fmt(Math.abs(rem)))}${over?" over":""}`} sub={subText} icon={Target} color={C.yellow}/>;
+        return <StatCard label={t('dashboard.unallocated')} value={`CHF ${mask(fmt(Math.abs(rem)))}${over?` ${t('dashboard.over')}`:""}`} sub={subText} icon={Target} color={C.yellow}/>;
       })() : <StatCard label={t('dashboard.unallocated')} value="—" sub={t('dashboard.noActiveScenario')} icon={Target} color={C.yellow}/>}
       <StatCard label={t('dashboard.survivalRunway')} value={sc?`${survivalMonths} ${t('dashboard.months')}`:"—"} sub={sc?t('dashboard.survivalSub',{liquid:mask(fmt(liquidTotal)),monthly:mask(fmt(Math.round(essentialTotal)))}):t('dashboard.noActiveScenario')} icon={Shield} color={survivalMonths>=6?C.green:survivalMonths>=3?C.yellow:C.red} iconColor={C.cyan}/>
       <StatCard label={t('dashboard.taxInsurance')} value={`CHF ${mask(fmt(Math.round(linkedTax+linkedInsurance)))}${t('common.mo')}`} sub={`CHF ${mask(fmt(Math.round((linkedTax+linkedInsurance)*12)))}${t('common.yr')}`} icon={ShieldCheck} color={C.red}/>
@@ -5304,11 +5304,11 @@ Rules:
         })}
         <div style={{ width: 1, height: 20, background: C.border }} />
         <input type="date" value={filter.dateFrom} onChange={e => setFilter(f => ({ ...f, dateFrom: e.target.value }))} style={{ background: C.input, color: C.text, border: `1px solid ${C.border}`, borderRadius: 6, padding: '5px 8px', fontSize: 12 }} />
-        <span style={{ color: C.textDim, fontSize: 12 }}>to</span>
+        <span style={{ color: C.textDim, fontSize: 12 }}>{t('transactions.dateTo')}</span>
         <input type="date" value={filter.dateTo} onChange={e => setFilter(f => ({ ...f, dateTo: e.target.value }))} style={{ background: C.input, color: C.text, border: `1px solid ${C.border}`, borderRadius: 6, padding: '5px 8px', fontSize: 12 }} />
         <div style={{ position: 'relative', display: 'inline-block' }}>
           <button onClick={() => setFilter(f => ({ ...f, _catOpen: !f._catOpen }))} style={{ background: C.input, color: filter.categories.length ? C.text : C.textMuted, border: `1px solid ${C.border}`, borderRadius: 6, padding: '5px 8px', fontSize: 12, cursor: 'pointer', minWidth: 130, textAlign: 'left', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 4 }}>
-            {filter.categories.length ? `${filter.categories.length} categor${filter.categories.length === 1 ? 'y' : 'ies'}` : t('transactions.allCategories')}
+            {filter.categories.length ? (filter.categories.length === 1 ? t('transactions.oneCategory') : t('transactions.nCategories', {n: filter.categories.length})) : t('transactions.allCategories')}
             <ChevronDown size={12} />
           </button>
           {filter._catOpen && <>
@@ -5328,7 +5328,7 @@ Rules:
             </div>
           </>}
         </div>
-        <input placeholder="Search…" value={filter.search} onChange={e => setFilter(f => ({ ...f, search: e.target.value }))} style={{ flex: 1, minWidth: 120, background: C.input, color: C.text, border: `1px solid ${C.border}`, borderRadius: 6, padding: '5px 8px', fontSize: 12 }} />
+        <input placeholder={t('transactions.search')} value={filter.search} onChange={e => setFilter(f => ({ ...f, search: e.target.value }))} style={{ flex: 1, minWidth: 120, background: C.input, color: C.text, border: `1px solid ${C.border}`, borderRadius: 6, padding: '5px 8px', fontSize: 12 }} />
         {(filter.search || filter.categories.length || filter.dateFrom || filter.dateTo) && <button onClick={() => setFilter({ search: '', categories: [], dateFrom: '', dateTo: '' })} style={{ background: 'transparent', border: 'none', color: C.textMuted, cursor: 'pointer', fontSize: 11 }}>{ t('common.clear') }</button>}
       </div>
     </Card>}
