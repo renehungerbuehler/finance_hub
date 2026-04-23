@@ -371,6 +371,53 @@ en: {
   "pdf.investments": "INVESTMENTS",
   "pdf.unallocated": "= UNALLOCATED",
 
+  // ── Table column headers ──
+  "col.name": "Name",
+  "col.amount": "Amount",
+  "col.frequency": "Frequency",
+  "col.effectiveMo": "Effective/mo",
+  "col.payment": "Payment",
+  "col.notes": "Notes",
+  "col.expense": "Expense",
+  "col.category": "Category",
+  "col.monthly": "Monthly",
+  "col.yearly": "Yearly",
+  "col.policy": "Policy",
+  "col.insurer": "Insurer",
+  "col.yearlyCHF": "Yearly (CHF)",
+  "col.billingPeriod": "Billing Period",
+  "col.date": "Date",
+  "col.type": "Type",
+  "common.ofTotal": "of total",
+
+  // ── Dashboard chart ──
+  "dashboard.income": "Income",
+  "dashboard.expenses": "Expenses",
+  "dashboard.savingsLabel": "Savings",
+  "dashboard.investmentsLabel": "Investments",
+  "dashboard.active": "Active",
+
+  // ── Account types ──
+  "acctType.Checking": "Checking",
+  "acctType.Savings": "Savings",
+  "acctType.Investment": "Investment",
+  "acctType.Crypto": "Crypto",
+  "acctType.Pension 2A": "Pension 2A",
+  "acctType.Pension 3A": "Pension 3A",
+  "acctType.Deposit": "Deposit",
+  "acctType.Lent Out": "Lent Out",
+  "acctType.Debt": "Debt",
+
+  // ── Frequency options ──
+  "freq.Monthly": "Monthly",
+  "freq.Quarterly": "Quarterly",
+  "freq.Half-yearly": "Half-yearly",
+  "freq.Yearly": "Yearly",
+
+  // ── Scenarios display ──
+  "scenarios.liquidLabel": "Liquid",
+  "scenarios.lockedLabel": "Locked",
+
   // ── Tracker ──
   "tracker.grid": "Grid",
   "tracker.chart": "Chart",
@@ -1127,6 +1174,53 @@ de: {
   "pdf.savings": "SPAREN",
   "pdf.investments": "INVESTITIONEN",
   "pdf.unallocated": "= NICHT ZUGEWIESEN",
+
+  // ── Table column headers ──
+  "col.name": "Name",
+  "col.amount": "Betrag",
+  "col.frequency": "Frequenz",
+  "col.effectiveMo": "Effektiv/Mt",
+  "col.payment": "Zahlung",
+  "col.notes": "Notizen",
+  "col.expense": "Ausgabe",
+  "col.category": "Kategorie",
+  "col.monthly": "Monatlich",
+  "col.yearly": "Jährlich",
+  "col.policy": "Police",
+  "col.insurer": "Versicherer",
+  "col.yearlyCHF": "Jährlich (CHF)",
+  "col.billingPeriod": "Abrechnungszeitraum",
+  "col.date": "Datum",
+  "col.type": "Typ",
+  "common.ofTotal": "vom Total",
+
+  // ── Dashboard chart ──
+  "dashboard.income": "Einkommen",
+  "dashboard.expenses": "Ausgaben",
+  "dashboard.savingsLabel": "Sparen",
+  "dashboard.investmentsLabel": "Investitionen",
+  "dashboard.active": "Aktiv",
+
+  // ── Account types ──
+  "acctType.Checking": "Girokonto",
+  "acctType.Savings": "Sparkonto",
+  "acctType.Investment": "Investition",
+  "acctType.Crypto": "Crypto",
+  "acctType.Pension 2A": "Pension 2A",
+  "acctType.Pension 3A": "Pension 3A",
+  "acctType.Deposit": "Festgeld",
+  "acctType.Lent Out": "Ausgeliehen",
+  "acctType.Debt": "Schulden",
+
+  // ── Frequency options ──
+  "freq.Monthly": "Monatlich",
+  "freq.Quarterly": "Quartalsweise",
+  "freq.Half-yearly": "Halbjährlich",
+  "freq.Yearly": "Jährlich",
+
+  // ── Scenarios display ──
+  "scenarios.liquidLabel": "Liquide",
+  "scenarios.lockedLabel": "Gebunden",
 
   // ── Tracker ──
   "tracker.grid": "Tabelle",
