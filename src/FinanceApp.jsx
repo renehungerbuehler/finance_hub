@@ -948,7 +948,7 @@ function Dashboard({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes,
         ))}
       </div>
     </Card>
-    <PinnedNotes version={notesVersion}/>
+    <PinnedNotes version={notesVersion} t={t}/>
   </div>;
 }
 
@@ -1062,7 +1062,7 @@ function extractTitle(text) {
   return text.slice(0, 60).replace(/\n/g, ' ');
 }
 
-function PinnedNotes({ version = 0 }) {
+function PinnedNotes({ version = 0, t = k=>k }) {
   const [notes, setNotes] = useState([]);
   const [open, setOpen] = useState(null); // id of expanded note
   const [confirmDel, setConfirmDel] = useState(null); // id of note pending delete confirmation
@@ -1112,7 +1112,7 @@ function PinnedNotes({ version = 0 }) {
     {/* Post-it grid */}
     <div style={{marginBottom:24}}>
       <div style={{fontSize:13,color:C.textDim,marginBottom:10,marginTop:24,display:'flex',alignItems:'center',gap:6}}>
-        <Pin size={14}/> Pinned Analyses — click to expand
+        <Pin size={14}/> {t('dashboard.pinnedAnalyses')}
       </div>
       <div style={{display:'flex',flexWrap:'wrap',gap:12}}>
         {notes.map((note, ni) => {
@@ -1404,7 +1404,7 @@ function ScenariosPage({ scenarios, setScenarios, subsP, subsPInScenario, yearly
   const latestTax = taxes[taxes.length-1];
   const taxTotal = latestTax ? latestTax.lines.reduce((s,l)=>s+l.amount,0) : 0;
   const linkedTax = taxTotal/12;
-  const freqLabel = f => f===1?'/mo':f===4?'/qt':f===12?'/yr':`/${f}`;
+  const freqLabel = f => f===1?t('common.perMo'):f===4?t('common.perQt'):f===12?t('common.perYr'):`/${f}`;
   const linkedCategories = [
     subsPInScenario && {key:"subsP", label:"Subscriptions", icon:CreditCard, color:C.accent, amount:linkedSubsP, items:subsP.map(s=>({name:s.name,monthly:subMonthly(s),notes:s.notes,freq:s.frequency||1,total:s.amount||((s.monthly||0)+(s.yearly||0))}))},
     {key:"recurring", label:"Recurring", icon:DollarSign, color:C.cyan, amount:linkedRecurring, items:yearly.map(e=>({name:e.name,monthly:recMonthly(e),notes:e.notes,freq:e.frequency||12,total:e.amount||(e.yearly||e.monthly*12||0)}))},
@@ -1584,11 +1584,11 @@ function ScenariosPage({ scenarios, setScenarios, subsP, subsPInScenario, yearly
     const investItems = sc.investments.filter(e => (e.pct != null ? getAmt(e) : e.amount) > 0).map(e => ({ label: e.label, amount: e.pct != null ? getAmt(e) : e.amount, comments: e.notes || null }));
 
     // --- SECTIONS ---
-    drawSection("INCOME", green, "+", inc, incomeItems, "+");
-    drawSection("EXPENSES", red, "-", exp, expenseItems, "-");
-    drawSection("PROVISIONS", red, "-", linkedTotal, linkedItems, "-");
-    drawSection("SAVINGS", blue, ">", sav, savingsItems, ">");
-    drawSection("INVESTMENTS", teal, ">", inv, investItems, ">");
+    drawSection(t('pdf.income'), green, "+", inc, incomeItems, "+");
+    drawSection(t('pdf.expenses'), red, "-", exp, expenseItems, "-");
+    drawSection(t('pdf.provisions'), red, "-", linkedTotal, linkedItems, "-");
+    drawSection(t('pdf.savings'), blue, ">", sav, savingsItems, ">");
+    drawSection(t('pdf.investments'), teal, ">", inv, investItems, ">");
 
     // --- SUMMARY BAR ---
     doc.setFillColor(...cardBg);
@@ -1600,7 +1600,7 @@ function ScenariosPage({ scenarios, setScenarios, subsP, subsPInScenario, yearly
     doc.setFontSize(10);
     const remCol = rem >= 0 ? yellow : red;
     doc.setTextColor(...remCol);
-    doc.text("= UNALLOCATED", M + 4, summaryY);
+    doc.text(t('pdf.unallocated'), M + 4, summaryY);
     doc.text(fmtC(rem), W - M - 2, summaryY, { align: "right" });
 
     // Breakdown line
@@ -1810,7 +1810,7 @@ function ScenariosPage({ scenarios, setScenarios, subsP, subsPInScenario, yearly
     {sc && <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"2fr 1fr",gap:16}}>
       <Card headerRight={<div style={{display:"flex",gap:6}}>
         <button onClick={()=>toggleActive(sc.id)} style={{padding:"6px 12px",borderRadius:6,border:`1px solid ${sc.isActive?C.green:C.border}`,background:sc.isActive?C.greenBg:"transparent",color:sc.isActive?C.green:C.textMuted,fontSize:13,cursor:"pointer",display:"flex",alignItems:"center",gap:4}}><Power size={14}/>{sc.isActive?"Active":"Set Active"}</button>
-        <button onClick={duplicateScenario} style={{padding:"6px 12px",borderRadius:6,border:`1px solid ${C.border}`,background:"transparent",color:C.textMuted,fontSize:13,cursor:"pointer"}}>Duplicate</button>
+        <button onClick={duplicateScenario} style={{padding:"6px 12px",borderRadius:6,border:`1px solid ${C.border}`,background:"transparent",color:C.textMuted,fontSize:13,cursor:"pointer"}}>{t('scenarios.duplicate')}</button>
         <button onClick={exportPDF} style={{padding:"6px 12px",borderRadius:6,border:`1px solid ${C.border}`,background:"transparent",color:C.textMuted,fontSize:13,cursor:"pointer",display:"flex",alignItems:"center",gap:4}}><Download size={13}/>PDF</button>
       </div>}>
         <div style={{marginBottom:16}}>
@@ -1859,7 +1859,7 @@ function ScenariosPage({ scenarios, setScenarios, subsP, subsPInScenario, yearly
                     {hideBalances ? <span style={{color:C.text,fontWeight:600,fontSize:13}}>••••</span> : <InlineNum value={cat.amount} onChange={v=>setOverride(cat.key,v??null)} style={{color:isOverridden?C.red:C.text,fontWeight:600,fontVariantNumeric:"tabular-nums"}} width={70}/>}
                   </div>
                   {isOverridden && delta !== 0 && <span style={{fontSize:10,padding:"1px 6px",borderRadius:4,background:deltaColor+"18",color:deltaColor,fontWeight:600,fontVariantNumeric:"tabular-nums"}}>{delta>0?"+":""}{fmtD(delta)}</span>}
-                  {isOverridden && <button onClick={()=>setOverride(cat.key,null)} title={t('scenarios.resetToCalc')} style={{fontSize:10,padding:"1px 5px",borderRadius:4,border:`1px solid ${C.border}`,background:"transparent",color:C.textDim,cursor:"pointer"}}>reset</button>}
+                  {isOverridden && <button onClick={()=>setOverride(cat.key,null)} title={t('scenarios.resetToCalc')} style={{fontSize:10,padding:"1px 5px",borderRadius:4,border:`1px solid ${C.border}`,background:"transparent",color:C.textDim,cursor:"pointer"}}>{t('scenarios.reset')}</button>}
                 </div>
               </div>
               {linkedExpanded.has(cat.key) && cat.items && cat.items.length > 0 && (()=>{
@@ -1871,8 +1871,8 @@ function ScenariosPage({ scenarios, setScenarios, subsP, subsPInScenario, yearly
                 return <div style={{marginLeft:40,marginBottom:8,display:'flex',flexDirection:'column',gap:0}}>
                   {potItems.length > 0 && <div style={{background:C.red+'08',borderRadius:6,padding:'6px 0',marginBottom:monthly.length>0?6:0}}>
                     <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'0 8px 4px'}}>
-                      <span style={{fontSize:10,fontWeight:700,color:C.red,textTransform:'uppercase',letterSpacing:.5}}>Provisions</span>
-                      <span style={{fontSize:10,fontWeight:700,color:C.red,fontVariantNumeric:'tabular-nums'}}>{fmtD(potTotal)}/mo</span>
+                      <span style={{fontSize:10,fontWeight:700,color:C.red,textTransform:'uppercase',letterSpacing:.5}}>{t('scenarios.provisions')}</span>
+                      <span style={{fontSize:10,fontWeight:700,color:C.red,fontVariantNumeric:'tabular-nums'}}>{fmtD(potTotal)}{t('common.perMo')}</span>
                     </div>
                     {potItems.map((it,ii)=>(
                       <div key={ii} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'2px 8px',fontSize:12,color:C.text}}>
@@ -1886,8 +1886,8 @@ function ScenariosPage({ scenarios, setScenarios, subsP, subsPInScenario, yearly
                   </div>}
                   {monthly.length > 0 && <div style={{padding:'6px 0'}}>
                     <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'0 8px 4px'}}>
-                      <span style={{fontSize:10,fontWeight:700,color:C.textDim,textTransform:'uppercase',letterSpacing:.5}}>Linked Expenses</span>
-                      <span style={{fontSize:10,fontWeight:600,color:C.textDim,fontVariantNumeric:'tabular-nums'}}>{fmtD(monthlyTotal)}/mo</span>
+                      <span style={{fontSize:10,fontWeight:700,color:C.textDim,textTransform:'uppercase',letterSpacing:.5}}>{t('scenarios.linkedExpenseLabel')}</span>
+                      <span style={{fontSize:10,fontWeight:600,color:C.textDim,fontVariantNumeric:'tabular-nums'}}>{fmtD(monthlyTotal)}{t('common.perMo')}</span>
                     </div>
                     {monthly.map((it,ii)=>(
                       <div key={ii} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'2px 8px',fontSize:12,color:C.textDim}}>
@@ -2833,10 +2833,10 @@ function ExpensesPage({ subsP, setSubsP, subsPInScenario, setSubsPInScenario, ye
     </div>}
 
     <div style={{display:"grid",gridTemplateColumns:isMobile?"repeat(2,1fr)":"repeat(4,1fr)",gap:isMobile?10:16,marginBottom:20}}>
-      <StatCard label="Subscriptions" value={`CHF ${mask(fmt(Math.round(pTotal)))}/mo`} icon={CreditCard} color={C.accent} compact={isMobile}/>
-      <StatCard label="Recurring" value={`CHF ${mask(fmt(Math.round(yTotal)))}/mo`} sub="saved monthly" icon={DollarSign} color={C.blue} compact={isMobile}/>
-      <StatCard label="Insurances" value={`CHF ${mask(fmt(Math.round(insMonthly)))}/mo`} sub={hideBalances?undefined:`CHF ${fmt(Math.round(insTotal))}/yr`} icon={Shield} color={C.green} compact={isMobile}/>
-      <StatCard label={`Taxes (${latestTax?.year||"—"})`} value={`CHF ${mask(fmt(Math.round(taxMonthly)))}/mo`} sub={hideBalances?undefined:`CHF ${fmt(Math.round(latestTaxTotal))}/yr`} icon={BarChart3} color={C.red} compact={isMobile}/>
+      <StatCard label={t('expenses.tabs.subscriptions')} value={`CHF ${mask(fmt(Math.round(pTotal)))}${t('common.mo')}`} icon={CreditCard} color={C.accent} compact={isMobile}/>
+      <StatCard label={t('expenses.tabs.recurring')} value={`CHF ${mask(fmt(Math.round(yTotal)))}${t('common.mo')}`} sub={t('expenses.monthlyProvision')} icon={DollarSign} color={C.blue} compact={isMobile}/>
+      <StatCard label={t('expenses.tabs.insurance')} value={`CHF ${mask(fmt(Math.round(insMonthly)))}${t('common.mo')}`} sub={hideBalances?undefined:`CHF ${fmt(Math.round(insTotal))}${t('common.yr')}`} icon={Shield} color={C.green} compact={isMobile}/>
+      <StatCard label={`${t('expenses.tabs.taxes')} (${latestTax?.year||"—"})`} value={`CHF ${mask(fmt(Math.round(taxMonthly)))}${t('common.mo')}`} sub={hideBalances?undefined:`CHF ${fmt(Math.round(latestTaxTotal))}${t('common.yr')}`} icon={BarChart3} color={C.red} compact={isMobile}/>
     </div>
     <div style={{display:"flex",gap:8,marginBottom:16,flexWrap:"wrap"}}>
       <Tab active={tab==="total"} onClick={()=>setTab("total")}>{t("expenses.tabs.total")}</Tab>
@@ -2942,31 +2942,31 @@ function ExpensesPage({ subsP, setSubsP, subsPInScenario, setSubsPInScenario, ye
 
       {/* Per-year cards with line items */}
       <div style={{display:"flex",flexDirection:"column",gap:16}}>
-        {[...taxes].reverse().map(t=>{
-          const total = t.lines.reduce((s,l)=>s+l.amount,0);
-          const editTaxLine = (lineId,field,val)=>setTaxes(p=>p.map(tx=>tx.id===t.id?{...tx,lines:tx.lines.map(l=>l.id===lineId?{...l,[field]:val}:l)}:tx));
-          return <Card key={t.id} title={<div style={{display:"flex",alignItems:"center",gap:12}}>
-            <InlineEdit value={String(t.year)} onChange={v=>{const n=parseInt(v);if(!isNaN(n))setTaxes(p=>p.map(tx=>tx.id===t.id?{...tx,year:n}:tx));}} style={{fontSize:18,fontWeight:700}} inputWidth={60}/>
+        {[...taxes].reverse().map(ty=>{
+          const total = ty.lines.reduce((s,l)=>s+l.amount,0);
+          const editTaxLine = (lineId,field,val)=>setTaxes(p=>p.map(tx=>tx.id===ty.id?{...tx,lines:tx.lines.map(l=>l.id===lineId?{...l,[field]:val}:l)}:tx));
+          return <Card key={ty.id} title={<div style={{display:"flex",alignItems:"center",gap:12}}>
+            <InlineEdit value={String(ty.year)} onChange={v=>{const n=parseInt(v);if(!isNaN(n))setTaxes(p=>p.map(tx=>tx.id===ty.id?{...tx,year:n}:tx));}} style={{fontSize:18,fontWeight:700}} inputWidth={60}/>
             <span style={{fontSize:14,color:C.red,fontWeight:600}}>{t("expenses.taxTotal")}: CHF {mask(fmtD(total))}</span>
-          </div>} headerRight={<DelBtn onClick={()=>setTaxes(p=>p.filter(tx=>tx.id!==t.id))}/>}>
+          </div>} headerRight={<DelBtn onClick={()=>setTaxes(p=>p.filter(tx=>tx.id!==ty.id))}/>}>
             <div style={{overflowX:"auto"}}><table style={{width:"100%",borderCollapse:"collapse",minWidth:isMobile?340:undefined}}><thead><tr><TH>{t("expenses.taxType")}</TH><TH>{t("expenses.taxAmount")}</TH><TH>{t("expenses.taxPaidAt")}</TH></tr></thead>
             <tbody>
-              {t.lines.map(line=>(
+              {ty.lines.map(line=>(
                 <tr key={line.id} onMouseEnter={e=>e.currentTarget.style.background=C.cardHover} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
                   <td style={{padding:"8px 12px",fontSize:14,borderBottom:`1px solid ${C.border}11`}}>
                     {line.type}
-                    {line.type.includes("Provisional") && <Badge color={C.orange}>Prov.</Badge>}
-                    {line.type.includes("Final Settlement") && <Badge color={C.green}>Final</Badge>}
+                    {line.type.includes("Provisional") && <Badge color={C.orange}>{t('expenses.taxProv')}</Badge>}
+                    {line.type.includes("Final Settlement") && <Badge color={C.green}>{t('expenses.taxFinal')}</Badge>}
                   </td>
                   <td style={{padding:"8px 12px",fontSize:14,fontVariantNumeric:"tabular-nums",borderBottom:`1px solid ${C.border}11`}}>{hideBalances ? <span style={{color:C.text}}>••••</span> : <InlineNum value={line.amount} onChange={v=>editTaxLine(line.id,"amount",v??0)} width={80}/>}</td>
                   <td style={{padding:"8px 12px",fontSize:13,borderBottom:`1px solid ${C.border}11`}}><InlineEdit value={line.paidAt||""} onChange={v=>editTaxLine(line.id,"paidAt",v)} placeholder="dd.mm.yyyy" style={{color:C.textDim}} inputWidth={90}/></td>
                 </tr>
               ))}
-              <tr style={{background:C.bg}}><td style={{padding:"8px 12px",fontWeight:700}}>Total</td><td style={{padding:"8px 12px",fontWeight:700,fontVariantNumeric:"tabular-nums"}}>{mask(fmtD(total))}</td><td/></tr>
+              <tr style={{background:C.bg}}><td style={{padding:"8px 12px",fontWeight:700}}>{t('common.total')}</td><td style={{padding:"8px 12px",fontWeight:700,fontVariantNumeric:"tabular-nums"}}>{mask(fmtD(total))}</td><td/></tr>
             </tbody></table></div>
           </Card>;
         })}
-        <button onClick={()=>{const yr=taxes.length>0?Math.max(...taxes.map(t=>t.year))+1:2025;setTaxes(p=>[...p,makeTaxYear(yr,[0,0,0,0])]);}} style={{display:"flex",alignItems:"center",gap:6,padding:"12px 16px",border:`2px dashed ${C.border}`,borderRadius:10,background:"transparent",color:C.textDim,fontSize:14,cursor:"pointer",justifyContent:"center"}}><Plus size={16}/>Add tax year</button>
+        <button onClick={()=>{const yr=taxes.length>0?Math.max(...taxes.map(tx=>tx.year))+1:2025;setTaxes(p=>[...p,makeTaxYear(yr,[0,0,0,0])]);}} style={{display:"flex",alignItems:"center",gap:6,padding:"12px 16px",border:`2px dashed ${C.border}`,borderRadius:10,background:"transparent",color:C.textDim,fontSize:14,cursor:"pointer",justifyContent:"center"}}><Plus size={16}/>{t('expenses.addTaxYear')}</button>
       </div>
     </div>}
 
