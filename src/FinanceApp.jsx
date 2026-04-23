@@ -2,6 +2,7 @@ import React, { useState, useMemo, useCallback, useEffect, useRef } from "react"
 import { PieChart, Pie, Cell, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, BarChart, Bar, ResponsiveContainer, AreaChart, Area, ComposedChart, ReferenceLine } from "recharts";
 import { LayoutDashboard, Target, TrendingUp, Activity, CreditCard, Shield, Plus, Pencil, Trash2, Check, X, DollarSign, Wallet, PiggyBank, BarChart3, GripVertical, Power, Sparkles, AlertTriangle, ArrowUpRight, Info, Lightbulb, ShieldCheck, Landmark, Paperclip, Upload, Download, Sun, Moon, ChevronLeft, ChevronRight, User, Building2, Eye, EyeOff, RefreshCw, ChevronDown, MessageSquarePlus, ExternalLink, Maximize2, Minimize2, BookOpen, Settings, Key, Bot, WifiOff, Lock, Cloud, Pin, ClipboardList, Menu, Receipt } from "lucide-react";
 import { jsPDF } from "jspdf";
+import translations from './i18n.js';
 
 const API_URL = `http://${window.location.hostname}:3003/api`;
 
@@ -208,7 +209,7 @@ const ONBOARDING_STEPS = [
   { id: 'monthlyTracker', label: 'Sync Tracker', desc: 'Sync your tracker with current account balances.', type: 'recurring', icon: Activity, action: 'tracker' },
 ];
 
-function generateInsights({ accounts, scenarios, insurance, inc, exp, sav, inv, liquidTotal, lockedTotal, totalWealth, debtTotal = 0 }) {
+function generateInsights({ accounts, scenarios, insurance, inc, exp, sav, inv, liquidTotal, lockedTotal, totalWealth, debtTotal = 0, t = k=>k }) {
   const insights = [];
   const sc = scenarios.find(s => s.isActive);
 
@@ -219,15 +220,15 @@ function generateInsights({ accounts, scenarios, insurance, inc, exp, sav, inv, 
   const max3a = 7258;
   if (yearly3a < max3a) {
     const gap = max3a - yearly3a;
-    insights.push({ priority: "high", category: "tax", icon: "tax", title: "Pillar 3a not maxed",
-      detail: `You're contributing CHF ${Math.round(yearly3a)}/year to 3a but the 2025/2026 maximum is CHF ${fmt(max3a)}. The gap of CHF ${fmt(Math.round(gap))} is a missed tax deduction — at Kanton Zurich marginal rates (~33%), that's ~CHF ${fmt(Math.round(gap * 0.33))} in tax savings per year.`,
-      action: `Increase monthly 3a contribution from CHF ${fmt(Math.round(monthlyTo3a))} to CHF ${fmt(Math.ceil(max3a / 12))}`,
-      impact: `~CHF ${fmt(Math.round(gap * 0.33))}/year tax savings`,
+    insights.push({ priority: "high", category: "tax", icon: "tax", title: t('rec.3aNotMaxed'),
+      detail: t('rec.3aNotMaxedDetail', {yearly: String(Math.round(yearly3a)), max: fmt(max3a), gap: fmt(Math.round(gap)), savings: fmt(Math.round(gap * 0.33))}),
+      action: t('rec.3aNotMaxedAction', {current: fmt(Math.round(monthlyTo3a)), target: fmt(Math.ceil(max3a / 12))}),
+      impact: t('rec.3aNotMaxedImpact', {amount: fmt(Math.round(gap * 0.33))}),
     });
   } else {
-    insights.push({ priority: "low", category: "tax", icon: "check", title: "Pillar 3a is maxed",
-      detail: `Your yearly 3a contribution of CHF ${fmt(Math.round(yearly3a))} meets or exceeds the 2025/2026 limit of CHF ${fmt(max3a)}. Well done — this is the easiest tax optimization in Switzerland.`,
-      action: "Consider opening multiple 3a accounts for staggered withdrawals to reduce tax on payout", impact: "Future tax savings on withdrawal",
+    insights.push({ priority: "low", category: "tax", icon: "check", title: t('rec.3aMaxed'),
+      detail: t('rec.3aMaxedDetail', {yearly: fmt(Math.round(yearly3a)), max: fmt(max3a)}),
+      action: t('rec.3aMaxedAction'), impact: t('rec.3aMaxedImpact'),
     });
   }
 
@@ -237,39 +238,39 @@ function generateInsights({ accounts, scenarios, insurance, inc, exp, sav, inv, 
   const monthlyExpenses = exp > 0 ? exp : 5000;
   const targetEmergency = monthlyExpenses * 6;
   if (emergencyBal < targetEmergency && emergencyBal < 20000) {
-    insights.push({ priority: emergencyBal < monthlyExpenses * 3 ? "high" : "medium", category: "savings", icon: "alert", title: "Emergency fund below 3-6 month target",
-      detail: `Your emergency fund is CHF ${fmt(emergencyBal)} but your monthly expenses are ~CHF ${fmt(Math.round(monthlyExpenses))}. A 6-month buffer would be CHF ${fmt(Math.round(targetEmergency))}. In Switzerland, consider the 3-month notice period (Kuendigungsfrist) — but also account for health insurance deductible (Franchise, up to CHF 2'500) and co-pay (Selbstbehalt).`,
-      action: `Prioritise building to CHF ${fmt(Math.round(targetEmergency))} before increasing investments`, impact: "Financial security against job loss or health costs",
+    insights.push({ priority: emergencyBal < monthlyExpenses * 3 ? "high" : "medium", category: "savings", icon: "alert", title: t('rec.emergencyLow'),
+      detail: t('rec.emergencyDetail', {balance: fmt(emergencyBal), expenses: fmt(Math.round(monthlyExpenses)), target: fmt(Math.round(targetEmergency))}),
+      action: t('rec.emergencyAction', {target: fmt(Math.round(targetEmergency))}), impact: t('rec.emergencyImpact'),
     });
   }
 
   // 3. BVG buy-in opportunity
   const bvgAccount = accounts.find(a => a.name.toLowerCase().includes("swisslife") || a.name.toLowerCase().includes("2a"));
   if (bvgAccount && inc > 0) {
-    insights.push({ priority: "medium", category: "pension", icon: "pension", title: "Check BVG voluntary buy-in (Einkauf)",
-      detail: `Your 2a balance is CHF ${fmt(bvgAccount.balance)}. Voluntary BVG buy-ins are fully tax-deductible in the year of payment — often the most powerful tax deduction available in Switzerland. Check your pension statement (Vorsorgeausweis) from SwissLife for the maximum buy-in potential (Einkaufspotenzial).`,
-      action: "Request pension statement (Vorsorgeausweis) from SwissLife and check buy-in potential", impact: "Potentially CHF 5'000-20'000+ deductible from taxable income",
+    insights.push({ priority: "medium", category: "pension", icon: "pension", title: t('rec.bvgBuyIn'),
+      detail: t('rec.bvgDetail', {balance: fmt(bvgAccount.balance)}),
+      action: t('rec.bvgAction'), impact: t('rec.bvgImpact'),
     });
   }
 
   // 4. Savings rate analysis
   const savingsRate = inc > 0 ? ((sav + inv) / inc) : 0;
   if (savingsRate > 0) {
-    const rateLabel = savingsRate >= 0.3 ? "excellent" : savingsRate >= 0.2 ? "good" : savingsRate >= 0.1 ? "moderate" : "low";
+    const rateLabel = savingsRate >= 0.3 ? t('rec.savingsRateExcellent') : savingsRate >= 0.2 ? t('rec.savingsRateGood') : savingsRate >= 0.1 ? t('rec.savingsRateModerate') : t('rec.savingsRateLow');
     insights.push({ priority: savingsRate < 0.15 ? "high" : "low", category: "savings", icon: "trend",
-      title: `Savings rate: ${(savingsRate * 100).toFixed(1)}% (${rateLabel})`,
-      detail: `You're saving + investing CHF ${fmt(Math.round(sav + inv))} of CHF ${fmt(Math.round(inc))} monthly income. ${savingsRate >= 0.2 ? "This is above the Swiss average of ~15-20%. Your wealth-building trajectory is strong." : "The Swiss average savings rate is ~15-20%. Consider reviewing your expense allocations to increase this."}`,
-      action: savingsRate >= 0.25 ? "Maintain current rate and focus on optimising investment allocation" : "Review expenses to find CHF 200-500/month to redirect to investments",
-      impact: `CHF ${fmt(Math.round((sav + inv) * 12))}/year to wealth building`,
+      title: t('rec.savingsRate', {rate: (savingsRate * 100).toFixed(1), label: rateLabel}),
+      detail: savingsRate >= 0.2 ? t('rec.savingsRateDetailHigh', {amount: fmt(Math.round(sav + inv)), income: fmt(Math.round(inc))}) : t('rec.savingsRateDetailLow', {amount: fmt(Math.round(sav + inv)), income: fmt(Math.round(inc))}),
+      action: savingsRate >= 0.25 ? t('rec.savingsActionHigh') : t('rec.savingsActionLow'),
+      impact: t('rec.savingsImpact', {amount: fmt(Math.round((sav + inv) * 12))}),
     });
   }
 
   // 5. Insurance cost check
   const krankenkasse = insurance.find(i => i.name.toLowerCase().includes("health insurance") || i.name.toLowerCase().includes("krankenkasse"));
   if (krankenkasse) {
-    insights.push({ priority: "low", category: "insurance", icon: "check", title: "Health insurance optimised (max Franchise CHF 2'500)",
-      detail: `Your health insurance (Krankenkasse) costs CHF ${fmtD(insMonthlyCalc(krankenkasse)*12)}/year with the maximum deductible (Franchise) of CHF 2'500 — the optimal choice if annual health costs stay below ~CHF 3'800. Your max out-of-pocket: CHF 2'500 (Franchise) + CHF 700 (Selbstbehalt 10% cap) = CHF 3'200/year.`,
-      action: "Compare premiums annually on priminfo.admin.ch or comparis.ch before October 31 deadline", impact: "Ensure you're on the cheapest plan for the same coverage",
+    insights.push({ priority: "low", category: "insurance", icon: "check", title: t('rec.healthInsurance'),
+      detail: t('rec.healthDetail', {yearly: fmtD(insMonthlyCalc(krankenkasse)*12)}),
+      action: t('rec.healthAction'), impact: t('rec.healthImpact'),
     });
   }
 
@@ -280,18 +281,18 @@ function generateInsights({ accounts, scenarios, insurance, inc, exp, sav, inv, 
   if (cryptoAcct && totalInvested > 0) {
     const cryptoPct = (cryptoAcct.balance / totalInvested) * 100;
     if (cryptoPct < 2) {
-      insights.push({ priority: "low", category: "investment", icon: "info", title: "Crypto allocation is minimal",
-        detail: `Crypto is ${cryptoPct.toFixed(1)}% of your investment portfolio (CHF ${fmt(cryptoAcct.balance)} of CHF ${fmt(totalInvested)}). In Switzerland, crypto capital gains are tax-free for private investors — one of the most favorable crypto tax regimes globally.`,
-        action: "Consider if your crypto allocation aligns with your risk tolerance", impact: "Tax-free upside potential",
+      insights.push({ priority: "low", category: "investment", icon: "info", title: t('rec.cryptoMinimal'),
+        detail: t('rec.cryptoDetail', {pct: cryptoPct.toFixed(1), balance: fmt(cryptoAcct.balance), total: fmt(totalInvested)}),
+        action: t('rec.cryptoAction'), impact: t('rec.cryptoImpact'),
       });
     }
   }
 
   // 7. Wealth tax planning
   if (totalWealth > 50000) {
-    insights.push({ priority: "low", category: "tax", icon: "info", title: "Wealth tax planning (Vermogenssteuer)",
-      detail: `Your net worth of CHF ${fmt(totalWealth)} is subject to Kanton Zurich wealth tax (Vermogenssteuer). The rate is progressive (~0.05-0.3%). Timing matters: the tax snapshot is taken on December 31st. Strategies include: making large purchases or BVG buy-ins before year-end.`,
-      action: "Consider timing of large BVG buy-ins or asset purchases near year-end", impact: "Optimise Dec 31 snapshot for lower wealth tax",
+    insights.push({ priority: "low", category: "tax", icon: "info", title: t('rec.wealthTax'),
+      detail: t('rec.wealthTaxDetail', {wealth: fmt(totalWealth)}),
+      action: t('rec.wealthTaxAction'), impact: t('rec.wealthTaxImpact'),
     });
   }
 
@@ -301,20 +302,20 @@ function generateInsights({ accounts, scenarios, insurance, inc, exp, sav, inv, 
     const debtRatio = grossAssets > 0 ? debtTotal / grossAssets : 1;
     const priority = debtRatio > 0.5 ? "high" : debtRatio > 0.25 ? "medium" : "low";
     insights.push({ priority, category: "debt", icon: "alert",
-      title: `Total debt: CHF ${fmt(debtTotal)} (${(debtRatio * 100).toFixed(0)}% of gross assets)`,
-      detail: `${debtRatio > 0.5 ? "Your debt exceeds 50% of gross assets — prioritise debt reduction to strengthen your net worth." : "Your debt-to-asset ratio is manageable."} In Switzerland, all mortgage and loan interest is fully tax-deductible (Ziffer 250 on the tax return). Attach a Schuldenverzeichnis (debt schedule) with every creditor, outstanding balance, and interest paid during the year.`,
-      action: debtRatio > 0.4 ? "Review debt repayment plan vs. investment return trade-off" : "Claim all loan/mortgage interest as a deduction (Ziffer 250)",
-      impact: "Full interest deduction reduces taxable income — commonly missed",
+      title: t('rec.debtTitle', {amount: fmt(debtTotal), pct: (debtRatio * 100).toFixed(0)}),
+      detail: debtRatio > 0.5 ? t('rec.debtDetailHigh') : t('rec.debtDetailLow'),
+      action: debtRatio > 0.4 ? t('rec.debtActionHigh') : t('rec.debtActionLow'),
+      impact: t('rec.debtImpact'),
     });
   }
 
   // 9. Withholding tax reclaim (Verrechnungssteuer / DA-1)
   if (totalInvested > 5000) {
     insights.push({ priority: "medium", category: "tax", icon: "tax",
-      title: "Reclaim 35% withholding tax on dividends (DA-1)",
-      detail: `You have CHF ${fmt(totalInvested)} in investment accounts. Swiss companies withhold 35% (Verrechnungssteuer) from dividends before paying them. As a Swiss resident you can reclaim 100% via form DA-1 (also partial reclaim on foreign dividends via double-taxation treaties). File the Wertschriftenverzeichnis (securities list) with your tax return — this triggers the refund automatically in ZHprivateTax.`,
-      action: "Declare all securities in Wertschriftenverzeichnis and attach DA-1 to your tax return",
-      impact: "Up to 35% of Swiss dividend income returned as a tax refund",
+      title: t('rec.withholdingTax'),
+      detail: t('rec.withholdingTaxDetail', {amount: fmt(totalInvested)}),
+      action: t('rec.withholdingTaxAction'),
+      impact: t('rec.withholdingTaxImpact'),
     });
   }
 
@@ -326,7 +327,7 @@ function generateInsights({ accounts, scenarios, insurance, inc, exp, sav, inv, 
 // ───────────────────────────────────────────────────────────────
 const DEFAULT_EXTRACTION_PROMPT = `You are a financial data extractor. Examine the attached file(s) carefully and extract the data.\n\nRespond with ONLY a raw JSON object — no explanation, no markdown, no code fences, no extra text before or after. Just the JSON.\n\nRequired JSON shape:\n{"accountBalance":null,"interestRate":null,"positions":[{"ticker":"","name":"","shares":0,"avgBuyPrice":0,"value":null}]}\n\nRules:\n- accountBalance: total account/portfolio value as a number, or null if not visible\n- interestRate: annual interest/savings rate as a percentage number (e.g. 1.5 for 1.5%), or null\n- positions: array of holdings. Use [] if none found.\n- ticker: Yahoo Finance symbol if available. Swiss ETFs use .SW suffix (e.g. IWDC.SW, CSSMI.SW, CHSPI.SW, EQQQ.SW, ZSIL.SW, ZGLD.SW, VUSD.SW, VWRL.SW). US stocks: AAPL, MSFT, NVDA, GOOGL, TSLA. Crypto: BTC-USD, ETH-USD. For proprietary tokens (e.g. Swissqoin/SWQ) or funds without a public ticker (e.g. Swiss 3a pillar funds like frankly, VIAC, finpension), leave ticker empty "".\n- name: full fund/product name as shown (e.g. "Developed World (iShares MSCI World CHF Hedged)")\n- shares: exact number of units/shares held as shown — preserve ALL decimal places (e.g. 63.6787, not 63.68). Use 0 only if not shown at all.\n- avgBuyPrice: average purchase price per unit (cost basis). If cost basis is not directly shown but you can see the gain% and current value, CALCULATE it: avgBuyPrice = currentValue / shares / (1 + gainPercent/100). If neither cost basis nor gain data is available, use 0.\n- value: total position value/market value as a number if shown (e.g. CHF 5457.26 → 5457.26), or null. This is especially important when shares/avgBuyPrice are not available.\n- IMPORTANT: Extract data from ALL images/pages. If multiple screenshots show different positions, combine them all into one positions array.`;
 
-function AccountsPage({ accounts, setAccounts, hideBalances, onAccountsUpdated, extractionPrompt, setExtractionPrompt }) {
+function AccountsPage({ accounts, setAccounts, hideBalances, onAccountsUpdated, extractionPrompt, setExtractionPrompt, t }) {
   const mask = (v) => hideBalances ? "••••" : v;
   const winW = useWindowWidth(); const isMobile = winW < 768;
   const editAcct = (id, field, val) => { setAccounts(p => p.map(a => a.id === id ? { ...a, [field]: val } : a)); if (field === 'balance' && onAccountsUpdated) onAccountsUpdated(); };
@@ -427,19 +428,19 @@ function AccountsPage({ accounts, setAccounts, hideBalances, onAccountsUpdated, 
       <div onClick={e=>e.stopPropagation()} style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:16,width:'100%',maxWidth:1140,maxHeight:'84vh',overflowY:'auto',padding:28,boxShadow:'0 24px 80px rgba(0,0,0,0.6)'}}>
         <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:16}}>
           <div>
-            <h3 style={{margin:'0 0 2px',fontSize:17,fontWeight:700,color:C.text}}>Import Preview — {accounts.find(a=>a.id===importPreview.accountId)?.name}</h3>
-            <div style={{fontSize:12,color:C.textDim}}>Supported: PNG, JPG, PDF, CSV, XLSX · Select multiple files for multi-page statements</div>
+            <h3 style={{margin:'0 0 2px',fontSize:17,fontWeight:700,color:C.text}}>{t('accounts.importPreview', {name: accounts.find(a=>a.id===importPreview.accountId)?.name})}</h3>
+            <div style={{fontSize:12,color:C.textDim}}>{t('accounts.importSupported')}</div>
           </div>
           <button onClick={()=>setImportPreview(null)} style={{background:'transparent',border:'none',cursor:'pointer',color:C.textDim}}><X size={18}/></button>
         </div>
         {importPreview.data ? <>
-          {importPreview.data.accountBalance!=null && <div style={{marginBottom:10,fontSize:14,color:C.textMuted}}>Detected balance: <strong style={{color:C.text}}>CHF {fmt(importPreview.data.accountBalance)}</strong></div>}
-          {importPreview.data.interestRate!=null && <div style={{marginBottom:10,fontSize:14,color:C.textMuted}}>Interest rate: <strong style={{color:C.green}}>{importPreview.data.interestRate}%</strong></div>}
+          {importPreview.data.accountBalance!=null && <div style={{marginBottom:10,fontSize:14,color:C.textMuted}}>{t('accounts.detectedBalance')} <strong style={{color:C.text}}>CHF {fmt(importPreview.data.accountBalance)}</strong></div>}
+          {importPreview.data.interestRate!=null && <div style={{marginBottom:10,fontSize:14,color:C.textMuted}}>{t('accounts.interestRate')} <strong style={{color:C.green}}>{importPreview.data.interestRate}%</strong></div>}
           {(importPreview.data.positions||[]).length>0 && <>
-            <div style={{fontSize:14,color:C.textMuted,marginBottom:8}}>Positions to import:</div>
+            <div style={{fontSize:14,color:C.textMuted,marginBottom:8}}>{t('accounts.positionsToImport')}</div>
             <table style={{width:'100%',borderCollapse:'collapse',marginBottom:16,fontSize:12}}>
               <thead><tr>
-                {['','Ticker','Name','Shares','Avg Buy','Value'].map((h,i)=><th key={i} style={{padding:'6px 8px',textAlign:i>=3?'right':'left',fontSize:12,color:C.textDim,fontWeight:600,borderBottom:`1px solid ${C.border}`}}>{h}</th>)}
+                {['',t('accounts.ticker'),t('common.name'),t('accounts.shares'),t('accounts.avgBuy'),t('accounts.value')].map((h,i)=><th key={i} style={{padding:'6px 8px',textAlign:i>=3?'right':'left',fontSize:12,color:C.textDim,fontWeight:600,borderBottom:`1px solid ${C.border}`}}>{h}</th>)}
               </tr></thead>
               <tbody>
                 {(importPreview.data.positions||[]).map((p,i)=>(
@@ -457,24 +458,24 @@ function AccountsPage({ accounts, setAccounts, hideBalances, onAccountsUpdated, 
           </>}
           {(importPreview.data.positions||[]).some(p=>!p.ticker) && !accounts.find(a=>a.id===importPreview.accountId)?.instructions && (
             <div style={{marginBottom:12,padding:'10px 12px',borderRadius:8,background:C.yellow+'15',border:`1px solid ${C.yellow}33`,fontSize:13,color:C.textMuted}}>
-              Some positions have no ticker (proprietary funds). Add account notes via the <MessageSquarePlus size={11} style={{verticalAlign:'middle',margin:'0 2px'}}/> icon to help future imports — e.g. <em>"ETF-based 3a fund, no public ticker, use position value as balance"</em>.
-              <button onClick={()=>{const acct=accounts.find(a=>a.id===importPreview.accountId);if(acct){const names=(importPreview.data.positions||[]).filter(p=>!p.ticker&&p.name).map(p=>p.name).join(', ');editAcct(acct.id,'instructions',(acct.instructions?acct.instructions+'\n':'')+'Proprietary funds (no market ticker): '+names+'. Use position value as balance.');setNotesOpen(prev=>{const n=new Set(prev);n.add(acct.id);return n;})}}} style={{display:'inline-block',marginLeft:8,padding:'3px 10px',borderRadius:6,border:`1px solid ${C.yellow}55`,background:C.yellow+'22',color:C.text,fontSize:12,fontWeight:600,cursor:'pointer'}}>Auto-add notes</button>
+              {t('accounts.noTickerWarning')}
+              <button onClick={()=>{const acct=accounts.find(a=>a.id===importPreview.accountId);if(acct){const names=(importPreview.data.positions||[]).filter(p=>!p.ticker&&p.name).map(p=>p.name).join(', ');editAcct(acct.id,'instructions',(acct.instructions?acct.instructions+'\n':'')+'Proprietary funds (no market ticker): '+names+'. Use position value as balance.');setNotesOpen(prev=>{const n=new Set(prev);n.add(acct.id);return n;})}}} style={{display:'inline-block',marginLeft:8,padding:'3px 10px',borderRadius:6,border:`1px solid ${C.yellow}55`,background:C.yellow+'22',color:C.text,fontSize:12,fontWeight:600,cursor:'pointer'}}>{t('accounts.autoAddNotes')}</button>
             </div>
           )}
           <div style={{display:'flex',gap:8,justifyContent:'space-between',alignItems:'center'}}>
             <div style={{display:'flex',gap:4,alignItems:'center',fontSize:12}}>
-              <button onClick={()=>setImportMode('replace')} style={{padding:'5px 12px',borderRadius:6,border:`1px solid ${importMode==='replace'?C.accent:C.border}`,background:importMode==='replace'?C.accent+'22':'transparent',color:importMode==='replace'?C.accentLight:C.textDim,fontSize:13,fontWeight:importMode==='replace'?600:400,cursor:'pointer'}}>Replace all</button>
-              <button onClick={()=>setImportMode('merge')} style={{padding:'5px 12px',borderRadius:6,border:`1px solid ${importMode==='merge'?C.accent:C.border}`,background:importMode==='merge'?C.accent+'22':'transparent',color:importMode==='merge'?C.accentLight:C.textDim,fontSize:13,fontWeight:importMode==='merge'?600:400,cursor:'pointer'}}>Merge</button>
+              <button onClick={()=>setImportMode('replace')} style={{padding:'5px 12px',borderRadius:6,border:`1px solid ${importMode==='replace'?C.accent:C.border}`,background:importMode==='replace'?C.accent+'22':'transparent',color:importMode==='replace'?C.accentLight:C.textDim,fontSize:13,fontWeight:importMode==='replace'?600:400,cursor:'pointer'}}>{t('common.replaceAll')}</button>
+              <button onClick={()=>setImportMode('merge')} style={{padding:'5px 12px',borderRadius:6,border:`1px solid ${importMode==='merge'?C.accent:C.border}`,background:importMode==='merge'?C.accent+'22':'transparent',color:importMode==='merge'?C.accentLight:C.textDim,fontSize:13,fontWeight:importMode==='merge'?600:400,cursor:'pointer'}}>{t('common.merge')}</button>
             </div>
             <div style={{display:'flex',gap:8}}>
-              <button onClick={()=>setImportPreview(null)} style={{padding:'8px 16px',borderRadius:8,border:`1px solid ${C.border}`,background:'transparent',color:C.textMuted,fontSize:14,cursor:'pointer'}}>Cancel</button>
-              <button onClick={confirmAcctImport} style={{padding:'8px 16px',borderRadius:8,border:'none',background:C.accent,color:'#fff',fontSize:14,fontWeight:600,cursor:'pointer'}}>Confirm Import</button>
+              <button onClick={()=>setImportPreview(null)} style={{padding:'8px 16px',borderRadius:8,border:`1px solid ${C.border}`,background:'transparent',color:C.textMuted,fontSize:14,cursor:'pointer'}}>{t('common.cancel')}</button>
+              <button onClick={confirmAcctImport} style={{padding:'8px 16px',borderRadius:8,border:'none',background:C.accent,color:'#fff',fontSize:14,fontWeight:600,cursor:'pointer'}}>{t('accounts.confirmImport')}</button>
             </div>
           </div>
         </> : <>
-          <div style={{marginBottom:10,fontSize:14,color:C.textMuted}}>Could not parse structured data. Raw AI response:</div>
+          <div style={{marginBottom:10,fontSize:14,color:C.textMuted}}>{t('accounts.couldNotParse')}</div>
           <pre style={{background:C.bg,padding:12,borderRadius:8,fontSize:12,color:C.text,overflowX:'auto',maxHeight:300,overflowY:'auto',whiteSpace:'pre-wrap'}}>{importPreview.rawText}</pre>
-          <button onClick={()=>setImportPreview(null)} style={{marginTop:12,padding:'8px 16px',borderRadius:8,border:`1px solid ${C.border}`,background:'transparent',color:C.textMuted,fontSize:14,cursor:'pointer'}}>Close</button>
+          <button onClick={()=>setImportPreview(null)} style={{marginTop:12,padding:'8px 16px',borderRadius:8,border:`1px solid ${C.border}`,background:'transparent',color:C.textMuted,fontSize:14,cursor:'pointer'}}>{t('common.close')}</button>
         </>}
       </div>
     </div>}
@@ -483,48 +484,47 @@ function AccountsPage({ accounts, setAccounts, hideBalances, onAccountsUpdated, 
     {extractionPromptOpen && <div onClick={()=>setExtractionPromptOpen(false)} style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.7)',zIndex:200,display:'flex',alignItems:'center',justifyContent:'center',padding:24}}>
       <div onClick={e=>e.stopPropagation()} style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:16,width:'100%',maxWidth:1140,maxHeight:'84vh',overflowY:'auto',padding:28,boxShadow:'0 24px 80px rgba(0,0,0,0.6)'}}>
         <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:8}}>
-          <h2 style={{margin:0,fontSize:18,fontWeight:700,color:C.text}}>File Extraction Prompt</h2>
+          <h2 style={{margin:0,fontSize:18,fontWeight:700,color:C.text}}>{t('accounts.extractionPromptTitle')}</h2>
           <button onClick={()=>setExtractionPromptOpen(false)} style={{background:'transparent',border:'none',cursor:'pointer',color:C.textDim}}><X size={18}/></button>
         </div>
         <p style={{margin:'0 0 12px',fontSize:13,color:C.textDim}}>
-          Customise the AI prompt used when importing files into accounts. Leave blank to use the built-in default.
-          Account type and per-account instructions are always appended automatically.
+          {t('accounts.extractionPromptDesc')}
         </p>
         <div style={{display:'flex',gap:8,marginBottom:10}}>
           <button onClick={()=>setExtractionPrompt(DEFAULT_EXTRACTION_PROMPT)}
             style={{padding:'6px 12px',borderRadius:6,border:`1px solid ${C.border}`,background:'transparent',color:C.textMuted,fontSize:13,cursor:'pointer'}}>
-            Load default
+            {t('common.loadDefault')}
           </button>
           <button onClick={()=>setExtractionPrompt('')}
             style={{padding:'6px 12px',borderRadius:6,border:`1px solid ${C.border}`,background:'transparent',color:C.textMuted,fontSize:13,cursor:'pointer'}}>
-            Reset to blank
+            {t('common.resetBlank')}
           </button>
         </div>
         <textarea
           value={extractionPrompt}
           onChange={e=>setExtractionPrompt(e.target.value)}
-          placeholder="Leave blank to use the built-in default extraction prompt…"
+          placeholder={t('accounts.extractionPromptPlaceholder')}
           rows={28}
           style={{width:'100%',padding:'10px 12px',borderRadius:8,border:`1px solid ${C.border}`,background:C.bg,color:C.text,
             fontSize:13,outline:'none',resize:'vertical',boxSizing:'border-box',fontFamily:"'DM Mono',monospace",lineHeight:1.5}}
         />
-        {extractionPrompt && <div style={{marginTop:6,fontSize:12,color:C.green}}>✓ Custom extraction prompt active — will be used instead of the default.</div>}
+        {extractionPrompt && <div style={{marginTop:6,fontSize:12,color:C.green}}>{t('accounts.customPromptActive')}</div>}
         <button onClick={()=>setExtractionPromptOpen(false)} style={{width:'100%',padding:'11px',borderRadius:8,border:'none',background:C.accent,color:'#fff',fontSize:14,fontWeight:600,cursor:'pointer',marginTop:12}}>
-          Save & Close
+          {t('common.saveClose')}
         </button>
       </div>
     </div>}
 
-    <Card title="Account Balances" headerRight={
+    <Card title={t('accounts.title')} headerRight={
       <button onClick={()=>setExtractionPromptOpen(true)} style={{display:'flex',alignItems:'center',gap:6,padding:'5px 10px',borderRadius:6,border:`1px solid ${C.border}`,background:'transparent',cursor:'pointer',color:extractionPrompt?C.accentLight:C.textMuted,fontSize:12}}>
-        <Sparkles size={12}/>Extraction Prompt{extractionPrompt?' ✓':''}
+        <Sparkles size={12}/>{t('accounts.extractionPrompt')}{extractionPrompt?' ✓':''}
       </button>
     }>
       <div style={{overflowX:"auto"}}><table style={{width:"100%",borderCollapse:"collapse",minWidth:isMobile?560:undefined}}><thead><tr>
-        <SortTH col="name">Account</SortTH>
-        {!isMobile && <SortTH col="institution">Institution</SortTH>}
-        <SortTH col="type">Type</SortTH>
-        <SortTH col="balance">Balance</SortTH>
+        <SortTH col="name">{t('accounts.column.name')}</SortTH>
+        {!isMobile && <SortTH col="institution">{t('accounts.column.institution')}</SortTH>}
+        <SortTH col="type">{t('accounts.column.type')}</SortTH>
+        <SortTH col="balance">{t('accounts.column.balance')}</SortTH>
         <TH w={isMobile?60:110}></TH>
       </tr></thead>
       <tbody>{sorted.map(a=>{
@@ -549,7 +549,7 @@ function AccountsPage({ accounts, setAccounts, hideBalances, onAccountsUpdated, 
                 <ExternalLink size={13}/>
               </button>
               <button onClick={e=>{e.stopPropagation();toggleNotes(a.id);}}
-                title="Edit login URL and AI notes"
+                title={t('accounts.editNotes')}
                 style={{background:'transparent',border:'none',cursor:'pointer',padding:3,display:'flex',alignItems:'center',
                   color:(a.instructions||a.loginUrl) ? C.accentLight : C.textDim}}>
                 <MessageSquarePlus size={13}/>
@@ -558,8 +558,8 @@ function AccountsPage({ accounts, setAccounts, hideBalances, onAccountsUpdated, 
                 title="Supported: PNG, JPG, PDF, CSV, XLSX"
                 style={{display:'flex',alignItems:'center',gap:4,padding:'4px 8px',borderRadius:6,border:`1px solid ${C.border}`,background:'transparent',cursor:importingAcctId===a.id?'not-allowed':'pointer',color:importingAcctId===a.id?C.textDim:C.textMuted,fontSize:12,whiteSpace:'nowrap'}}>
                 {importingAcctId===a.id
-                  ? <><RefreshCw size={12} style={{animation:'spin 1s linear infinite'}}/>Parsing…</>
-                  : <><Upload size={12}/>Import</>}
+                  ? <><RefreshCw size={12} style={{animation:'spin 1s linear infinite'}}/>{t('accounts.parsing')}</>
+                  : <><Upload size={12}/>{t('accounts.import')}</>}
               </button>
               <DelBtn onClick={()=>delAcct(a.id)}/>
             </div>
@@ -569,41 +569,41 @@ function AccountsPage({ accounts, setAccounts, hideBalances, onAccountsUpdated, 
           <td colSpan={isMobile?4:5} style={{padding:'0 12px 12px',borderBottom:`1px solid ${C.border}11`}}>
             <div style={{display:'grid',gridTemplateColumns:isMobile?'1fr':'1fr 1fr',gap:10}}>
               <div>
-                <div style={{fontSize:10,fontWeight:600,color:C.textDim,textTransform:'uppercase',letterSpacing:'0.05em',marginBottom:4}}>Login URL</div>
+                <div style={{fontSize:10,fontWeight:600,color:C.textDim,textTransform:'uppercase',letterSpacing:'0.05em',marginBottom:4}}>{t('accounts.loginUrl')}</div>
                 <div style={{display:'flex',alignItems:'center',gap:6}}>
                   <input
                     value={a.loginUrl||''}
                     onChange={e=>editAcct(a.id,'loginUrl',e.target.value)}
-                    placeholder="https://…"
+                    placeholder={t('accounts.loginUrlPlaceholder')}
                     style={{flex:1,padding:'6px 10px',borderRadius:8,border:`1px solid ${C.border}`,background:C.bg,color:C.text,
                       fontSize:13,outline:'none',boxSizing:'border-box',fontFamily:'inherit',minWidth:0}}
                   />
                   {a.loginUrl && <a href={a.loginUrl} target="_blank" rel="noopener noreferrer"
                     style={{display:'flex',alignItems:'center',gap:3,padding:'6px 10px',borderRadius:8,border:`1px solid ${C.accentLight}44`,
                       background:C.accentLight+'15',color:C.accentLight,fontSize:12,fontWeight:600,textDecoration:'none',whiteSpace:'nowrap',flexShrink:0}}>
-                    <ExternalLink size={11}/>Open
+                    <ExternalLink size={11}/>{t('accounts.open')}
                   </a>}
                 </div>
               </div>
               <div>
-                <div style={{fontSize:10,fontWeight:600,color:C.textDim,textTransform:'uppercase',letterSpacing:'0.05em',marginBottom:4}}>AI Notes</div>
+                <div style={{fontSize:10,fontWeight:600,color:C.textDim,textTransform:'uppercase',letterSpacing:'0.05em',marginBottom:4}}>{t('accounts.aiNotes')}</div>
                 <textarea
                   value={a.instructions||''}
                   onChange={e=>editAcct(a.id,'instructions',e.target.value)}
-                  placeholder="e.g. 'ESPP: 15% discount applied' or 'ETF-based 3a, no public ticker'"
+                  placeholder={t('accounts.instructionsPlaceholder')}
                   rows={2}
                   style={{width:'100%',padding:'6px 10px',borderRadius:8,border:`1px solid ${C.border}`,background:C.bg,color:C.text,
                     fontSize:13,outline:'none',resize:'vertical',boxSizing:'border-box',fontFamily:'inherit'}}
                 />
-                <div style={{fontSize:10,color:C.textDim,marginTop:2}}>Included in every AI conversation and file import for this account.</div>
+                <div style={{fontSize:10,color:C.textDim,marginTop:2}}>{t('accounts.aiNotesHint')}</div>
               </div>
             </div>
           </td>
         </tr>}
         </React.Fragment>;
       })}
-      <tr style={{background:C.bg}}><td style={{padding:"10px 12px",fontWeight:700}} colSpan={isMobile?2:3}>Total</td><td style={{padding:"10px 12px",textAlign:"right",fontWeight:700,fontSize:17,color:C.accent}}>{mask(fmt(totalWealth))}</td><td/></tr>
-      <AddRow onClick={addAcct} label="Add account" colSpan={isMobile?4:5}/>
+      <tr style={{background:C.bg}}><td style={{padding:"10px 12px",fontWeight:700}} colSpan={isMobile?2:3}>{t('accounts.total')}</td><td style={{padding:"10px 12px",textAlign:"right",fontWeight:700,fontSize:17,color:C.accent}}>{mask(fmt(totalWealth))}</td><td/></tr>
+      <AddRow onClick={addAcct} label={t('accounts.addRow')} colSpan={isMobile?4:5}/>
       </tbody></table></div>
     </Card>
   </div>;
@@ -612,7 +612,7 @@ function AccountsPage({ accounts, setAccounts, hideBalances, onAccountsUpdated, 
 // ───────────────────────────────────────────────────────────────
 // ONBOARDING CHECKLIST
 // ───────────────────────────────────────────────────────────────
-function OnboardingChecklist({ accounts, scenarios, subsP, yearly, profile, onboarding, setOnboarding, setPage, setProfileOpen, setPromptOpen, onClearAll }) {
+function OnboardingChecklist({ accounts, scenarios, subsP, yearly, profile, onboarding, setOnboarding, setPage, setProfileOpen, setPromptOpen, onClearAll, t }) {
   const now = new Date();
   const currentYM = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
   const toYM = iso => iso ? iso.slice(0, 7) : null;
@@ -684,16 +684,16 @@ function OnboardingChecklist({ accounts, scenarios, subsP, yearly, profile, onbo
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
         <BookOpen size={20} color={C.accent} />
-        <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>Getting Started</h3>
+        <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>{t('onboarding.title')}</h3>
       </div>
       <button onClick={() => setOnboarding(o => ({ ...o, dismissed: true }))}
-        style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: C.textDim, fontSize: 12 }}>Dismiss</button>
+        style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: C.textDim, fontSize: 12 }}>{t('onboarding.dismiss')}</button>
     </div>
 
     {/* Progress bar */}
     {!allOneTimeDone && <div style={{ marginBottom: 18 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: C.textMuted, marginBottom: 6 }}>
-        <span>Setup progress</span>
+        <span>{t('onboarding.progress')}</span>
         <span>{doneCount}/{oneTimeSteps.length} complete</span>
       </div>
       <div style={{ height: 6, background: C.border, borderRadius: 3, overflow: 'hidden' }}>
@@ -712,23 +712,23 @@ function OnboardingChecklist({ accounts, scenarios, subsP, yearly, profile, onbo
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-              <span style={{ fontSize: 14, fontWeight: 600, color: done ? C.textDim : C.text }}>{step.label}</span>
+              <span style={{ fontSize: 14, fontWeight: 600, color: done ? C.textDim : C.text }}>{t('onboarding.' + step.id)}</span>
               {!done && step.badge === 'import' && <span style={{ fontSize: 10, padding: '1px 6px', borderRadius: 4, background: C.blue + '22', color: C.blue, fontWeight: 600, letterSpacing: 0.3 }}>AI Import</span>}
               {!done && step.badge === 'prompt' && <span style={{ fontSize: 10, padding: '1px 6px', borderRadius: 4, background: C.accentLight + '22', color: C.accentLight, fontWeight: 600, letterSpacing: 0.3 }}>Prompt</span>}
             </div>
-            <div style={{ fontSize: 12, color: C.textDim, marginTop: 2 }}>{step.desc}</div>
+            <div style={{ fontSize: 12, color: C.textDim, marginTop: 2 }}>{t('onboarding.' + step.id + 'Desc')}</div>
           </div>
           {!done && step.id === 'clearData' ? (
             <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
               <button onClick={() => { onClearAll && onClearAll('skip'); setOnboarding(o => ({ ...o, dataCleared: true })); }}
-                style={{ padding: '5px 14px', borderRadius: 6, border: `1px solid ${C.accent}44`, background: C.accent + '18', color: C.accentLight, fontSize: 13, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}>Clear</button>
+                style={{ padding: '5px 14px', borderRadius: 6, border: `1px solid ${C.accent}44`, background: C.accent + '18', color: C.accentLight, fontSize: 13, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}>{ t('common.clear') }</button>
               <button onClick={() => setOnboarding(o => ({ ...o, dataCleared: true }))}
                 style={{ padding: '5px 14px', borderRadius: 6, border: `1px solid ${C.border}`, background: 'transparent', color: C.textDim, fontSize: 13, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}>Skip</button>
             </div>
           ) : !done && (
             <button onClick={() => handleAction(step)}
               style={{ padding: '5px 14px', borderRadius: 6, border: `1px solid ${C.accent}44`, background: C.accent + '18', color: C.accentLight, fontSize: 13, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}>
-              {step.action === 'ack' ? 'Got it' : step.action === 'prompt' ? 'Review' : step.action === 'backup' ? 'Download' : 'Go'}
+              {step.action === 'ack' ? t('onboarding.gotIt') : step.action === 'prompt' ? t('onboarding.review') : step.action === 'backup' ? t('onboarding.download') : t('onboarding.go')}
             </button>
           )}
         </div>;
@@ -738,7 +738,7 @@ function OnboardingChecklist({ accounts, scenarios, subsP, yearly, profile, onbo
     {/* Monthly tasks */}
     {(allOneTimeDone || recurringSteps.some(s => !isComplete(s))) && <div>
       {!allOneTimeDone && <div style={{ borderTop: `1px solid ${C.border}`, marginBottom: 12 }} />}
-      <div style={{ fontSize: 13, fontWeight: 600, color: C.textMuted, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10 }}>Monthly Tasks</div>
+      <div style={{ fontSize: 13, fontWeight: 600, color: C.textMuted, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10 }}>{ t('onboarding.monthlyTasks') }</div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
         {recurringSteps.map(step => {
           const done = isComplete(step);
@@ -748,12 +748,12 @@ function OnboardingChecklist({ accounts, scenarios, subsP, yearly, profile, onbo
               {done ? <Check size={14} color={C.green} /> : <Icon size={14} color={C.orange} />}
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 14, fontWeight: 600, color: done ? C.textDim : C.text }}>{step.label}</div>
-              <div style={{ fontSize: 12, color: C.textDim, marginTop: 1 }}>{step.desc}</div>
+              <div style={{ fontSize: 14, fontWeight: 600, color: done ? C.textDim : C.text }}>{t('onboarding.' + step.id)}</div>
+              <div style={{ fontSize: 12, color: C.textDim, marginTop: 1 }}>{t('onboarding.' + step.id + 'Desc')}</div>
             </div>
             {!done && <button onClick={() => handleAction(step)}
               style={{ padding: '5px 14px', borderRadius: 6, border: `1px solid ${C.orange}44`, background: C.orange + '18', color: C.orange, fontSize: 13, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}>
-              Go
+              {t('onboarding.go')}
             </button>}
           </div>;
         })}
@@ -764,7 +764,7 @@ function OnboardingChecklist({ accounts, scenarios, subsP, yearly, profile, onbo
 
 // DASHBOARD
 // ───────────────────────────────────────────────────────────────
-function Dashboard({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes, insurance, profile, hideBalances, setChatOpen, setChatInput, notesVersion }) {
+function Dashboard({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes, insurance, profile, hideBalances, setChatOpen, setChatInput, notesVersion, t }) {
   const mask = (v) => hideBalances ? "••••" : v;
   const winW = useWindowWidth(); const isMobile = winW < 768;
   const debtTotal = accounts.filter(a => a.type === "Debt").reduce((s,a)=>s+a.balance,0);
@@ -809,98 +809,98 @@ function Dashboard({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes,
   const pieData = accounts.filter(a=>a.balance>0 && a.type !== "Debt").map(a=>({name:a.name,value:a.balance}));
 
   const insights = useMemo(() => generateInsights({
-    accounts, scenarios, insurance, inc, exp, sav, inv, liquidTotal, lockedTotal, totalWealth, debtTotal,
-  }), [accounts, scenarios, insurance, inc, exp, sav, inv, liquidTotal, lockedTotal, totalWealth, debtTotal]);
+    accounts, scenarios, insurance, inc, exp, sav, inv, liquidTotal, lockedTotal, totalWealth, debtTotal, t,
+  }), [accounts, scenarios, insurance, inc, exp, sav, inv, liquidTotal, lockedTotal, totalWealth, debtTotal, t]);
 
   return <div>
     {/* Net Worth headline with liquid/locked bar */}
     <Card style={{marginBottom:24,padding:"24px 28px"}}>
       <div style={{display:"flex",alignItems:isMobile?"flex-start":"center",justifyContent:"space-between",marginBottom:16,flexWrap:"wrap",gap:isMobile?12:0}}>
         <div>
-          <div style={{fontSize:14,color:C.textMuted,marginBottom:4}}>Net Worth{debtTotal>0&&<span style={{fontSize:11,color:C.textDim,marginLeft:6}}>(assets − debt)</span>}</div>
+          <div style={{fontSize:14,color:C.textMuted,marginBottom:4}}>{t('dashboard.netWorth')}{debtTotal>0&&<span style={{fontSize:11,color:C.textDim,marginLeft:6}}>{t('dashboard.netWorthSub')}</span>}</div>
           <div style={{fontSize:isMobile?24:32,fontWeight:700,color:totalWealth>=0?C.text:C.red}}>CHF {mask(fmt(totalWealth))}</div>
         </div>
         <div style={{display:"flex",gap:isMobile?16:24,alignItems:"flex-end",flexWrap:"wrap"}}>
           <div style={{textAlign:"right"}}>
-            <div style={{fontSize:12,color:C.textDim,marginBottom:2}}>Liquid</div>
+            <div style={{fontSize:12,color:C.textDim,marginBottom:2}}>{t('dashboard.liquid')}</div>
             <div style={{fontSize:20,fontWeight:700,color:C.green}}>CHF {mask(fmt(liquidTotal))}</div>
-            <div style={{fontSize:12,color:C.textDim}}>{liquidPct}% of total</div>
+            <div style={{fontSize:12,color:C.textDim}}>{liquidPct}{t('dashboard.liquidPct')}</div>
           </div>
           <div style={{textAlign:"right"}}>
-            <div style={{fontSize:12,color:C.textDim,marginBottom:2}}>Locked (Pension + Deposit)</div>
+            <div style={{fontSize:12,color:C.textDim,marginBottom:2}}>{t('dashboard.lockedPensionDeposit')}</div>
             <div style={{fontSize:20,fontWeight:700,color:C.blue}}>CHF {mask(fmt(lockedTotal))}</div>
-            <div style={{fontSize:12,color:C.textDim}}>{lockedPct}% of total</div>
+            <div style={{fontSize:12,color:C.textDim}}>{lockedPct}{t('dashboard.liquidPct')}</div>
           </div>
           {loanTotal > 0 && <div style={{textAlign:"right"}}>
-            <div style={{fontSize:12,color:C.textDim,marginBottom:2}}>Lent Out</div>
+            <div style={{fontSize:12,color:C.textDim,marginBottom:2}}>{t('dashboard.lentOut')}</div>
             <div style={{fontSize:20,fontWeight:700,color:C.orange}}>CHF {mask(fmt(loanTotal))}</div>
-            <div style={{fontSize:12,color:C.textDim}}>{totalAssets>0?((loanTotal/totalAssets)*100).toFixed(0):0}% of assets</div>
+            <div style={{fontSize:12,color:C.textDim}}>{totalAssets>0?((loanTotal/totalAssets)*100).toFixed(0):0}{t('dashboard.pctOfAssets')}</div>
           </div>}
           {debtTotal > 0 && <div style={{textAlign:"right"}}>
-            <div style={{fontSize:12,color:C.textDim,marginBottom:2}}>Debt</div>
+            <div style={{fontSize:12,color:C.textDim,marginBottom:2}}>{t('dashboard.debt')}</div>
             <div style={{fontSize:20,fontWeight:700,color:C.red}}>−CHF {mask(fmt(debtTotal))}</div>
-            <div style={{fontSize:12,color:C.textDim}}>{totalAssets>0?((debtTotal/totalAssets)*100).toFixed(0):0}% of assets</div>
+            <div style={{fontSize:12,color:C.textDim}}>{totalAssets>0?((debtTotal/totalAssets)*100).toFixed(0):0}{t('dashboard.pctOfAssets')}</div>
           </div>}
         </div>
       </div>
       {/* Stacked bar showing composition */}
       <div style={{display:"flex",height:8,borderRadius:4,overflow:"hidden",background:C.border}}>
-        {liquidTotal > 0 && <div style={{width:`${liquidPct}%`,background:C.green,transition:"width .3s"}} title={`Liquid: CHF ${fmt(liquidTotal)}`}/>}
-        {lockedTotal > 0 && <div style={{width:`${lockedPct}%`,background:C.blue,transition:"width .3s"}} title={`Locked: CHF ${fmt(lockedTotal)}`}/>}
-        {loanTotal > 0 && <div style={{width:`${totalAssets>0?((loanTotal/totalAssets)*100).toFixed(0):0}%`,background:C.orange,transition:"width .3s"}} title={`Lent Out: CHF ${fmt(loanTotal)}`}/>}
-        {debtTotal > 0 && <div style={{width:`${debtPct}%`,background:C.red,transition:"width .3s"}} title={`Debt: CHF ${fmt(debtTotal)}`}/>}
+        {liquidTotal > 0 && <div style={{width:`${liquidPct}%`,background:C.green,transition:"width .3s"}} title={`${t('dashboard.composition.liquid')}: CHF ${fmt(liquidTotal)}`}/>}
+        {lockedTotal > 0 && <div style={{width:`${lockedPct}%`,background:C.blue,transition:"width .3s"}} title={`${t('dashboard.composition.locked')}: CHF ${fmt(lockedTotal)}`}/>}
+        {loanTotal > 0 && <div style={{width:`${totalAssets>0?((loanTotal/totalAssets)*100).toFixed(0):0}%`,background:C.orange,transition:"width .3s"}} title={`${t('dashboard.composition.lentOut')}: CHF ${fmt(loanTotal)}`}/>}
+        {debtTotal > 0 && <div style={{width:`${debtPct}%`,background:C.red,transition:"width .3s"}} title={`${t('dashboard.composition.debt')}: CHF ${fmt(debtTotal)}`}/>}
       </div>
       <div style={{display:"flex",gap:16,marginTop:8}}>
-        <div style={{display:"flex",alignItems:"center",gap:6,fontSize:12,color:C.textDim}}><div style={{width:8,height:8,borderRadius:2,background:C.green}}/>Liquid</div>
-        <div style={{display:"flex",alignItems:"center",gap:6,fontSize:12,color:C.textDim}}><div style={{width:8,height:8,borderRadius:2,background:C.blue}}/>Locked</div>
-        {loanTotal > 0 && <div style={{display:"flex",alignItems:"center",gap:6,fontSize:12,color:C.textDim}}><div style={{width:8,height:8,borderRadius:2,background:C.orange}}/>Lent Out</div>}
-        {debtTotal > 0 && <div style={{display:"flex",alignItems:"center",gap:6,fontSize:12,color:C.textDim}}><div style={{width:8,height:8,borderRadius:2,background:C.red}}/>Debt</div>}
+        <div style={{display:"flex",alignItems:"center",gap:6,fontSize:12,color:C.textDim}}><div style={{width:8,height:8,borderRadius:2,background:C.green}}/>{t('dashboard.composition.liquid')}</div>
+        <div style={{display:"flex",alignItems:"center",gap:6,fontSize:12,color:C.textDim}}><div style={{width:8,height:8,borderRadius:2,background:C.blue}}/>{t('dashboard.composition.locked')}</div>
+        {loanTotal > 0 && <div style={{display:"flex",alignItems:"center",gap:6,fontSize:12,color:C.textDim}}><div style={{width:8,height:8,borderRadius:2,background:C.orange}}/>{t('dashboard.composition.lentOut')}</div>}
+        {debtTotal > 0 && <div style={{display:"flex",alignItems:"center",gap:6,fontSize:12,color:C.textDim}}><div style={{width:8,height:8,borderRadius:2,background:C.red}}/>{t('dashboard.composition.debt')}</div>}
       </div>
     </Card>
 
     {/* Row 1: Income & Scenario overview */}
     <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))", gap:16, marginBottom:16 }}>
-      <StatCard label="Total Monthly Income" value={`CHF ${mask(fmt(Math.round(inc)))}`} sub={sc?`from ${sc.name}`:"no active scenario"} icon={DollarSign} color={C.green}/>
-      <StatCard label="Savings Rate" value={inc>0?`${Math.round((sav+inv)/inc*100)}%`:"—"} sub={inc>0?`CHF ${mask(fmt(Math.round(sav+inv)))}/mo saved`:"no active scenario"} icon={PiggyBank} color={C.teal}/>
-      <StatCard label="Active Scenario" value={sc?sc.name:"None"} sub={sc?`${sc.incomes.length} income${sc.incomes.length!==1?'s':''} · ${sc.expenses.length} expense${sc.expenses.length!==1?'s':''}`:"set a scenario active"} icon={Activity} color={C.accent}/>
+      <StatCard label={t('dashboard.totalMonthlyIncome')} value={`CHF ${mask(fmt(Math.round(inc)))}`} sub={sc?t('dashboard.from',{name:sc.name}):t('dashboard.noActiveScenario')} icon={DollarSign} color={C.green}/>
+      <StatCard label={t('dashboard.savingsRate')} value={inc>0?`${Math.round((sav+inv)/inc*100)}%`:"—"} sub={inc>0?`CHF ${mask(fmt(Math.round(sav+inv)))}${t('dashboard.moSaved')}`:t('dashboard.noActiveScenario')} icon={PiggyBank} color={C.teal}/>
+      <StatCard label={t('dashboard.activeScenario')} value={sc?sc.name:"None"} sub={sc?`${sc.incomes.length} ${t('dashboard.incomes')} · ${sc.expenses.length} ${t('dashboard.expensesCount')}`:t('dashboard.setScenarioActive')} icon={Activity} color={C.accent}/>
     </div>
 
     <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))", gap:16, marginBottom:24 }}>
-      <StatCard label="Monthly Savings + Invest" value={`CHF ${mask(fmt(Math.round(sav+inv)))}`} sub={sc?`from ${sc.name}`:"no active scenario"} icon={TrendingUp} color={C.teal}/>
-      <StatCard label="Monthly Fixed Costs" value={`CHF ${mask(fmt(Math.round(essentialTotal)))}`} sub={sc?`Essential expenses + savings (excl. investments)`:"no active scenario"} icon={CreditCard} color={C.red}/>
+      <StatCard label={t('dashboard.monthlySavingsInvest')} value={`CHF ${mask(fmt(Math.round(sav+inv)))}`} sub={sc?t('dashboard.from',{name:sc.name}):t('dashboard.noActiveScenario')} icon={TrendingUp} color={C.teal}/>
+      <StatCard label={t('dashboard.monthlyFixedCosts')} value={`CHF ${mask(fmt(Math.round(essentialTotal)))}`} sub={sc?t('dashboard.fixedCostsSub'):t('dashboard.noActiveScenario')} icon={CreditCard} color={C.red}/>
       {sc ? (() => {
         const allocated = rem === 0;
         const over = rem < 0;
-        const subText = allocated ? "Zero-Budget achieved" : over ? "Exceeds income" : `${inc>0?((inc-rem)/inc*100).toFixed(1):0}% allocated`;
-        return <StatCard label="Unallocated" value={`CHF ${mask(fmt(Math.abs(rem)))}${over?" over":""}`} sub={subText} icon={Target} color={C.yellow}/>;
-      })() : <StatCard label="Unallocated" value="—" sub="no active scenario" icon={Target} color={C.yellow}/>}
-      <StatCard label="Survival Runway" value={sc?`${survivalMonths} months`:"—"} sub={sc?`Liquid CHF ${mask(fmt(liquidTotal))} ÷ CHF ${mask(fmt(Math.round(essentialTotal)))}/mo`:"no active scenario"} icon={Shield} color={survivalMonths>=6?C.green:survivalMonths>=3?C.yellow:C.red} iconColor={C.cyan}/>
-      <StatCard label="Tax + Insurance" value={`CHF ${mask(fmt(Math.round(linkedTax+linkedInsurance)))}/mo`} sub={`CHF ${mask(fmt(Math.round((linkedTax+linkedInsurance)*12)))}/yr`} icon={ShieldCheck} color={C.red}/>
+        const subText = allocated ? t('dashboard.zeroBudget') : over ? t('dashboard.exceedsIncome') : `${inc>0?((inc-rem)/inc*100).toFixed(1):0}${t('dashboard.allocated')}`;
+        return <StatCard label={t('dashboard.unallocated')} value={`CHF ${mask(fmt(Math.abs(rem)))}${over?" over":""}`} sub={subText} icon={Target} color={C.yellow}/>;
+      })() : <StatCard label={t('dashboard.unallocated')} value="—" sub={t('dashboard.noActiveScenario')} icon={Target} color={C.yellow}/>}
+      <StatCard label={t('dashboard.survivalRunway')} value={sc?`${survivalMonths} ${t('dashboard.months')}`:"—"} sub={sc?t('dashboard.survivalSub',{liquid:mask(fmt(liquidTotal)),monthly:mask(fmt(Math.round(essentialTotal)))}):t('dashboard.noActiveScenario')} icon={Shield} color={survivalMonths>=6?C.green:survivalMonths>=3?C.yellow:C.red} iconColor={C.cyan}/>
+      <StatCard label={t('dashboard.taxInsurance')} value={`CHF ${mask(fmt(Math.round(linkedTax+linkedInsurance)))}${t('common.mo')}`} sub={`CHF ${mask(fmt(Math.round((linkedTax+linkedInsurance)*12)))}${t('common.yr')}`} icon={ShieldCheck} color={C.red}/>
     </div>
 
     <div style={{ display:"grid", gridTemplateColumns:isMobile?"1fr":"repeat(auto-fit,minmax(300px,1fr))", gap:16, marginBottom:24 }}>
-      <Card title="Portfolio Breakdown">
+      <Card title={t('dashboard.portfolioBreakdown')}>
         <ResponsiveContainer width="100%" height={isMobile?200:280}><PieChart><Pie data={pieData} cx="50%" cy="50%" outerRadius={100} innerRadius={55} dataKey="value" paddingAngle={2} stroke="none">{pieData.map((_,i)=><Cell key={i} fill={pieColors()[i%pieColors().length]}/>)}</Pie><Tooltip formatter={v=>`CHF ${fmt(v)}`} contentStyle={{background:C.card,border:`1px solid ${C.border}`,borderRadius:8,color:C.text,fontSize:13}} labelStyle={{color:C.textMuted}} itemStyle={{color:C.text}}/></PieChart></ResponsiveContainer>
         {pieData.map((d,i)=>{const total=pieData.reduce((s,x)=>s+x.value,0); return <div key={i} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"5px 0",borderBottom:i<pieData.length-1?`1px solid ${C.border}22`:"none"}}>
           <div style={{display:"flex",alignItems:"center",gap:8}}><div style={{width:10,height:10,borderRadius:3,background:pieColors()[i%pieColors().length],flexShrink:0}}/><span style={{fontSize:13,color:C.textMuted}}>{d.name}</span></div>
           <div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:13,fontWeight:600,color:C.text,fontVariantNumeric:"tabular-nums"}}>CHF {mask(fmt(d.value))}</span><span style={{fontSize:12,color:C.textDim,width:40,textAlign:"right"}}>{total>0?(d.value/total*100).toFixed(1):0}%</span></div>
         </div>})}
       </Card>
-      <Card title="Monthly Cashflow" subtitle={sc?`Active: ${sc.name}`:"No active scenario"}>
+      <Card title={t('dashboard.monthlyCashflow')} subtitle={sc?`Active: ${sc.name}`:t('dashboard.noScenario')}>
         {sc && <>
           <ResponsiveContainer width="100%" height={200}><BarChart data={[{name:"Income",value:inc,fill:C.green},{name:"Expenses",value:exp,fill:C.red},{name:"Savings",value:sav,fill:C.blue},{name:"Investments",value:inv,fill:C.teal}]} layout="vertical" margin={{left:80}}><XAxis type="number" tick={{fill:C.textDim,fontSize:11}} tickFormatter={v=>hideBalances?"•••":fmt(v)}/><YAxis type="category" dataKey="name" tick={{fill:C.textMuted,fontSize:12}} width={80}/><Tooltip formatter={v=>`CHF ${fmt(v)}`} contentStyle={{background:C.card,border:`1px solid ${C.border}`,borderRadius:8,color:C.text,fontSize:13}} labelStyle={{color:C.textMuted}} itemStyle={{color:C.text}}/><Bar dataKey="value" radius={[0,6,6,0]}>{[C.green,C.red,C.blue,C.teal].map((c,i)=><Cell key={i} fill={c}/>)}</Bar></BarChart></ResponsiveContainer>
-          <div style={{marginTop:12,padding:"12px 16px",background:C.bg,borderRadius:8,display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:13}}><span style={{color:C.textMuted}}>Unallocated</span><div style={{display:"flex",alignItems:"center",gap:8}}><span style={{color:rem===0?C.green:rem<0?C.red:C.yellow,fontWeight:600}}>CHF {mask(fmt(rem))}</span>{rem===0&&<Check size={12} color={C.green}/>}</div></div>
+          <div style={{marginTop:12,padding:"12px 16px",background:C.bg,borderRadius:8,display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:13}}><span style={{color:C.textMuted}}>{t('dashboard.unallocated')}</span><div style={{display:"flex",alignItems:"center",gap:8}}><span style={{color:rem===0?C.green:rem<0?C.red:C.yellow,fontWeight:600}}>CHF {mask(fmt(rem))}</span>{rem===0&&<Check size={12} color={C.green}/>}</div></div>
         </>}
       </Card>
     </div>
 
     {/* Smart Recommendations */}
-    <Card headerRight={<Badge color={C.cyan}>Rule-based</Badge>}>
+    <Card headerRight={<Badge color={C.cyan}>{t('dashboard.ruleBased')}</Badge>}>
       <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16}}>
         <div style={{width:36,height:36,borderRadius:10,background:C.cyan+"1a",display:"flex",alignItems:"center",justifyContent:"center"}}><Sparkles size={20} color={C.cyan}/></div>
         <div>
-          <h3 style={{margin:0,fontSize:17,fontWeight:700,color:C.text}}>Smart Recommendations</h3>
-          <p style={{margin:0,fontSize:13,color:C.textDim}}>Swiss-specific financial insights based on your portfolio</p>
+          <h3 style={{margin:0,fontSize:17,fontWeight:700,color:C.text}}>{t('dashboard.smartRecommendations')}</h3>
+          <p style={{margin:0,fontSize:13,color:C.textDim}}>{t('dashboard.recommendationsSub')}</p>
         </div>
       </div>
       <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"repeat(auto-fit,minmax(280px,1fr))",gap:12}}>
@@ -912,11 +912,11 @@ function Dashboard({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes,
               <div style={{width:28,height:28,borderRadius:7,background:prioColor+"1a",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><Icon size={15} color={prioColor}/></div>
               <div style={{flex:1}}>
                 <span style={{fontSize:14,fontWeight:600,color:C.text}}>{ins.title}</span>
-                <div style={{display:"flex",gap:4,marginTop:2}}><Badge color={prioColor}>{ins.priority}</Badge><Badge color={C.textDim}>{CATEGORY_LABELS[ins.category] || ins.category}</Badge></div>
+                <div style={{display:"flex",gap:4,marginTop:2}}><Badge color={prioColor}>{t('dashboard.priority.'+ins.priority)}</Badge><Badge color={C.textDim}>{t('dashboard.cat.'+ins.category)}</Badge></div>
               </div>
             </div>
             <p style={{fontSize:13,color:C.textMuted,lineHeight:1.6,margin:"0 0 10px"}}>{ins.detail}</p>
-            {ins.impact && <div style={{fontSize:12,color:C.green,fontWeight:600,marginBottom:6}}>Impact: {ins.impact}</div>}
+            {ins.impact && <div style={{fontSize:12,color:C.green,fontWeight:600,marginBottom:6}}>{ins.impact}</div>}
             <div style={{fontSize:13,color:C.cyan,display:"flex",alignItems:"center",gap:4}}><ArrowUpRight size={12}/>{ins.action}</div>
           </div>;
         })}
@@ -928,18 +928,18 @@ function Dashboard({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes,
       <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14}}>
         <div style={{width:36,height:36,borderRadius:10,background:C.accent+"1a",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><Sparkles size={20} color={C.accentLight}/></div>
         <div>
-          <h3 style={{margin:0,fontSize:17,fontWeight:700,color:C.text}}>AI Finance Advisor</h3>
-          <p style={{margin:0,fontSize:13,color:C.textDim}}>Click a question to open the advisor, or type your own</p>
+          <h3 style={{margin:0,fontSize:17,fontWeight:700,color:C.text}}>{t('dashboard.aiAdvisor')}</h3>
+          <p style={{margin:0,fontSize:13,color:C.textDim}}>{t('dashboard.aiAdvisorSub')}</p>
         </div>
       </div>
       <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
         {[
-          { q: "Give me a complete financial health check", color: C.accent },
-          { q: "Am I on track for early retirement (FIRE)?", color: C.teal },
-          { q: "How can I optimise my Swiss taxes?", color: C.yellow },
-          { q: "What are my top 3 financial risks right now?", color: C.red },
-          { q: "How long is my survival runway if I lose income?", color: C.orange },
-          { q: "How should I allocate my next savings?", color: C.green },
+          { q: t('dashboard.q1'), color: C.accent },
+          { q: t('dashboard.q2'), color: C.teal },
+          { q: t('dashboard.q3'), color: C.yellow },
+          { q: t('dashboard.q4'), color: C.red },
+          { q: t('dashboard.q5'), color: C.orange },
+          { q: t('dashboard.q6'), color: C.green },
         ].map(({ q, color }) => (
           <button key={q} onClick={() => { setChatInput && setChatInput(q); setChatOpen && setChatOpen(true); }}
             style={{padding:"10px 16px",borderRadius:8,border:`1px solid ${color}44`,background:color+'18',color,fontSize:14,cursor:"pointer",textAlign:"left",lineHeight:1.4}}>
@@ -1367,7 +1367,7 @@ function ScenarioDelBtn({ onDelete }) {
 
 const DEFAULT_PAYROLL_PROMPT = `You are a payroll data extractor for Swiss salary slips. Examine the attached payroll document(s) and extract structured data to populate a monthly budget scenario.\n\nRespond with ONLY a raw JSON object — no explanation, no markdown, no code fences. Just the JSON.\n\nRequired JSON shape:\n{"scenarioName":"","incomes":[{"label":"","amount":0,"notes":""}],"expenses":[{"label":"","pct":null,"amount":0,"essential":true,"notes":""}],"savings":[{"label":"","pct":null,"amount":0,"essential":true,"liq":"locked","notes":""}],"investments":[]}\n\nRules:\n- scenarioName: employer name + pay period (e.g. "Red Hat – Feb 2026", "Tecan – Dec 2018")\n- incomes: base monthly salary as one item. Label with employer name. Use the GROSS / pre-deduction salary amount.\n- expenses: mandatory Swiss payroll deductions — AHV, ALV, UVG/UVGZ, KTG, ESPP. Use positive amounts.\n  - Label clearly: "AHV (Social Security)", "ALV (Unemployment)", "UVG (Accident Ins.)", "KTG (Loss of Salary Ins.)", "ESPP"\n  - essential: true for statutory deductions (AHV, ALV, UVG, KTG), false for voluntary (ESPP)\n  - PERCENTAGE RULE: if the payslip shows a rate % for a deduction, set pct to that number (e.g. 5.3) and amount to the calculated CHF value. If no rate is shown, set pct to null and amount to the CHF amount.\n  - notes: format as "<employer> – <rate>% of gross" when a rate is shown (e.g. "Red Hat – 5.300% of gross"), otherwise just the employer name\n  - If ESPP appears as both "in" and "out" that net to zero, omit it\n- savings: BVG/PK/PP pension employee contribution → label "BVG / Pension (2nd Pillar)", liq: "locked", essential: true\n  - PERCENTAGE RULE: same as expenses — set pct if a rate % is shown, else null\n  - notes: format as "<employer> – <rate>% of gross" when rate is shown\n- investments: always []\n- All amounts are monthly in CHF. Annual figures must be divided by 12.`;
 
-function ScenariosPage({ scenarios, setScenarios, subsP, subsPInScenario, yearly, taxes, insurance, hideBalances, darkMode, payrollExtractionPrompt, setPayrollExtractionPrompt }) {
+function ScenariosPage({ scenarios, setScenarios, subsP, subsPInScenario, yearly, taxes, insurance, hideBalances, darkMode, payrollExtractionPrompt, setPayrollExtractionPrompt, t }) {
   const mask = (v) => hideBalances ? "••••" : v;
   const winW = useWindowWidth(); const isMobile = winW < 768;
   const [selId, setSelId] = useState(()=>scenarios.find(s=>s.isActive)?.id || scenarios[0]?.id);
@@ -1385,9 +1385,9 @@ function ScenariosPage({ scenarios, setScenarios, subsP, subsPInScenario, yearly
   if (!sc) return (
     <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",height:"60vh",gap:16,color:C.textDim}}>
       <ClipboardList size={48} color={C.textDim}/>
-      <div style={{fontSize:18,fontWeight:600,color:C.text}}>No scenarios yet</div>
-      <div style={{fontSize:14}}>Create your first financial scenario to get started.</div>
-      <button onClick={()=>{ const n={id:uid(),name:"New Scenario",tags:[],isActive:true,incomes:[],expenses:[],savings:[],investments:[],linkedOverrides:{}}; setScenarios([n]); setSelId(n.id); }} style={{padding:"10px 20px",borderRadius:8,background:C.accent,color:"#fff",border:"none",cursor:"pointer",fontSize:14,fontWeight:600}}>+ Add Scenario</button>
+      <div style={{fontSize:18,fontWeight:600,color:C.text}}>{t('scenarios.empty')}</div>
+      <div style={{fontSize:14}}>{t('scenarios.emptySub')}</div>
+      <button onClick={()=>{ const n={id:uid(),name:t('scenarios.newScenario'),tags:[],isActive:true,incomes:[],expenses:[],savings:[],investments:[],linkedOverrides:{}}; setScenarios([n]); setSelId(n.id); }} style={{padding:"10px 20px",borderRadius:8,background:C.accent,color:"#fff",border:"none",cursor:"pointer",fontSize:14,fontWeight:600}}>{t('scenarios.addScenario')}</button>
     </div>
   );
 
@@ -1423,7 +1423,7 @@ function ScenariosPage({ scenarios, setScenarios, subsP, subsPInScenario, yearly
 
   const totalExp = exp + linkedTotal;
   const rem = inc - totalExp - sav - inv;
-  const flow=[{name:"Expenses",value:Math.max(0,totalExp),pct:totalExp/inc,color:C.red},{name:"Savings",value:Math.max(0,sav),pct:sav/inc,color:C.blue},{name:"Investments",value:Math.max(0,inv),pct:inv/inc,color:C.teal},{name:"Unallocated",value:Math.max(0,rem),pct:rem/inc,color:C.yellow}];
+  const flow=[{name:t('scenarios.expenses'),value:Math.max(0,totalExp),pct:totalExp/inc,color:C.red},{name:t('scenarios.savings'),value:Math.max(0,sav),pct:sav/inc,color:C.blue},{name:t('scenarios.investments'),value:Math.max(0,inv),pct:inv/inc,color:C.teal},{name:t('scenarios.unallocated'),value:Math.max(0,rem),pct:rem/inc,color:C.yellow}];
 
   const handlePayrollImport = async e => {
     const files = Array.from(e.target.files||[]);
@@ -1484,7 +1484,7 @@ function ScenariosPage({ scenarios, setScenarios, subsP, subsPInScenario, yearly
   const removeLine = (section, lid) => update(sc.id, s => { s[section] = s[section].filter(l=>l.id!==lid); return s; });
   const editLine = (section, lid, field, val) => update(sc.id, s => { s[section] = s[section].map(l=>l.id===lid?{...l,[field]:val}:l); return s; });
   const togglePct = (section, lid) => update(sc.id, s => { s[section] = s[section].map(l => { if(l.id!==lid) return l; if(l.pct!=null){ const {pct:_, ...rest}=l; return {...rest, amount:+(inc*l.pct/100).toFixed(2)}; } else { return {...l, pct: inc>0 ? +((l.amount/inc)*100).toFixed(3) : 0}; } }); return s; });
-  const addScenario = () => { const n = { id:uid(), name:"New Scenario", tags:[], isActive:false, incomes:[], expenses:[], savings:[], investments:[], linkedOverrides:{} }; setScenarios(p=>[...p,n]); setSelId(n.id); };
+  const addScenario = () => { const n = { id:uid(), name:t('scenarios.newScenario'), tags:[], isActive:false, incomes:[], expenses:[], savings:[], investments:[], linkedOverrides:{} }; setScenarios(p=>[...p,n]); setSelId(n.id); };
   const duplicateScenario = () => { const dup = JSON.parse(JSON.stringify(sc)); dup.id=uid(); dup.name=sc.name+" (copy)"; dup.isActive=false; dup.incomes.forEach(l=>l.id=uid()); dup.expenses.forEach(l=>l.id=uid()); dup.savings.forEach(l=>l.id=uid()); dup.investments.forEach(l=>l.id=uid()); setScenarios(p=>[...p,dup]); setSelId(dup.id); };
   const deleteScenario = (id) => {
     const remaining = scenarios.filter(s=>s.id!==id);
@@ -1654,7 +1654,7 @@ function ScenariosPage({ scenarios, setScenarios, subsP, subsPInScenario, yearly
                 <InlineEdit value={item.label} onChange={v=>editLine(section,item.id,"label",v)} inputWidth={140}/>
               </div>
             </td>
-            <td style={{padding:"7px 12px",fontSize:13,color:C.textDim,borderBottom:`1px solid ${C.border}11`}}><InlineEdit value={item.notes||""} onChange={v=>editLine(section,item.id,"notes",v)} placeholder="notes..." style={{color:C.textDim}} inputWidth={100}/></td>
+            <td style={{padding:"7px 12px",fontSize:13,color:C.textDim,borderBottom:`1px solid ${C.border}11`}}><InlineEdit value={item.notes||""} onChange={v=>editLine(section,item.id,"notes",v)} placeholder={t('scenarios.notesPlaceholder')} style={{color:C.textDim}} inputWidth={100}/></td>
             <td style={{padding:"7px 12px",fontSize:14,textAlign:"right",fontVariantNumeric:"tabular-nums",borderBottom:`1px solid ${C.border}11`}}>
               <div style={{display:"flex",alignItems:"center",justifyContent:"flex-end",gap:5}}>
                 {isPct && <InlineNum value={item.pct} onChange={v=>editLine(section,item.id,"pct",v??0)} width={50} style={{fontSize:12,color:C.accent,fontWeight:600}}/>}
@@ -1663,15 +1663,15 @@ function ScenariosPage({ scenarios, setScenarios, subsP, subsPInScenario, yearly
                   ? <span style={{color:C.textMuted,fontSize:12}}>{mask(fmtD(computed))}</span>
                   : hideBalances ? <span style={{color:C.text,fontSize:13}}>••••</span> : <InlineNum value={item.amount} onChange={v=>editLine(section,item.id,"amount",v??0)}/>
                 }
-                <button onClick={()=>togglePct(section,item.id)} title={isPct?"Switch to fixed CHF amount":"Switch to % of income"} style={{padding:"2px 8px",borderRadius:9999,border:`1px solid ${isPct?C.accent:C.border}`,background:isPct?C.accent+"18":"transparent",color:isPct?C.accent:C.textDim,fontSize:9,cursor:"pointer",whiteSpace:"nowrap",fontWeight:600}}>{isPct?"% of inc":"CHF"}</button>
-                {(section==="expenses"||section==="savings") && <button onClick={()=>{const next=(item.essential!==false)?false:true; editLine(section,item.id,"essential",next);}} title={item.essential!==false?"Essential — click to mark as non-essential":"Non-essential — click to mark as essential"} style={{padding:"2px 8px",borderRadius:9999,border:`1px solid ${item.essential!==false?C.green:C.textDim}`,background:(item.essential!==false?C.green:C.textDim)+"18",color:item.essential!==false?C.green:C.textDim,fontSize:9,cursor:"pointer",fontWeight:600}}>{item.essential!==false?"Essential":"Optional"}</button>}
-                {(section==="savings"||section==="investments") && <button onClick={()=>{const next=(item.liq||"liquid")==="liquid"?"locked":"liquid"; editLine(section,item.id,"liq",next);}} title={item.liq==="locked"?"Locked — click to mark as liquid":"Liquid — click to mark as locked"} style={{padding:"2px 8px",borderRadius:9999,border:`1px solid ${item.liq==="locked"?C.orange:C.teal}`,background:(item.liq==="locked"?C.orange:C.teal)+"18",color:item.liq==="locked"?C.orange:C.teal,fontSize:9,cursor:"pointer",fontWeight:600}}>{(item.liq||"liquid")==="locked"?"Locked":"Liquid"}</button>}
+                <button onClick={()=>togglePct(section,item.id)} title={isPct?"Switch to fixed CHF amount":"Switch to % of income"} style={{padding:"2px 8px",borderRadius:9999,border:`1px solid ${isPct?C.accent:C.border}`,background:isPct?C.accent+"18":"transparent",color:isPct?C.accent:C.textDim,fontSize:9,cursor:"pointer",whiteSpace:"nowrap",fontWeight:600}}>{isPct?t('scenarios.pctOfInc'):t('scenarios.chf')}</button>
+                {(section==="expenses"||section==="savings") && <button onClick={()=>{const next=(item.essential!==false)?false:true; editLine(section,item.id,"essential",next);}} title={item.essential!==false?t('scenarios.markEssential'):t('scenarios.markOptional')} style={{padding:"2px 8px",borderRadius:9999,border:`1px solid ${item.essential!==false?C.green:C.textDim}`,background:(item.essential!==false?C.green:C.textDim)+"18",color:item.essential!==false?C.green:C.textDim,fontSize:9,cursor:"pointer",fontWeight:600}}>{item.essential!==false?t('scenarios.essential'):t('scenarios.optional')}</button>}
+                {(section==="savings"||section==="investments") && <button onClick={()=>{const next=(item.liq||"liquid")==="liquid"?"locked":"liquid"; editLine(section,item.id,"liq",next);}} title={item.liq==="locked"?t('scenarios.markLiquid'):t('scenarios.markLocked')} style={{padding:"2px 8px",borderRadius:9999,border:`1px solid ${item.liq==="locked"?C.orange:C.teal}`,background:(item.liq==="locked"?C.orange:C.teal)+"18",color:item.liq==="locked"?C.orange:C.teal,fontSize:9,cursor:"pointer",fontWeight:600}}>{(item.liq||"liquid")==="locked"?t('scenarios.locked'):t('scenarios.liquid')}</button>}
               </div>
             </td>
           </tr>
           );
         })}
-        <AddRow onClick={()=>addLine(section)} label={`Add ${title.toLowerCase()} item`} colSpan={3}/>
+        <AddRow onClick={()=>addLine(section)} label={t('scenarios.addItem', {section: title.toLowerCase()})} colSpan={3}/>
       </tbody></table>
     </div>
   );
@@ -1683,11 +1683,11 @@ function ScenariosPage({ scenarios, setScenarios, subsP, subsPInScenario, yearly
     {payrollPromptOpen && <div onClick={()=>setPayrollPromptOpen(false)} style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.7)',zIndex:200,display:'flex',alignItems:'center',justifyContent:'center',padding:24}}>
       <div onClick={e=>e.stopPropagation()} style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:16,width:'100%',maxWidth:1140,maxHeight:'84vh',overflowY:'auto',padding:28,boxShadow:'0 24px 80px rgba(0,0,0,0.6)'}}>
         <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:8}}>
-          <h2 style={{margin:0,fontSize:18,fontWeight:700,color:C.text}}>Payroll Extraction Prompt</h2>
+          <h2 style={{margin:0,fontSize:18,fontWeight:700,color:C.text}}>{t('scenarios.payrollPromptTitle')}</h2>
           <button onClick={()=>setPayrollPromptOpen(false)} style={{background:'transparent',border:'none',cursor:'pointer',color:C.textDim}}><X size={18}/></button>
         </div>
         <p style={{margin:'0 0 12px',fontSize:13,color:C.textDim}}>
-          Customise the AI prompt used when importing payroll files into scenarios. Leave blank to use the built-in default.
+          {t('scenarios.payrollPromptDesc')}
         </p>
         <div style={{display:'flex',gap:8,marginBottom:10}}>
           <button onClick={()=>setPayrollExtractionPrompt(DEFAULT_PAYROLL_PROMPT)}
@@ -1702,12 +1702,12 @@ function ScenariosPage({ scenarios, setScenarios, subsP, subsPInScenario, yearly
         <textarea
           value={payrollExtractionPrompt}
           onChange={e=>setPayrollExtractionPrompt(e.target.value)}
-          placeholder="Leave blank to use the built-in default payroll extraction prompt…"
+          placeholder={t('scenarios.payrollPromptPlaceholder')}
           rows={28}
           style={{width:'100%',padding:'10px 12px',borderRadius:8,border:`1px solid ${C.border}`,background:C.bg,color:C.text,
             fontSize:13,outline:'none',resize:'vertical',boxSizing:'border-box',fontFamily:"'DM Mono',monospace",lineHeight:1.5}}
         />
-        {payrollExtractionPrompt && <div style={{marginTop:6,fontSize:12,color:C.green}}>✓ Custom extraction prompt active — will be used instead of the default.</div>}
+        {payrollExtractionPrompt && <div style={{marginTop:6,fontSize:12,color:C.green}}>{t('scenarios.payrollPromptActive')}</div>}
         <button onClick={()=>setPayrollPromptOpen(false)} style={{width:'100%',padding:'11px',borderRadius:8,border:'none',background:C.accent,color:'#fff',fontSize:14,fontWeight:600,cursor:'pointer',marginTop:12}}>
           Save & Close
         </button>
@@ -1719,25 +1719,25 @@ function ScenariosPage({ scenarios, setScenarios, subsP, subsPInScenario, yearly
       <div onClick={e=>e.stopPropagation()} style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:16,width:'100%',maxWidth:860,maxHeight:'84vh',overflowY:'auto',padding:28,boxShadow:'0 24px 80px rgba(0,0,0,0.6)'}}>
         <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:16}}>
           <div>
-            <h3 style={{margin:'0 0 2px',fontSize:17,fontWeight:700,color:C.text}}>Payroll Import Preview</h3>
-            <div style={{fontSize:12,color:C.textDim}}>Review extracted data before applying to a scenario</div>
+            <h3 style={{margin:'0 0 2px',fontSize:17,fontWeight:700,color:C.text}}>{t('scenarios.payrollPreview')}</h3>
+            <div style={{fontSize:12,color:C.textDim}}>{t('scenarios.payrollPreviewSub')}</div>
           </div>
           <button onClick={()=>setPayrollPreview(null)} style={{background:'transparent',border:'none',cursor:'pointer',color:C.textDim}}><X size={18}/></button>
         </div>
         {payrollPreview.data ? <>
           <div style={{marginBottom:16}}>
-            <label style={{fontSize:12,color:C.textDim,fontWeight:600,textTransform:'uppercase',letterSpacing:0.5}}>Scenario name</label>
+            <label style={{fontSize:12,color:C.textDim,fontWeight:600,textTransform:'uppercase',letterSpacing:0.5}}>{t('scenarios.scenarioName')}</label>
             <input value={payrollPreview.data.scenarioName||''} onChange={e=>setPayrollPreview(p=>({...p,data:{...p.data,scenarioName:e.target.value}}))}
               style={{display:'block',width:'100%',marginTop:4,padding:'7px 10px',borderRadius:6,border:`1px solid ${C.border}`,background:C.bg,color:C.text,fontSize:14,outline:'none',boxSizing:'border-box'}}/>
           </div>
-          {[['incomes','Incomes',C.green],['expenses','Expenses',C.red],['savings','Savings',C.blue]].map(([key,label,color])=>{
+          {[['incomes',t('scenarios.incomes'),C.green],['expenses',t('scenarios.expenses'),C.red],['savings',t('scenarios.savings'),C.blue]].map(([key,label,color])=>{
             const items = payrollPreview.data[key]||[];
             if(!items.length) return null;
             return <div key={key} style={{marginBottom:14}}>
               <div style={{fontSize:13,fontWeight:600,color,marginBottom:6,textTransform:'uppercase',letterSpacing:0.5}}>{label}</div>
               <table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
                 <thead><tr>
-                  {['Label','Rate / Amount','Notes'].map((h,i)=><th key={i} style={{padding:'5px 8px',textAlign:i===1?'right':'left',fontSize:12,color:C.textDim,fontWeight:600,borderBottom:`1px solid ${C.border}`}}>{h}</th>)}
+                  {['Label',t('scenarios.rateAmount'),'Notes'].map((h,i)=><th key={i} style={{padding:'5px 8px',textAlign:i===1?'right':'left',fontSize:12,color:C.textDim,fontWeight:600,borderBottom:`1px solid ${C.border}`}}>{h}</th>)}
                 </tr></thead>
                 <tbody>{items.map((item,i)=>(
                   <tr key={i} style={{borderBottom:`1px solid ${C.border}22`}}>
@@ -1755,7 +1755,7 @@ function ScenariosPage({ scenarios, setScenarios, subsP, subsPInScenario, yearly
             </div>;
           })}
           <div style={{display:'flex',gap:8,marginBottom:16,marginTop:8}}>
-            {[['new','Create new scenario'],['append','Append to current']].map(([m,lbl])=>(
+            {[['new',t('scenarios.createNew')],['append',t('scenarios.appendCurrent')]].map(([m,lbl])=>(
               <button key={m} onClick={()=>setPayrollImportMode(m)}
                 style={{flex:1,padding:'8px',borderRadius:8,border:`1px solid ${payrollImportMode===m?C.accent:C.border}`,background:payrollImportMode===m?C.accent+'18':'transparent',color:payrollImportMode===m?C.accentLight:C.textMuted,fontSize:13,cursor:'pointer',fontWeight:payrollImportMode===m?600:400}}>
                 {lbl}
@@ -1763,7 +1763,7 @@ function ScenariosPage({ scenarios, setScenarios, subsP, subsPInScenario, yearly
             ))}
           </div>
           <button onClick={confirmPayrollImport} style={{width:'100%',padding:'11px',borderRadius:8,border:'none',background:C.accent,color:'#fff',fontSize:14,fontWeight:600,cursor:'pointer'}}>
-            {payrollImportMode==='new'?'Create Scenario':'Add to Current Scenario'}
+            {payrollImportMode==='new'?t('scenarios.createScenario'):t('scenarios.addToCurrent')}
           </button>
         </> : <>
           <div style={{marginBottom:10,fontSize:14,color:C.textMuted}}>Could not parse structured data. Raw AI response:</div>
@@ -1789,22 +1789,22 @@ function ScenariosPage({ scenarios, setScenarios, subsP, subsPInScenario, yearly
             {s.tags.map(t=><Badge key={t} color={C.textDim}>{t}</Badge>)}
           </div>
           <div style={{position:"absolute",top:6,right:selId===s.id?26:6,display:"flex",gap:1}}>
-            {!s.isActive && si>1 && <button onClick={e=>{e.stopPropagation();move(-1);}} title="Move left" style={{background:"transparent",border:"none",cursor:"pointer",color:C.textDim,padding:"1px 2px",fontSize:10}}>◀</button>}
-            {!s.isActive && si<arr.length-1 && <button onClick={e=>{e.stopPropagation();move(1);}} title="Move right" style={{background:"transparent",border:"none",cursor:"pointer",color:C.textDim,padding:"1px 2px",fontSize:10}}>▶</button>}
+            {!s.isActive && si>1 && <button onClick={e=>{e.stopPropagation();move(-1);}} title={t('scenarios.moveLeft')} style={{background:"transparent",border:"none",cursor:"pointer",color:C.textDim,padding:"1px 2px",fontSize:10}}>◀</button>}
+            {!s.isActive && si<arr.length-1 && <button onClick={e=>{e.stopPropagation();move(1);}} title={t('scenarios.moveRight')} style={{background:"transparent",border:"none",cursor:"pointer",color:C.textDim,padding:"1px 2px",fontSize:10}}>▶</button>}
           </div>
           {selId===s.id && !s.isActive && <ScenarioDelBtn onDelete={()=>deleteScenario(s.id)}/>}
         </div>
         );
       })}
-      <button onClick={addScenario} style={{padding:"10px 16px",borderRadius:10,border:`2px dashed ${C.border}`,background:"transparent",cursor:"pointer",display:"flex",alignItems:"center",gap:6,color:C.textDim,fontSize:13}}><Plus size={16}/>New Scenario</button>
+      <button onClick={addScenario} style={{padding:"10px 16px",borderRadius:10,border:`2px dashed ${C.border}`,background:"transparent",cursor:"pointer",display:"flex",alignItems:"center",gap:6,color:C.textDim,fontSize:13}}><Plus size={16}/>{t('scenarios.newScenario')}</button>
       <button onClick={()=>payrollImportRef.current?.click()} disabled={payrollImporting}
         title="Import payroll PDF/image to populate a scenario"
         style={{padding:"10px 16px",borderRadius:10,border:`1px solid ${C.border}`,background:"transparent",cursor:payrollImporting?'not-allowed':'pointer',display:"flex",alignItems:"center",gap:6,color:payrollImporting?C.textDim:C.textMuted,fontSize:13}}>
-        {payrollImporting ? <><RefreshCw size={14} style={{animation:'spin 1s linear infinite'}}/>Parsing…</> : <><Upload size={14}/>Import Payroll</>}
+        {payrollImporting ? <><RefreshCw size={14} style={{animation:'spin 1s linear infinite'}}/>Parsing…</> : <><Upload size={14}/>{t('scenarios.importPayroll')}</>}
       </button>
       <button onClick={()=>setPayrollPromptOpen(true)}
         style={{padding:"10px 16px",borderRadius:10,border:`1px solid ${payrollExtractionPrompt?C.accent:C.border}`,background:"transparent",cursor:"pointer",display:"flex",alignItems:"center",gap:6,color:payrollExtractionPrompt?C.accentLight:C.textDim,fontSize:13}}>
-        <Sparkles size={14}/>Extraction Prompt{payrollExtractionPrompt?' ✓':''}
+        <Sparkles size={14}/>{t('scenarios.payrollPrompt')}{payrollExtractionPrompt?' ✓':''}
       </button>
     </div>
     {sc && <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"2fr 1fr",gap:16}}>
@@ -1817,17 +1817,17 @@ function ScenariosPage({ scenarios, setScenarios, subsP, subsPInScenario, yearly
           <InlineEdit value={sc.name} onChange={v=>update(sc.id,s=>{s.name=v;return s;})} style={{fontSize:18,fontWeight:700,color:C.text}}/>
           <div style={{display:"flex",gap:4,marginTop:8,alignItems:"center"}}>
             {sc.tags.map(t=><Badge key={t} color={C.textDim} onRemove={()=>removeTag(t)}>{t}</Badge>)}
-            {addingTag ? <span style={{display:"inline-flex",alignItems:"center",gap:4}}><input autoFocus value={newTag} onChange={e=>setNewTag(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")confirmTag();if(e.key==="Escape")cancelTag();}} placeholder="tag name" style={{padding:"2px 6px",borderRadius:6,border:`1px solid ${C.accent}`,background:C.bg,color:C.text,fontSize:12,width:80,outline:"none"}}/><button onClick={confirmTag} style={{padding:"2px 6px",borderRadius:6,border:"none",background:C.accent,color:"#fff",fontSize:12,cursor:"pointer"}}>Add</button><button onClick={cancelTag} style={{padding:"2px 6px",borderRadius:6,border:"none",background:"transparent",color:C.textDim,fontSize:12,cursor:"pointer"}}>×</button></span> : <button onClick={addTag} style={{padding:"2px 8px",borderRadius:9999,border:`1px dashed ${C.border}`,background:"transparent",color:C.textDim,fontSize:12,cursor:"pointer"}}>+ tag</button>}
+            {addingTag ? <span style={{display:"inline-flex",alignItems:"center",gap:4}}><input autoFocus value={newTag} onChange={e=>setNewTag(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")confirmTag();if(e.key==="Escape")cancelTag();}} placeholder={t('scenarios.tagPlaceholder')} style={{padding:"2px 6px",borderRadius:6,border:`1px solid ${C.accent}`,background:C.bg,color:C.text,fontSize:12,width:80,outline:"none"}}/><button onClick={confirmTag} style={{padding:"2px 6px",borderRadius:6,border:"none",background:C.accent,color:"#fff",fontSize:12,cursor:"pointer"}}>Add</button><button onClick={cancelTag} style={{padding:"2px 6px",borderRadius:6,border:"none",background:"transparent",color:C.textDim,fontSize:12,cursor:"pointer"}}>×</button></span> : <button onClick={addTag} style={{padding:"2px 8px",borderRadius:9999,border:`1px dashed ${C.border}`,background:"transparent",color:C.textDim,fontSize:12,cursor:"pointer"}}>{t('scenarios.addTag')}</button>}
           </div>
         </div>
-        <Section title="Incomes" section="incomes" color={C.green}/>
-        <Section title="Expenses" section="expenses" color={C.red}/>
+        <Section title={t('scenarios.incomes')} section="incomes" color={C.green}/>
+        <Section title={t('scenarios.expenses')} section="expenses" color={C.red}/>
 
         {/* Provisions — monthly allocations by category */}
         <div style={{marginBottom:20,padding:16,borderRadius:10,background:C.red+"0a",border:`1px solid ${C.red}30`}}>
           <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}>
             <div style={{width:4,height:20,borderRadius:2,background:C.red}}/>
-            <h4 style={{margin:0,fontSize:14,fontWeight:600,color:C.red}}>Linked Expenses & Provisions</h4>
+            <h4 style={{margin:0,fontSize:14,fontWeight:600,color:C.red}}>{t('scenarios.linkedExpenses')}</h4>
             <span style={{fontSize:14,color:C.red,fontWeight:700,marginLeft:"auto"}}>CHF {mask(fmtD(linkedTotal))}</span>
           </div>
           <div style={{display:"flex",flexDirection:"column",gap:2}}>
@@ -1851,15 +1851,15 @@ function ScenariosPage({ scenarios, setScenarios, subsP, subsPInScenario, yearly
                 </div>
                 <div style={{display:"flex",alignItems:"center",gap:12}}>
                   <div style={{display:"flex",alignItems:"center",gap:4}}>
-                    <span style={{fontSize:12,color:C.textDim}}>Need:</span>
+                    <span style={{fontSize:12,color:C.textDim}}>{t('scenarios.need')}</span>
                     <span style={{fontSize:13,color:C.textDim,fontVariantNumeric:"tabular-nums"}}>{mask(fmtD(cat.calc))}</span>
                   </div>
                   <div style={{display:"flex",alignItems:"center",gap:4}}>
-                    <span style={{fontSize:12,color:C.textDim}}>Actual:</span>
+                    <span style={{fontSize:12,color:C.textDim}}>{t('scenarios.actual')}</span>
                     {hideBalances ? <span style={{color:C.text,fontWeight:600,fontSize:13}}>••••</span> : <InlineNum value={cat.amount} onChange={v=>setOverride(cat.key,v??null)} style={{color:isOverridden?C.red:C.text,fontWeight:600,fontVariantNumeric:"tabular-nums"}} width={70}/>}
                   </div>
                   {isOverridden && delta !== 0 && <span style={{fontSize:10,padding:"1px 6px",borderRadius:4,background:deltaColor+"18",color:deltaColor,fontWeight:600,fontVariantNumeric:"tabular-nums"}}>{delta>0?"+":""}{fmtD(delta)}</span>}
-                  {isOverridden && <button onClick={()=>setOverride(cat.key,null)} title="Reset to calculated" style={{fontSize:10,padding:"1px 5px",borderRadius:4,border:`1px solid ${C.border}`,background:"transparent",color:C.textDim,cursor:"pointer"}}>reset</button>}
+                  {isOverridden && <button onClick={()=>setOverride(cat.key,null)} title={t('scenarios.resetToCalc')} style={{fontSize:10,padding:"1px 5px",borderRadius:4,border:`1px solid ${C.border}`,background:"transparent",color:C.textDim,cursor:"pointer"}}>reset</button>}
                 </div>
               </div>
               {linkedExpanded.has(cat.key) && cat.items && cat.items.length > 0 && (()=>{
@@ -1901,24 +1901,24 @@ function ScenariosPage({ scenarios, setScenarios, subsP, subsPInScenario, yearly
               </React.Fragment>;
             })}
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 12px",marginTop:4,borderTop:`1px solid ${C.red}30`}}>
-              <span style={{fontSize:14,fontWeight:700,color:C.red}}>Total Provisions</span>
+              <span style={{fontSize:14,fontWeight:700,color:C.red}}>{t('scenarios.totalProvisions')}</span>
               <div style={{display:"flex",alignItems:"center",gap:12}}>
-                <span style={{fontSize:12,color:C.textDim}}>Need: <span style={{fontVariantNumeric:"tabular-nums"}}>{mask(fmtD(linkedCalcTotal))}</span></span>
-                <span style={{fontSize:14,fontWeight:700,fontVariantNumeric:"tabular-nums",color:C.red}}>Actual: CHF {mask(fmtD(linkedTotal))}</span>
+                <span style={{fontSize:12,color:C.textDim}}>{t('scenarios.need')} <span style={{fontVariantNumeric:"tabular-nums"}}>{mask(fmtD(linkedCalcTotal))}</span></span>
+                <span style={{fontSize:14,fontWeight:700,fontVariantNumeric:"tabular-nums",color:C.red}}>{t('scenarios.actual')} CHF {mask(fmtD(linkedTotal))}</span>
               </div>
             </div>
           </div>
         </div>
 
-        <Section title="Savings" section="savings" color={C.blue}/>
-        <Section title="Investments" section="investments" color={C.teal}/>
+        <Section title={t('scenarios.savings')} section="savings" color={C.blue}/>
+        <Section title={t('scenarios.investments')} section="investments" color={C.teal}/>
       </Card>
       <div style={{display:"flex",flexDirection:"column",gap:16}}>
-        <Card title="Cashflow Split">
+        <Card title={t('scenarios.cashflowSplit')}>
           <ResponsiveContainer width="100%" height={180}><PieChart><Pie data={flow} cx="50%" cy="50%" outerRadius={70} innerRadius={40} dataKey="value" paddingAngle={2} stroke="none">{flow.map((d,i)=><Cell key={i} fill={d.color}/>)}</Pie><Tooltip formatter={v=>`CHF ${fmt(v)}`} contentStyle={{background:C.card,border:`1px solid ${C.border}`,borderRadius:8,color:C.text,fontSize:13}} labelStyle={{color:C.textMuted}} itemStyle={{color:C.text}}/></PieChart></ResponsiveContainer>
           {flow.map((d,i)=><div key={i} style={{display:"flex",justifyContent:"space-between",padding:"6px 0",borderBottom:i<flow.length-1?`1px solid ${C.border}11`:"none"}}><div style={{display:"flex",alignItems:"center",gap:8}}><div style={{width:10,height:10,borderRadius:3,background:d.color}}/><span style={{fontSize:14,color:C.textMuted}}>{d.name}</span></div><div><span style={{fontSize:14,fontWeight:600,color:C.text}}>{mask(fmtD(d.value))}</span><span style={{fontSize:12,color:C.textDim,marginLeft:6}}>{inc>0?pct(d.pct):""}</span></div></div>)}
         </Card>
-        <Card title="Liquid / Locked" subtitle="Savings & investments accessibility">
+        <Card title={t('scenarios.liquidLocked')} subtitle={t('scenarios.liquidLockedSub')}>
           <div style={{display:"flex",gap:12,marginBottom:12}}>
             <div style={{flex:1,padding:"10px 12px",borderRadius:8,background:C.teal+"12",border:`1px solid ${C.teal}30`}}>
               <div style={{fontSize:12,color:C.teal,marginBottom:4}}>Liquid</div>
@@ -1936,7 +1936,7 @@ function ScenariosPage({ scenarios, setScenarios, subsP, subsPInScenario, yearly
           const essentialTotal = essentialExp + linkedTotal + essentialSav;
           const allCosts = totalExp + sav;
           const nonEssentialTotal = allCosts - essentialTotal;
-          return <Card title="Essential vs Optional" subtitle="Expenses + savings (excl. investments)">
+          return <Card title={t('scenarios.essentialOptional')} subtitle={t('scenarios.essentialOptionalSub')}>
             <div style={{display:"flex",gap:12,marginBottom:12}}>
               <div style={{flex:1,padding:"10px 12px",borderRadius:8,background:C.red+"12",border:`1px solid ${C.red}30`}}>
                 <div style={{fontSize:12,color:C.red,marginBottom:4}}>Essential</div>
@@ -1954,13 +1954,13 @@ function ScenariosPage({ scenarios, setScenarios, subsP, subsPInScenario, yearly
             <div style={{fontSize:12,color:C.textDim,marginTop:6}}>{allCosts>0?(essentialTotal/allCosts*100).toFixed(0):0}% essential · {allCosts>0?(nonEssentialTotal/allCosts*100).toFixed(0):0}% optional</div>
           </Card>;
         })()}
-        <Card title="Distribution Plan" subtitle="Full monthly money flow">
+        <Card title={t('scenarios.distributionPlan')} subtitle={t('scenarios.distributionSub')}>
           {[
-            {title:"Income", items:sc.incomes, color:C.green, sign:"+"},
-            {title:"Expenses", items:sc.expenses, color:C.red, sign:"−"},
-            {title:"Provisions", items:linkedCategoriesWithOverride.map(c=>({label:c.label,amount:c.amount})), color:C.red, sign:"−"},
-            {title:"Savings", items:sc.savings, color:C.blue, sign:"→"},
-            {title:"Investments", items:sc.investments, color:C.teal, sign:"→"},
+            {title:t('scenarios.incomes'), items:sc.incomes, color:C.green, sign:"+"},
+            {title:t('scenarios.expenses'), items:sc.expenses, color:C.red, sign:"−"},
+            {title:t('scenarios.totalProvisions'), items:linkedCategoriesWithOverride.map(c=>({label:c.label,amount:c.amount})), color:C.red, sign:"−"},
+            {title:t('scenarios.savings'), items:sc.savings, color:C.blue, sign:"→"},
+            {title:t('scenarios.investments'), items:sc.investments, color:C.teal, sign:"→"},
           ].filter(g=>g.items.length>0).map((g,gi)=>{
             const groupTotal = g.items.reduce((s,x)=>s+(x.pct!=null?getAmt(x):(x.amount||0)),0);
             return <div key={gi} style={{marginBottom:gi<4?10:0}}>
@@ -1977,7 +1977,7 @@ function ScenariosPage({ scenarios, setScenarios, subsP, subsPInScenario, yearly
             </div>;
           })}
           <div style={{display:"flex",justifyContent:"space-between",padding:"8px 0 0",borderTop:`1px solid ${C.border}`,marginTop:8}}>
-            <span style={{fontSize:13,fontWeight:700,color:rem<0?C.red:C.yellow}}>= Unallocated</span>
+            <span style={{fontSize:13,fontWeight:700,color:rem<0?C.red:C.yellow}}>{t('scenarios.unallocated')}</span>
             <span style={{fontSize:13,fontWeight:700,color:rem<0?C.red:C.yellow}}>CHF {mask(fmt(rem))}</span>
           </div>
         </Card>
@@ -1989,7 +1989,7 @@ function ScenariosPage({ scenarios, setScenarios, subsP, subsPInScenario, yearly
 // ───────────────────────────────────────────────────────────────
 // TRACKER — editable grid with toggle, cutoff, add/delete rows
 // ───────────────────────────────────────────────────────────────
-function TrackerPage({ tracker, setTracker, accounts: portfolioAccounts, hideBalances, onTrackerSynced }) {
+function TrackerPage({ tracker, setTracker, accounts: portfolioAccounts, hideBalances, onTrackerSynced, t }) {
   const mask = (v) => hideBalances ? "••••" : v;
   const winW = useWindowWidth(); const isMobile = winW < 768;
   const sortedYears = Object.keys(tracker).map(Number).sort((a,b)=>b-a);
@@ -2037,7 +2037,7 @@ function TrackerPage({ tracker, setTracker, accounts: portfolioAccounts, hideBal
   };
 
   const deleteYear = (yr) => {
-    if (!window.confirm(`Delete tracker data for ${yr}? This cannot be undone.`)) return;
+    if (!window.confirm(t('tracker.deleteConfirm', {year: yr}))) return;
     setTracker(p => {
       const next = { ...p };
       delete next[yr];
@@ -2165,11 +2165,11 @@ function TrackerPage({ tracker, setTracker, accounts: portfolioAccounts, hideBal
               color: isEdge ? C.accentLight : inRange ? C.accentLight+"cc" : C.textDim,
             }}>{yr}</button>;
         })}
-        <button onClick={addYear} style={{padding:"6px 8px",borderRadius:8,border:"none",background:"transparent",color:C.textDim,cursor:"pointer",display:"flex",alignItems:"center",opacity:0.5}} title="Add year"><Plus size={14}/></button>
+        <button onClick={addYear} style={{padding:"6px 8px",borderRadius:8,border:"none",background:"transparent",color:C.textDim,cursor:"pointer",display:"flex",alignItems:"center",opacity:0.5}} title={t('tracker.addYear')}><Plus size={14}/></button>
       </div>
       {startYear !== endYear && <span style={{fontSize:12,color:C.textDim,letterSpacing:0.5}}>{startYear}–{endYear}</span>}
       <div style={{display:"flex",gap:4,background:C.bg,borderRadius:10,padding:4}}>
-        {[["grid","Grid"],["chart","Chart"],["compound","Compound Interest"]].map(([k,l])=>
+        {[["grid",t('tracker.grid')],["chart",t('tracker.chart')],["compound",t('tracker.compound')]].map(([k,l])=>
           <button key={k} onClick={()=>setView(k)} style={{padding:"6px 14px",borderRadius:8,border:"none",fontSize:13,fontWeight:view===k?600:400,cursor:"pointer",background:view===k?C.accent+"22":"transparent",color:view===k?C.accentLight:C.textDim,transition:"all 0.15s ease"}}>{l}</button>
         )}
       </div>
@@ -2181,7 +2181,7 @@ function TrackerPage({ tracker, setTracker, accounts: portfolioAccounts, hideBal
           {MONTHS.slice(0, currentMonth + 1).map((m,mi)=><option key={mi} value={mi}>{m}</option>)}
         </select>
         <button onClick={syncFromAccounts} style={{display:"flex",alignItems:"center",gap:6,padding:"6px 14px",borderRadius:8,border:`1px solid ${C.accent}`,background:C.accent+"18",color:C.accentLight,fontSize:13,fontWeight:600,cursor:"pointer"}}>
-          ↓ Sync from Accounts
+          {t('tracker.syncFromAccounts')}
         </button>
       </div>
     }>
@@ -2311,20 +2311,20 @@ function TrackerPage({ tracker, setTracker, accounts: portfolioAccounts, hideBal
       </table></div>
     </Card>}
 
-    {view==="chart" && <Card title={startYear === endYear ? `${startYear}: Forecast vs Actual` : `${startYear}\u2013${endYear}: Forecast vs Actual`}>
-      <ResponsiveContainer width="100%" height={isMobile?220:350}><ComposedChart data={multiTotals}><CartesianGrid strokeDasharray="3 3" stroke={C.border}/><XAxis dataKey="label" tick={{fill:C.textDim,fontSize:11}} interval={rangeYears.length > 1 ? 2 : 0}/><YAxis tick={{fill:C.textDim,fontSize:11}} tickFormatter={v=>`${Math.round(v/1000)}k`}/><Tooltip formatter={v=>`CHF ${fmt(v)}`} contentStyle={{background:C.card,border:`1px solid ${C.border}`,borderRadius:8,color:C.text,fontSize:13}} labelStyle={{color:C.textMuted}} itemStyle={{color:C.text}}/><Legend/><Area type="monotone" dataKey="forecast" fill={C.accent+"22"} stroke={C.accent} strokeWidth={2} name="Forecast"/><Line type="monotone" dataKey="result" stroke={C.green} strokeWidth={2.5} dot={{fill:C.green,r:4}} name="Result" connectNulls={false}/></ComposedChart></ResponsiveContainer>
+    {view==="chart" && <Card title={startYear === endYear ? `${startYear}: ${t('tracker.forecastVsActual')}` : `${startYear}\u2013${endYear}: ${t('tracker.forecastVsActual')}`}>
+      <ResponsiveContainer width="100%" height={isMobile?220:350}><ComposedChart data={multiTotals}><CartesianGrid strokeDasharray="3 3" stroke={C.border}/><XAxis dataKey="label" tick={{fill:C.textDim,fontSize:11}} interval={rangeYears.length > 1 ? 2 : 0}/><YAxis tick={{fill:C.textDim,fontSize:11}} tickFormatter={v=>`${Math.round(v/1000)}k`}/><Tooltip formatter={v=>`CHF ${fmt(v)}`} contentStyle={{background:C.card,border:`1px solid ${C.border}`,borderRadius:8,color:C.text,fontSize:13}} labelStyle={{color:C.textMuted}} itemStyle={{color:C.text}}/><Legend/><Area type="monotone" dataKey="forecast" fill={C.accent+"22"} stroke={C.accent} strokeWidth={2} name={t('tracker.forecast')}/><Line type="monotone" dataKey="result" stroke={C.green} strokeWidth={2.5} dot={{fill:C.green,r:4}} name={t('tracker.result')} connectNulls={false}/></ComposedChart></ResponsiveContainer>
     </Card>}
 
     {view==="compound" && <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"320px 1fr",gap:16}}>
-      <Card title="Parameters"><div style={{display:"flex",flexDirection:"column",gap:20}}>
-        <div><label style={{fontSize:13,color:C.textMuted}}>Starting Balance</label><div style={{fontSize:26,fontWeight:400,fontFamily:"'Fraunces',serif",color:C.accent}}>CHF {mask(fmt(currentTotal))}</div></div>
-        <div><label style={{fontSize:13,color:C.textMuted,display:"flex",justifyContent:"space-between"}}><span>Annual Growth Rate</span><span style={{color:C.accent,fontWeight:600}}>{growthRate}%</span></label><input type="range" min={0} max={15} step={0.5} value={growthRate} onChange={e=>setGrowthRate(Number(e.target.value))} style={{width:"100%",accentColor:C.accent}}/></div>
-        <div><label style={{fontSize:13,color:C.textMuted,display:"flex",justifyContent:"space-between"}}><span>Monthly Contribution</span><span style={{color:C.accent,fontWeight:600}}>CHF {fmt(monthlyAdd)}</span></label><input type="range" min={0} max={8000} step={100} value={monthlyAdd} onChange={e=>setMonthlyAdd(Number(e.target.value))} style={{width:"100%",accentColor:C.accent}}/></div>
-        <div><label style={{fontSize:13,color:C.textMuted,display:"flex",justifyContent:"space-between"}}><span>Time Horizon</span><span style={{color:C.accent,fontWeight:600}}>{years} years</span></label><input type="range" min={1} max={40} step={1} value={years} onChange={e=>setYears(Number(e.target.value))} style={{width:"100%",accentColor:C.accent}}/></div>
-        <div style={{padding:16,background:C.bg,borderRadius:10}}><div style={{fontSize:13,color:C.textMuted}}>Projected in {years} years</div><div style={{fontSize:30,fontWeight:400,fontFamily:"'Fraunces',serif",color:C.green}}>CHF {mask(fmt(proj[proj.length-1].balance))}</div><div style={{fontSize:13,color:C.textDim,marginTop:4}}>Contributed: CHF {mask(fmt(proj[proj.length-1].contributed))}</div><div style={{fontSize:13,color:C.accentLight}}>Growth: CHF {mask(fmt(proj[proj.length-1].balance-proj[proj.length-1].contributed))}</div></div>
+      <Card title={t('tracker.parameters')}><div style={{display:"flex",flexDirection:"column",gap:20}}>
+        <div><label style={{fontSize:13,color:C.textMuted}}>{t('tracker.startingBalance')}</label><div style={{fontSize:26,fontWeight:400,fontFamily:"'Fraunces',serif",color:C.accent}}>CHF {mask(fmt(currentTotal))}</div></div>
+        <div><label style={{fontSize:13,color:C.textMuted,display:"flex",justifyContent:"space-between"}}><span>{t('tracker.annualGrowthRate')}</span><span style={{color:C.accent,fontWeight:600}}>{growthRate}%</span></label><input type="range" min={0} max={15} step={0.5} value={growthRate} onChange={e=>setGrowthRate(Number(e.target.value))} style={{width:"100%",accentColor:C.accent}}/></div>
+        <div><label style={{fontSize:13,color:C.textMuted,display:"flex",justifyContent:"space-between"}}><span>{t('tracker.monthlyContribution')}</span><span style={{color:C.accent,fontWeight:600}}>CHF {fmt(monthlyAdd)}</span></label><input type="range" min={0} max={8000} step={100} value={monthlyAdd} onChange={e=>setMonthlyAdd(Number(e.target.value))} style={{width:"100%",accentColor:C.accent}}/></div>
+        <div><label style={{fontSize:13,color:C.textMuted,display:"flex",justifyContent:"space-between"}}><span>{t('tracker.timeHorizon')}</span><span style={{color:C.accent,fontWeight:600}}>{t('tracker.years', {n: years})}</span></label><input type="range" min={1} max={40} step={1} value={years} onChange={e=>setYears(Number(e.target.value))} style={{width:"100%",accentColor:C.accent}}/></div>
+        <div style={{padding:16,background:C.bg,borderRadius:10}}><div style={{fontSize:13,color:C.textMuted}}>{t('tracker.projectedIn', {n: years})}</div><div style={{fontSize:30,fontWeight:400,fontFamily:"'Fraunces',serif",color:C.green}}>CHF {mask(fmt(proj[proj.length-1].balance))}</div><div style={{fontSize:13,color:C.textDim,marginTop:4}}>{t('tracker.contributed')}: CHF {mask(fmt(proj[proj.length-1].contributed))}</div><div style={{fontSize:13,color:C.accentLight}}>{t('tracker.growth')}: CHF {mask(fmt(proj[proj.length-1].balance-proj[proj.length-1].contributed))}</div></div>
       </div></Card>
-      <Card title="Compound Growth Projection">
-        <ResponsiveContainer width="100%" height={isMobile?250:400}><AreaChart data={proj}><CartesianGrid strokeDasharray="3 3" stroke={C.border}/><XAxis dataKey="year" tick={{fill:C.textDim,fontSize:11}}/><YAxis tick={{fill:C.textDim,fontSize:11}} tickFormatter={v=>v>=1e6?`${(v/1e6).toFixed(1)}M`:`${Math.round(v/1000)}k`}/><Tooltip formatter={v=>`CHF ${fmt(v)}`} contentStyle={{background:C.card,border:`1px solid ${C.border}`,borderRadius:8,color:C.text,fontSize:13}} labelStyle={{color:C.textMuted}} itemStyle={{color:C.text}}/><Legend/><Area type="monotone" dataKey="contributed" fill={C.blue+"33"} stroke={C.blue} strokeWidth={1.5} name="Contributed"/><Area type="monotone" dataKey="balance" fill={C.green+"33"} stroke={C.green} strokeWidth={2} name="With Growth"/></AreaChart></ResponsiveContainer>
+      <Card title={t('tracker.compoundProjection')}>
+        <ResponsiveContainer width="100%" height={isMobile?250:400}><AreaChart data={proj}><CartesianGrid strokeDasharray="3 3" stroke={C.border}/><XAxis dataKey="year" tick={{fill:C.textDim,fontSize:11}}/><YAxis tick={{fill:C.textDim,fontSize:11}} tickFormatter={v=>v>=1e6?`${(v/1e6).toFixed(1)}M`:`${Math.round(v/1000)}k`}/><Tooltip formatter={v=>`CHF ${fmt(v)}`} contentStyle={{background:C.card,border:`1px solid ${C.border}`,borderRadius:8,color:C.text,fontSize:13}} labelStyle={{color:C.textMuted}} itemStyle={{color:C.text}}/><Legend/><Area type="monotone" dataKey="contributed" fill={C.blue+"33"} stroke={C.blue} strokeWidth={1.5} name={t('tracker.contributed')}/><Area type="monotone" dataKey="balance" fill={C.green+"33"} stroke={C.green} strokeWidth={2} name={t('tracker.withGrowth')}/></AreaChart></ResponsiveContainer>
       </Card>
     </div>}
   </div>;
@@ -2341,7 +2341,7 @@ const DEFAULT_REC_PROMPT = `You are a recurring expenses extractor. Examine the 
 
 const DEFAULT_SUB_PROMPT = `You are a subscriptions extractor. Examine the attached file — it may be a bank statement (CSV or PDF), credit card bill, or subscription confirmation email.\n\nRespond with ONLY a raw JSON object — no explanation, no markdown, no code fences.\n\n{"subscriptions":[{"name":"","amount":0,"frequency":1,"account":"","notes":""}]}\n\nRules:\n- IF the file is a BANK/CARD STATEMENT with transaction rows:\n  * Scan all rows and identify recurring digital/streaming/app/software charges\n  * Look for known subscription services: Netflix, Spotify, Apple, Google, Adobe, Microsoft, Amazon Prime, YouTube, Disney+, LinkedIn, Dropbox, iCloud, etc.\n  * Also include any other recurring small charges to digital merchants\n  * Determine frequency from recurrence pattern: 1=Monthly, 3=Quarterly, 6=Half-yearly, 12=Yearly\n  * Use the most recent amount\n- IF the file is a subscription email/invoice: extract directly\n- name: service/product name (e.g. "Netflix", "Spotify", "Adobe CC", "iCloud+")\n- amount: cost in CHF (convert EUR/USD approximately if needed)\n- frequency: 1=Monthly, 3=Quarterly, 6=Half-yearly, 12=Yearly\n- account: payment method or card last 4 digits if visible, else empty string\n- notes: plan tier or other context\n- If nothing found, return {"subscriptions":[]}`;
 
-function ExpensesPage({ subsP, setSubsP, subsPInScenario, setSubsPInScenario, yearly, setYearly, taxes, setTaxes, insurance, setInsurance, hideBalances, profile, accounts, scenarios, darkMode, insPrompt, setInsPrompt, taxPrompt, setTaxPrompt, recPrompt, setRecPrompt, subPrompt, setSubPrompt }) {
+function ExpensesPage({ subsP, setSubsP, subsPInScenario, setSubsPInScenario, yearly, setYearly, taxes, setTaxes, insurance, setInsurance, hideBalances, profile, accounts, scenarios, darkMode, insPrompt, setInsPrompt, taxPrompt, setTaxPrompt, recPrompt, setRecPrompt, subPrompt, setSubPrompt, t }) {
   const mask = (v) => hideBalances ? "••••" : v;
   const winW = useWindowWidth(); const isMobile = winW < 768;
   const [tab, setTab] = useState("total");
@@ -2716,12 +2716,12 @@ function ExpensesPage({ subsP, setSubsP, subsPInScenario, setSubsPInScenario, ye
           <td style={{padding:"8px 12px",fontSize:14,borderBottom:`1px solid ${C.border}11`,fontVariantNumeric:"tabular-nums"}}>{hideBalances ? <span style={{color:C.text}}>••••</span> : <InlineNum value={s.amount} onChange={v=>edit(s.id,"amount",v??0)} width={70}/>}</td>
           <td style={{padding:"8px 12px",fontSize:14,borderBottom:`1px solid ${C.border}11`}}><select value={s.frequency||1} onChange={e=>edit(s.id,"frequency",Number(e.target.value))} style={{padding:"3px 6px",borderRadius:6,border:`1px solid ${C.border}`,background:C.bg,color:C.text,fontSize:13,cursor:"pointer"}}>{FREQ_OPTIONS.map(o=><option key={o.value} value={o.value}>{o.label}</option>)}</select></td>
           <td style={{padding:"8px 12px",fontSize:14,borderBottom:`1px solid ${C.border}11`,fontVariantNumeric:"tabular-nums",color:accentColor,fontWeight:600}}>{mask(fmtD(toMonthly(s.amount,s.frequency)))}</td>
-          <td style={{padding:"8px 12px",fontSize:14,borderBottom:`1px solid ${C.border}11`}}><InlineEdit value={s.account} onChange={v=>edit(s.id,"account",v)} placeholder="account..." style={{color:C.textDim,fontSize:12}} inputWidth={110}/></td>
-          <td style={{padding:"8px 12px",fontSize:13,color:C.textDim,borderBottom:`1px solid ${C.border}11`}}><InlineEdit value={s.notes||""} onChange={v=>edit(s.id,"notes",v)} placeholder="notes..." style={{color:C.textDim}} inputWidth={100}/></td>
+          <td style={{padding:"8px 12px",fontSize:14,borderBottom:`1px solid ${C.border}11`}}><InlineEdit value={s.account} onChange={v=>edit(s.id,"account",v)} placeholder={t("expenses.accountPlaceholder")} style={{color:C.textDim,fontSize:12}} inputWidth={110}/></td>
+          <td style={{padding:"8px 12px",fontSize:13,color:C.textDim,borderBottom:`1px solid ${C.border}11`}}><InlineEdit value={s.notes||""} onChange={v=>edit(s.id,"notes",v)} placeholder={t("expenses.notesPlaceholder")} style={{color:C.textDim}} inputWidth={100}/></td>
           <td style={{padding:"8px 12px",borderBottom:`1px solid ${C.border}11`}}><DelBtn onClick={()=>del(s.id)}/></td>
         </tr>)}
         <tr style={{background:C.bg}}><td style={{padding:"10px 12px",fontWeight:700}} colSpan={3}>Total</td><td style={{padding:"10px 12px",fontWeight:700,fontVariantNumeric:"tabular-nums"}}>{mask(fmtD(tot))}</td><td colSpan={3}/></tr>
-        <AddRow onClick={add} label="Add subscription" colSpan={7}/>
+        <AddRow onClick={add} label={t("expenses.addSubscription")} colSpan={7}/>
       </tbody></table></div>
     </Card>;
   };
@@ -2756,7 +2756,7 @@ function ExpensesPage({ subsP, setSubsP, subsPInScenario, setSubsPInScenario, ye
       return <div onClick={()=>setExpPromptSection(null)} style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.7)',zIndex:200,display:'flex',alignItems:'center',justifyContent:'center',padding:24}}>
         <div onClick={e=>e.stopPropagation()} style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:16,width:'100%',maxWidth:1140,maxHeight:'84vh',overflowY:'auto',padding:28,boxShadow:'0 24px 80px rgba(0,0,0,0.6)'}}>
           <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:8}}>
-            <h2 style={{margin:0,fontSize:18,fontWeight:700,color:C.text}}>{label} — Extraction Prompt</h2>
+            <h2 style={{margin:0,fontSize:18,fontWeight:700,color:C.text}}>{t("expenses.extractionPromptTitle", {section: label})}</h2>
             <button onClick={()=>setExpPromptSection(null)} style={{background:'transparent',border:'none',cursor:'pointer',color:C.textDim}}><X size={18}/></button>
           </div>
           <p style={{margin:'0 0 12px',fontSize:13,color:C.textDim}}>Customise the AI prompt used when importing {label.toLowerCase()} from files. Leave blank to use the built-in default.</p>
@@ -2839,11 +2839,11 @@ function ExpensesPage({ subsP, setSubsP, subsPInScenario, setSubsPInScenario, ye
       <StatCard label={`Taxes (${latestTax?.year||"—"})`} value={`CHF ${mask(fmt(Math.round(taxMonthly)))}/mo`} sub={hideBalances?undefined:`CHF ${fmt(Math.round(latestTaxTotal))}/yr`} icon={BarChart3} color={C.red} compact={isMobile}/>
     </div>
     <div style={{display:"flex",gap:8,marginBottom:16,flexWrap:"wrap"}}>
-      <Tab active={tab==="total"} onClick={()=>setTab("total")}>Total Monthly</Tab>
-      <Tab active={tab==="recurring"} onClick={()=>setTab("recurring")}>Recurring</Tab>
-      <Tab active={tab==="subscriptions"} onClick={()=>setTab("subscriptions")}>Subscriptions</Tab>
-      <Tab active={tab==="insurance"} onClick={()=>setTab("insurance")}>Insurances</Tab>
-      <Tab active={tab==="taxes"} onClick={()=>setTab("taxes")}>Taxes</Tab>
+      <Tab active={tab==="total"} onClick={()=>setTab("total")}>{t("expenses.tabs.total")}</Tab>
+      <Tab active={tab==="recurring"} onClick={()=>setTab("recurring")}>{t("expenses.tabs.recurring")}</Tab>
+      <Tab active={tab==="subscriptions"} onClick={()=>setTab("subscriptions")}>{t("expenses.tabs.subscriptions")}</Tab>
+      <Tab active={tab==="insurance"} onClick={()=>setTab("insurance")}>{t("expenses.tabs.insurance")}</Tab>
+      <Tab active={tab==="taxes"} onClick={()=>setTab("taxes")}>{t("expenses.tabs.taxes")}</Tab>
     </div>
 
     {tab==="total" && (()=>{
@@ -2859,7 +2859,7 @@ function ExpensesPage({ subsP, setSubsP, subsPInScenario, setSubsPInScenario, ye
         {label:"Insurances",total:insMonthly,color:C.green},
         {label:"Tax Provision",total:taxMonthly,color:C.red},
       ];
-      return <Card title="Monthly Expense Summary" headerRight={<span style={{fontSize:17,fontWeight:700,color:C.accent}}>CHF {mask(fmtD(grandTotal))}/mo</span>}>
+      return <Card title={t("expenses.summary")} headerRight={<span style={{fontSize:17,fontWeight:700,color:C.accent}}>CHF {mask(fmtD(grandTotal))}/mo</span>}>
         <div style={{display:"grid",gridTemplateColumns:isMobile?"repeat(2,1fr)":"repeat(4,1fr)",gap:isMobile?8:12,marginBottom:20}}>
           {groups.map((g,i)=><div key={i} style={{padding:isMobile?"8px 10px":12,borderRadius:8,background:C.bg,border:`1px solid ${C.border}`}}>
             <div style={{fontSize:isMobile?10:11,color:g.color,fontWeight:600,textTransform:"uppercase",letterSpacing:0.5,marginBottom:4,lineHeight:1.3}}>{g.label}</div>
@@ -2887,10 +2887,10 @@ function ExpensesPage({ subsP, setSubsP, subsPInScenario, setSubsPInScenario, ye
         const subTotal = allSubs.reduce((s,x)=>s+x.effective,0);
         if (allSubs.length === 0) return null;
         return <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:16}}>
-          <Card title="Cost Breakdown (effective/mo)">
+          <Card title={t("expenses.costBreakdown")}>
             <ResponsiveContainer width="100%" height={Math.max(180, allSubs.length*28)}><BarChart data={allSubs.map(s=>({name:s.name,value:s.effective}))} layout="vertical" margin={{left:130}}><XAxis type="number" tick={{fill:C.textDim,fontSize:11}} tickFormatter={fmt}/><YAxis type="category" dataKey="name" tick={{fill:C.textMuted,fontSize:12}} width={130}/><Tooltip formatter={v=>`CHF ${fmtD(v)}/mo`} contentStyle={{background:C.card,border:`1px solid ${C.border}`,borderRadius:8,color:C.text,fontSize:13}} labelStyle={{color:C.textMuted}} itemStyle={{color:C.text}}/><Bar dataKey="value" radius={[0,6,6,0]}>{allSubs.map((_,i)=><Cell key={i} fill={pieColors()[i%pieColors().length]}/>)}</Bar></BarChart></ResponsiveContainer>
           </Card>
-          <Card title="Share of Total">
+          <Card title={t("expenses.shareOfTotal")}>
             <ResponsiveContainer width="100%" height={200}><PieChart><Pie data={allSubs.map(s=>({name:s.name,value:s.effective}))} cx="50%" cy="50%" outerRadius={80} innerRadius={45} dataKey="value" paddingAngle={2} stroke="none">{allSubs.map((_,i)=><Cell key={i} fill={pieColors()[i%pieColors().length]}/>)}</Pie><Tooltip formatter={v=>`CHF ${fmtD(v)}/mo`} contentStyle={{background:C.card,border:`1px solid ${C.border}`,borderRadius:8,color:C.text,fontSize:13}} labelStyle={{color:C.textMuted}} itemStyle={{color:C.text}}/></PieChart></ResponsiveContainer>
             {allSubs.map((s,i)=><div key={i} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"4px 0",borderBottom:i<allSubs.length-1?`1px solid ${C.border}22`:"none"}}>
               <div style={{display:"flex",alignItems:"center",gap:8}}><div style={{width:8,height:8,borderRadius:3,background:pieColors()[i%pieColors().length],flexShrink:0}}/><span style={{fontSize:12,color:C.textMuted}}>{s.name}</span></div>
@@ -2899,16 +2899,16 @@ function ExpensesPage({ subsP, setSubsP, subsPInScenario, setSubsPInScenario, ye
           </Card>
         </div>;
       })()}
-      <SubTable items={subsP} setItems={setSubsP} title="Personal Subscriptions" accentColor={C.accent}/>
+      <SubTable items={subsP} setItems={setSubsP} title={t("expenses.personalSubscriptions")} accentColor={C.accent}/>
     </div>}
 
     {tab==="recurring" && <div style={{display:"flex",flexDirection:"column",gap:16}}>
       <ImportBar section="recurring" color={C.blue}/>
       {yearly.filter(e=>recMonthly(e)>0).length > 0 && <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:16}}>
-        <Card title="Cost Breakdown (effective/mo)">
+        <Card title={t("expenses.costBreakdown")}>
           <ResponsiveContainer width="100%" height={Math.max(180, yearly.filter(e=>recMonthly(e)>0).length*28)}><BarChart data={yearly.filter(e=>recMonthly(e)>0).map(e=>({name:e.name,value:recMonthly(e)}))} layout="vertical" margin={{left:130}}><XAxis type="number" tick={{fill:C.textDim,fontSize:11}} tickFormatter={fmt}/><YAxis type="category" dataKey="name" tick={{fill:C.textMuted,fontSize:12}} width={130}/><Tooltip formatter={v=>`CHF ${fmtD(v)}/mo`} contentStyle={{background:C.card,border:`1px solid ${C.border}`,borderRadius:8,color:C.text,fontSize:13}} labelStyle={{color:C.textMuted}} itemStyle={{color:C.text}}/><Bar dataKey="value" radius={[0,6,6,0]}>{yearly.filter(e=>recMonthly(e)>0).map((_,i)=><Cell key={i} fill={pieColors()[i%pieColors().length]}/>)}</Bar></BarChart></ResponsiveContainer>
         </Card>
-        <Card title="Share of Total">
+        <Card title={t("expenses.shareOfTotal")}>
           <ResponsiveContainer width="100%" height={200}><PieChart><Pie data={yearly.filter(e=>recMonthly(e)>0).map(e=>({name:e.name,value:recMonthly(e)}))} cx="50%" cy="50%" outerRadius={80} innerRadius={45} dataKey="value" paddingAngle={2} stroke="none">{yearly.filter(e=>recMonthly(e)>0).map((_,i)=><Cell key={i} fill={pieColors()[i%pieColors().length]}/>)}</Pie><Tooltip formatter={v=>`CHF ${fmtD(v)}/mo`} contentStyle={{background:C.card,border:`1px solid ${C.border}`,borderRadius:8,color:C.text,fontSize:13}} labelStyle={{color:C.textMuted}} itemStyle={{color:C.text}}/></PieChart></ResponsiveContainer>
           {yearly.filter(e=>recMonthly(e)>0).map((e,i)=><div key={i} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"4px 0",borderBottom:i<yearly.filter(x=>recMonthly(x)>0).length-1?`1px solid ${C.border}22`:"none"}}>
             <div style={{display:"flex",alignItems:"center",gap:8}}><div style={{width:8,height:8,borderRadius:3,background:pieColors()[i%pieColors().length],flexShrink:0}}/><span style={{fontSize:12,color:C.textMuted}}>{e.name}</span></div>
@@ -2916,7 +2916,7 @@ function ExpensesPage({ subsP, setSubsP, subsPInScenario, setSubsPInScenario, ye
           </div>)}
         </Card>
       </div>}
-      <Card title="Recurring Expenses" headerRight={<span style={{fontSize:14,color:C.blue,fontWeight:600}}>CHF {mask(fmtD(yTotal))}/mo</span>}>
+      <Card title={t("expenses.recurringExpenses")} headerRight={<span style={{fontSize:14,color:C.blue,fontWeight:600}}>CHF {mask(fmtD(yTotal))}/mo</span>}>
       {(()=>{const recGetVal=(e,k)=>k==='name'?e.name:k==='amount'?e.amount:k==='frequency'?e.frequency:k==='effective'?recMonthly(e):k==='notes'?e.notes:'';const sorted=sortItems(yearly,recGetVal);return <div style={{overflowX:"auto"}}><table style={{width:"100%",borderCollapse:"collapse",minWidth:isMobile?480:undefined}}><thead><tr><SortTH field="name">Expense</SortTH><SortTH field="amount">Amount</SortTH><SortTH field="frequency">Frequency</SortTH><SortTH field="effective">Effective/mo</SortTH><SortTH field="notes">Notes</SortTH><TH w={30}></TH></tr></thead>
       <tbody>
         {sorted.map(e=><tr key={e.id} onMouseEnter={ev=>ev.currentTarget.style.background=C.cardHover} onMouseLeave={ev=>ev.currentTarget.style.background="transparent"}>
@@ -2924,11 +2924,11 @@ function ExpensesPage({ subsP, setSubsP, subsPInScenario, setSubsPInScenario, ye
           <td style={{padding:"8px 12px",fontSize:14,fontVariantNumeric:"tabular-nums",borderBottom:`1px solid ${C.border}11`}}>{hideBalances ? <span style={{color:C.text}}>••••</span> : <InlineNum value={e.amount} onChange={v=>setYearly(p=>p.map(x=>x.id===e.id?{...x,amount:v??0}:x))} width={70}/>}</td>
           <td style={{padding:"8px 12px",fontSize:14,borderBottom:`1px solid ${C.border}11`}}><select value={e.frequency||1} onChange={ev=>setYearly(p=>p.map(x=>x.id===e.id?{...x,frequency:Number(ev.target.value)}:x))} style={{padding:"3px 6px",borderRadius:6,border:`1px solid ${C.border}`,background:C.bg,color:C.text,fontSize:13,cursor:"pointer"}}>{FREQ_OPTIONS.map(o=><option key={o.value} value={o.value}>{o.label}</option>)}</select></td>
           <td style={{padding:"8px 12px",fontSize:14,fontVariantNumeric:"tabular-nums",borderBottom:`1px solid ${C.border}11`,color:C.textMuted}}>{mask(fmtD(recMonthly(e)))}</td>
-          <td style={{padding:"8px 12px",fontSize:13,color:C.textDim,borderBottom:`1px solid ${C.border}11`}}><InlineEdit value={e.notes||""} onChange={v=>setYearly(p=>p.map(x=>x.id===e.id?{...x,notes:v}:x))} placeholder="notes..." style={{color:C.textDim}} inputWidth={100}/></td>
+          <td style={{padding:"8px 12px",fontSize:13,color:C.textDim,borderBottom:`1px solid ${C.border}11`}}><InlineEdit value={e.notes||""} onChange={v=>setYearly(p=>p.map(x=>x.id===e.id?{...x,notes:v}:x))} placeholder={t("expenses.notesPlaceholder")} style={{color:C.textDim}} inputWidth={100}/></td>
           <td style={{padding:"8px 12px",borderBottom:`1px solid ${C.border}11`}}><DelBtn onClick={()=>setYearly(p=>p.filter(x=>x.id!==e.id))}/></td>
         </tr>)}
         <tr style={{background:C.bg}}><td style={{padding:"10px 12px",fontWeight:700}} colSpan={3}>Total</td><td style={{padding:"10px 12px",fontWeight:700,fontVariantNumeric:"tabular-nums"}}>{mask(fmtD(yTotal))}</td><td colSpan={2}/></tr>
-        <AddRow onClick={()=>setYearly(p=>[...p,{id:uid(),name:"New Expense",amount:0,frequency:1,notes:""}])} label="Add recurring expense" colSpan={6}/>
+        <AddRow onClick={()=>setYearly(p=>[...p,{id:uid(),name:"New Expense",amount:0,frequency:1,notes:""}])} label={t("expenses.addRecurring")} colSpan={6}/>
       </tbody></table></div>;})()}
     </Card>
     </div>}
@@ -2936,8 +2936,8 @@ function ExpensesPage({ subsP, setSubsP, subsPInScenario, setSubsPInScenario, ye
     {tab==="taxes" && <div style={{display:"flex",flexDirection:"column",gap:16}}>
       <ImportBar section="taxes" color={C.red}/>
       {/* Bar chart with totals per year */}
-      <Card title="Tax History" headerRight={<button onClick={exportTaxReport} style={{padding:"6px 12px",borderRadius:6,border:`1px solid ${C.border}`,background:"transparent",color:C.textMuted,fontSize:13,cursor:"pointer",display:"flex",alignItems:"center",gap:4}}><Download size={13}/>PDF Report</button>}>
-        <ResponsiveContainer width="100%" height={250}><BarChart data={taxes.map(t=>({year:t.year,total:t.lines.reduce((s,l)=>s+l.amount,0)}))}><CartesianGrid strokeDasharray="3 3" stroke={C.border}/><XAxis dataKey="year" tick={{fill:C.textDim,fontSize:12}}/><YAxis tick={{fill:C.textDim,fontSize:11}} tickFormatter={v=>`${Math.round(v/1000)}k`}/><Tooltip formatter={v=>`CHF ${fmt(v)}`} contentStyle={{background:C.card,border:`1px solid ${C.border}`,borderRadius:8,color:C.text,fontSize:13}} labelStyle={{color:C.textMuted}} itemStyle={{color:C.text}}/><Bar dataKey="total" fill={C.red} radius={[6,6,0,0]} name="Total Paid"/></BarChart></ResponsiveContainer>
+      <Card title={t("expenses.taxHistory")} headerRight={<button onClick={exportTaxReport} style={{padding:"6px 12px",borderRadius:6,border:`1px solid ${C.border}`,background:"transparent",color:C.textMuted,fontSize:13,cursor:"pointer",display:"flex",alignItems:"center",gap:4}}><Download size={13}/>{t("expenses.pdfReport")}</button>}>
+        <ResponsiveContainer width="100%" height={250}><BarChart data={taxes.map(t=>({year:t.year,total:t.lines.reduce((s,l)=>s+l.amount,0)}))}><CartesianGrid strokeDasharray="3 3" stroke={C.border}/><XAxis dataKey="year" tick={{fill:C.textDim,fontSize:12}}/><YAxis tick={{fill:C.textDim,fontSize:11}} tickFormatter={v=>`${Math.round(v/1000)}k`}/><Tooltip formatter={v=>`CHF ${fmt(v)}`} contentStyle={{background:C.card,border:`1px solid ${C.border}`,borderRadius:8,color:C.text,fontSize:13}} labelStyle={{color:C.textMuted}} itemStyle={{color:C.text}}/><Bar dataKey="total" fill={C.red} radius={[6,6,0,0]} name={t("expenses.totalPaid")}/></BarChart></ResponsiveContainer>
       </Card>
 
       {/* Per-year cards with line items */}
@@ -2947,9 +2947,9 @@ function ExpensesPage({ subsP, setSubsP, subsPInScenario, setSubsPInScenario, ye
           const editTaxLine = (lineId,field,val)=>setTaxes(p=>p.map(tx=>tx.id===t.id?{...tx,lines:tx.lines.map(l=>l.id===lineId?{...l,[field]:val}:l)}:tx));
           return <Card key={t.id} title={<div style={{display:"flex",alignItems:"center",gap:12}}>
             <InlineEdit value={String(t.year)} onChange={v=>{const n=parseInt(v);if(!isNaN(n))setTaxes(p=>p.map(tx=>tx.id===t.id?{...tx,year:n}:tx));}} style={{fontSize:18,fontWeight:700}} inputWidth={60}/>
-            <span style={{fontSize:14,color:C.red,fontWeight:600}}>Total: CHF {mask(fmtD(total))}</span>
+            <span style={{fontSize:14,color:C.red,fontWeight:600}}>{t("expenses.taxTotal")}: CHF {mask(fmtD(total))}</span>
           </div>} headerRight={<DelBtn onClick={()=>setTaxes(p=>p.filter(tx=>tx.id!==t.id))}/>}>
-            <div style={{overflowX:"auto"}}><table style={{width:"100%",borderCollapse:"collapse",minWidth:isMobile?340:undefined}}><thead><tr><TH>Type</TH><TH>Amount (CHF)</TH><TH>Paid at</TH></tr></thead>
+            <div style={{overflowX:"auto"}}><table style={{width:"100%",borderCollapse:"collapse",minWidth:isMobile?340:undefined}}><thead><tr><TH>{t("expenses.taxType")}</TH><TH>{t("expenses.taxAmount")}</TH><TH>{t("expenses.taxPaidAt")}</TH></tr></thead>
             <tbody>
               {t.lines.map(line=>(
                 <tr key={line.id} onMouseEnter={e=>e.currentTarget.style.background=C.cardHover} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
@@ -2973,10 +2973,10 @@ function ExpensesPage({ subsP, setSubsP, subsPInScenario, setSubsPInScenario, ye
     {tab==="insurance" && <div style={{display:"flex",flexDirection:"column",gap:16}}>
       <ImportBar section="insurance" color={C.green}/>
       <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:16}}>
-        <Card title="Cost Breakdown (effective/mo)">
+        <Card title={t("expenses.costBreakdown")}>
           <ResponsiveContainer width="100%" height={260}><BarChart data={insurance.map(p=>({name:p.name,monthly:insMonthlyCalc(p)}))} layout="vertical" margin={{left:130}}><XAxis type="number" tick={{fill:C.textDim,fontSize:11}} tickFormatter={fmt}/><YAxis type="category" dataKey="name" tick={{fill:C.textMuted,fontSize:12}} width={130}/><Tooltip formatter={v=>`CHF ${fmtD(v)}/mo`} contentStyle={{background:C.card,border:`1px solid ${C.border}`,borderRadius:8,color:C.text,fontSize:13}} labelStyle={{color:C.textMuted}} itemStyle={{color:C.text}}/><Bar dataKey="monthly" radius={[0,6,6,0]}>{insurance.map((_,i)=><Cell key={i} fill={pieColors()[i%pieColors().length]}/>)}</Bar></BarChart></ResponsiveContainer>
         </Card>
-        <Card title="Share of Total">
+        <Card title={t("expenses.shareOfTotal")}>
           <ResponsiveContainer width="100%" height={200}><PieChart><Pie data={insurance.map(p=>({name:p.name,value:insMonthlyCalc(p)}))} cx="50%" cy="50%" outerRadius={80} innerRadius={45} dataKey="value" paddingAngle={2} stroke="none">{insurance.map((_,i)=><Cell key={i} fill={pieColors()[i%pieColors().length]}/>)}</Pie><Tooltip formatter={v=>`CHF ${fmtD(v)}/mo`} contentStyle={{background:C.card,border:`1px solid ${C.border}`,borderRadius:8,color:C.text,fontSize:13}} labelStyle={{color:C.textMuted}} itemStyle={{color:C.text}}/></PieChart></ResponsiveContainer>
           {insurance.map((p,i)=>{const total=insurance.reduce((s,x)=>s+insMonthlyCalc(x),0); return <div key={i} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"4px 0",borderBottom:i<insurance.length-1?`1px solid ${C.border}22`:"none"}}>
             <div style={{display:"flex",alignItems:"center",gap:8}}><div style={{width:8,height:8,borderRadius:3,background:pieColors()[i%pieColors().length],flexShrink:0}}/><span style={{fontSize:12,color:C.textMuted}}>{p.name}</span></div>
@@ -2984,7 +2984,7 @@ function ExpensesPage({ subsP, setSubsP, subsPInScenario, setSubsPInScenario, ye
           </div>})}
         </Card>
       </div>
-      <Card title="All Policies">
+      <Card title={t("expenses.allPolicies")}>
         {(()=>{const insGetVal=(p,k)=>k==='name'?p.name:k==='insurer'?p.insurer:k==='amount'?p.amount:k==='frequency'?p.frequency:k==='effective'?insMonthlyCalc(p):k==='notes'?p.notes:'';const sorted=sortItems(insurance,insGetVal);return <div style={{overflowX:"auto"}}><table style={{width:"100%",borderCollapse:"collapse",minWidth:isMobile?560:undefined}}><thead><tr><SortTH field="name">Policy</SortTH><SortTH field="insurer">Insurer</SortTH><SortTH field="amount">Amount</SortTH><SortTH field="frequency">Frequency</SortTH><SortTH field="effective">Effective/mo</SortTH><SortTH field="notes">Notes</SortTH><TH w={30}></TH></tr></thead>
         <tbody>
           {sorted.map((p,i)=><tr key={p.id} onMouseEnter={e=>e.currentTarget.style.background=C.cardHover} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
@@ -2993,11 +2993,11 @@ function ExpensesPage({ subsP, setSubsP, subsPInScenario, setSubsPInScenario, ye
             <td style={{padding:"10px 12px",fontSize:14,fontWeight:600,fontVariantNumeric:"tabular-nums",borderBottom:`1px solid ${C.border}11`}}>{hideBalances ? <span style={{color:C.text}}>••••</span> : <InlineNum value={p.amount} onChange={v=>insEdit(p.id,"amount",v??0)} width={70}/>}</td>
             <td style={{padding:"10px 12px",fontSize:14,borderBottom:`1px solid ${C.border}11`}}><select value={p.frequency||12} onChange={e=>insEdit(p.id,"frequency",Number(e.target.value))} style={{padding:"3px 6px",borderRadius:6,border:`1px solid ${C.border}`,background:C.bg,color:C.text,fontSize:13,cursor:"pointer"}}>{FREQ_OPTIONS.map(o=><option key={o.value} value={o.value}>{o.label}</option>)}</select></td>
             <td style={{padding:"10px 12px",fontSize:14,fontVariantNumeric:"tabular-nums",color:C.textMuted,borderBottom:`1px solid ${C.border}11`}}>{mask(fmtD(insMonthlyCalc(p)))}</td>
-            <td style={{padding:"10px 12px",fontSize:13,color:C.textDim,borderBottom:`1px solid ${C.border}11`}}><InlineEdit value={p.notes||""} onChange={v=>insEdit(p.id,"notes",v)} placeholder="notes..." style={{color:C.textDim}} inputWidth={100}/></td>
+            <td style={{padding:"10px 12px",fontSize:13,color:C.textDim,borderBottom:`1px solid ${C.border}11`}}><InlineEdit value={p.notes||""} onChange={v=>insEdit(p.id,"notes",v)} placeholder={t("expenses.notesPlaceholder")} style={{color:C.textDim}} inputWidth={100}/></td>
             <td style={{padding:"10px 12px",borderBottom:`1px solid ${C.border}11`}}><DelBtn onClick={()=>insDel(p.id)}/></td>
           </tr>)}
           <tr style={{background:C.bg}}><td style={{padding:"10px 12px",fontWeight:700}} colSpan={4}>Total</td><td style={{padding:"10px 12px",fontWeight:700,fontVariantNumeric:"tabular-nums"}}>{mask(fmtD(insMonthly))}</td><td colSpan={2}/></tr>
-          <AddRow onClick={insAdd} label="Add insurance policy" colSpan={7}/>
+          <AddRow onClick={insAdd} label={t("expenses.addInsurance")} colSpan={7}/>
         </tbody></table></div>;})()}
       </Card>
     </div>}
@@ -3048,7 +3048,7 @@ function InsurancePage({ insurance, setInsurance }) {
 // ───────────────────────────────────────────────────────────────
 // STRATEGY PILLARS
 // ───────────────────────────────────────────────────────────────
-function PillarPage({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes, insurance, hideBalances, profile, strategyOverrides, setStrategyOverrides }) {
+function PillarPage({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes, insurance, hideBalances, profile, strategyOverrides, setStrategyOverrides, t }) {
   const mask = (v) => hideBalances ? "••••" : v;
   const winW = useWindowWidth(); const isMobile = winW < 768;
   const [yieldRate, setYieldRate] = useState(4);
@@ -3264,13 +3264,13 @@ function PillarPage({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes
   const weeksNeeded = hoursNeeded / hoursPerWeek;
 
   const officialPillars = [
-    { num:"1", name:"AHV / IV / EL", items:["AHV Old-Age Pension (Altersrente)","IV Disability Insurance (Invalidenversicherung)","EL Supplementary Benefits (Erganzungsleistungen)"], color:C.blue, desc:"Mandatory state pension. Employee + employer each pay 5.3% of gross salary. Max AHV pension CHF 2'520/mo (2025) + 13th pension." },
-    { num:"2", name:"BVG / UVG / KTG", items:["BVG Occupational Pension (Pensionskasse)","UVG Accident Insurance","KTG Sickness Indemnity"], color:C.teal, desc:"Occupational pension via employer. Mandatory above CHF 22'680/yr salary. Voluntary buy-in (Einkauf) possible for tax reduction." },
-    { num:"3a", name:"Pillar 3a", items:["3a Pension (ETF-based or bank account)","Max CHF 7'258/yr (2025)","100% tax deductible"], color:C.green, desc:"Voluntary private pension. Contributions are fully deductible from taxable income. Taxed at reduced rate on withdrawal (~5-8% depending on canton and amount)." },
+    { num:"1", name:t('pillars.p1.name'), items:[t('pillars.p1.item1'),t('pillars.p1.item2'),t('pillars.p1.item3')], color:C.blue, desc:t('pillars.p1.desc') },
+    { num:"2", name:t('pillars.p2.name'), items:[t('pillars.p2.item1'),t('pillars.p2.item2'),t('pillars.p2.item3')], color:C.teal, desc:t('pillars.p2.desc') },
+    { num:"3a", name:t('pillars.p3a.name'), items:[t('pillars.p3a.item1'),t('pillars.p3a.item2'),t('pillars.p3a.item3')], color:C.green, desc:t('pillars.p3a.desc') },
   ];
   const personalPillars = [
-    { num:"4", name:"Savings", items:["Investment Savings Account","Emergency Fund (target: 3-6 mo)","Escrow / Deposit Account"], color:C.yellow, desc:"Liquid savings for short-term goals and emergencies. Emergency fund target: 3-6x monthly essential costs." },
-    { num:"5", name:"Investments", items:["ETFs (e.g. global equity index funds)","Crypto (capital gains tax-free)","Real Estate"], color:C.orange, desc:"Long-term wealth building. Capital gains are tax-free in CH for private investors (Art. 16 Abs. 3 DBG). Dividends taxed as income." },
+    { num:"4", name:t('pillars.p4.name'), items:[t('pillars.p4.item1'),t('pillars.p4.item2'),t('pillars.p4.item3')], color:C.yellow, desc:t('pillars.p4.desc') },
+    { num:"5", name:t('pillars.p5.name'), items:[t('pillars.p5.item1'),t('pillars.p5.item2'),t('pillars.p5.item3')], color:C.orange, desc:t('pillars.p5.desc') },
   ];
 
   // Inline-editable number for manual overrides — shows calculated value when overridden
@@ -3294,24 +3294,24 @@ function PillarPage({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes
         {pre}{mask(fmt(Math.round(display)))}{suf}
       </span>
       {isOver && <> <span style={{fontSize:Math.max(11,size*0.45),color:C.textDim}}>(calc: {pre}{mask(fmt(Math.round(calc)))}{suf})</span>
-      <span onClick={e=>{e.stopPropagation();setOverride(null);}} style={{marginLeft:4,fontSize:11,color:C.yellow,cursor:"pointer",verticalAlign:"super"}} title="Reset to calculated">↺</span></>}
+      <span onClick={e=>{e.stopPropagation();setOverride(null);}} style={{marginLeft:4,fontSize:11,color:C.yellow,cursor:"pointer",verticalAlign:"super"}} title={t('scenarios.resetToCalc')}>↺</span></>}
     </span>;
   };
 
   return <div>
     <div style={{display:"flex",gap:8,marginBottom:16,flexWrap:"wrap"}}>
-      <Tab active={tab==="pillars"} onClick={()=>setTab("pillars")}>5-Pillar Strategy</Tab>
-      <Tab active={tab==="fire"} onClick={()=>setTab("fire")}>FIRE</Tab>
-      <Tab active={tab==="coasting"} onClick={()=>setTab("coasting")}>Coasting FIRE</Tab>
-      <Tab active={tab==="indentured"} onClick={()=>setTab("indentured")}>Indentured Time</Tab>
+      <Tab active={tab==="pillars"} onClick={()=>setTab("pillars")}>{t('strategy.tab.pillars')}</Tab>
+      <Tab active={tab==="fire"} onClick={()=>setTab("fire")}>{t('strategy.tab.fire')}</Tab>
+      <Tab active={tab==="coasting"} onClick={()=>setTab("coasting")}>{t('strategy.tab.coasting')}</Tab>
+      <Tab active={tab==="indentured"} onClick={()=>setTab("indentured")}>{t('strategy.tab.indentured')}</Tab>
     </div>
 
     {tab==="pillars" && <>
-    <h2 style={{fontSize:18,fontWeight:700,color:C.text,margin:"0 0 6px"}}>Personal 5-Pillar Finance Strategy</h2>
-    <p style={{fontSize:14,color:C.textMuted,marginBottom:20}}>The official Swiss 3-pillar system extended with two personal pillars for savings and investments</p>
+    <h2 style={{fontSize:18,fontWeight:700,color:C.text,margin:"0 0 6px"}}>{t('pillars.title')}</h2>
+    <p style={{fontSize:14,color:C.textMuted,marginBottom:20}}>{t('pillars.subtitle')}</p>
 
     {/* Official Swiss 3-pillar system */}
-    <div style={{fontSize:12,color:C.accent,fontWeight:700,textTransform:"uppercase",letterSpacing:0.5,marginBottom:8}}>Official Swiss 3-Pillar System (Drei-Saulen-System)</div>
+    <div style={{fontSize:12,color:C.accent,fontWeight:700,textTransform:"uppercase",letterSpacing:0.5,marginBottom:8}}>{t('pillars.officialSystem')}</div>
     <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"repeat(3,1fr)",gap:12,marginBottom:20}}>
       {officialPillars.map(p=><Card key={p.num} style={{borderTop:`3px solid ${p.color}`}}>
         <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12}}>
@@ -3324,7 +3324,7 @@ function PillarPage({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes
     </div>
 
     {/* Personal extension pillars */}
-    <div style={{fontSize:12,color:C.yellow,fontWeight:700,textTransform:"uppercase",letterSpacing:0.5,marginBottom:8}}>Personal Extension Pillars (Wealth Building)</div>
+    <div style={{fontSize:12,color:C.yellow,fontWeight:700,textTransform:"uppercase",letterSpacing:0.5,marginBottom:8}}>{t('pillars.personalExtension')}</div>
     <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"repeat(2,1fr)",gap:12,marginBottom:24}}>
       {personalPillars.map(p=><Card key={p.num} style={{borderTop:`3px solid ${p.color}`}}>
         <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12}}>
@@ -3340,12 +3340,10 @@ function PillarPage({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes
 
     {tab==="fire" && <>
     {/* ── Freedom Targets ── */}
-    <h2 style={{fontSize:18,fontWeight:700,color:C.text,margin:"0 0 4px"}}>Financial Freedom Targets</h2>
-    <p style={{fontSize:14,color:C.textMuted,marginBottom:12}}>Based on your essential monthly costs of <strong style={{color:C.text}}>CHF {mask(fmt(Math.round(cEssentialTotal)))}/mo</strong>{oEssential!=null&&<span style={{fontSize:12,color:C.textDim}}> (scenario: CHF {mask(fmt(Math.round(essentialTotal)))})</span>} from the active scenario</p>
+    <h2 style={{fontSize:18,fontWeight:700,color:C.text,margin:"0 0 4px"}}>{t('fire.title')}</h2>
+    <p style={{fontSize:14,color:C.textMuted,marginBottom:12}}>{t('fire.subtitle', {amount: mask(fmt(Math.round(cEssentialTotal))), scenarioNote: ''})}{oEssential!=null&&<span style={{fontSize:12,color:C.textDim}}> {t('fire.scenarioCalc', {amount: mask(fmt(Math.round(essentialTotal)))})}</span>}</p>
     <div style={{padding:"12px 16px",borderRadius:8,background:C.accent+"0a",border:`1px solid ${C.accent}15`,fontSize:13,color:C.textDim,lineHeight:1.8,marginBottom:16}}>
-      <strong style={{color:C.text}}>How this works:</strong> Financial freedom means your invested capital generates enough passive income to cover all essential living costs — indefinitely, without touching the principal.
-      The calculation: <strong style={{color:C.accent}}>Essential costs × 12 months ÷ net yield %</strong> = capital needed.
-      This is based on the <strong style={{color:C.text}}>4% rule</strong> (Trinity Study), adjusted for Swiss wealth tax. Two paths: <strong style={{color:C.accent}}>Money System</strong> (invest capital, live off returns) or <strong style={{color:C.teal}}>Business System</strong> (build revenue that replaces salary).
+      <strong style={{color:C.text}}>{t('fire.howItWorks')}</strong> {t('fire.howItWorksDesc')}
     </div>
     <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr 1fr",gap:16,marginBottom:24}}>
 
@@ -3353,75 +3351,75 @@ function PillarPage({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes
       <Card style={{gridColumn:isMobile?"1":"1/3"}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:12,flexWrap:"wrap",gap:12}}>
           <div>
-            <div style={{fontSize:12,fontFamily:"'DM Mono',monospace",color:C.textMuted,marginBottom:4,textTransform:"uppercase",letterSpacing:"0.08em"}}>Money System Target</div>
+            <div style={{fontSize:12,fontFamily:"'DM Mono',monospace",color:C.textMuted,marginBottom:4,textTransform:"uppercase",letterSpacing:"0.08em"}}>{t('fire.moneySystemTarget')}</div>
             <div style={{fontSize:30,fontWeight:400,fontFamily:"'Fraunces',serif",color:C.accent}}>CHF {mask(fmt(Math.round(moneySystemTarget)))}</div>
-            <div style={{fontSize:13,color:C.textDim,marginTop:2}}>Capital needed so {effectiveYield.toFixed(1)}% net yield/yr covers all essential costs</div>
+            <div style={{fontSize:13,color:C.textDim,marginTop:2}}>{t('fire.moneySystemSub', {yield: effectiveYield.toFixed(1)})}</div>
           </div>
           <div style={{display:"flex",flexDirection:"column",gap:10,textAlign:"right"}}>
             <div>
-              <div style={{fontSize:12,color:C.textDim,marginBottom:2}}>Essential costs/mo</div>
+              <div style={{fontSize:12,color:C.textDim,marginBottom:2}}>{t('fire.essentialCostsMo')}</div>
               <div style={{display:"flex",alignItems:"center",gap:8,justifyContent:"flex-end"}}>
                 <input type="number" value={oEssential??""} placeholder={fmt(Math.round(essentialTotal))} onChange={e=>{const v=parseFloat(e.target.value);setOEssential(v>0?v:null);setOTotalRetirement(null);setOSpendDown(null);}} style={{width:100,padding:"4px 8px",background:C.bg,border:`1px solid ${C.border}`,borderRadius:6,color:C.text,fontSize:12,outline:"none",textAlign:"right",boxSizing:"border-box"}}/>
                 {oEssential!=null&&<span onClick={()=>{setOEssential(null);setOTotalRetirement(null);setOSpendDown(null);}} style={{fontSize:11,color:C.yellow,cursor:"pointer"}} title="Reset">↺</span>}
               </div>
-              {oEssential!=null&&<div style={{fontSize:10,color:C.textDim,marginTop:2}}>Scenario: CHF {mask(fmt(Math.round(essentialTotal)))}</div>}
+              {oEssential!=null&&<div style={{fontSize:10,color:C.textDim,marginTop:2}}>{t('fire.scenarioCalc', {amount: mask(fmt(Math.round(essentialTotal)))})}</div>}
             </div>
             <div>
-              <div style={{fontSize:12,color:C.textDim,marginBottom:2}}>Yield assumption</div>
+              <div style={{fontSize:12,color:C.textDim,marginBottom:2}}>{t('fire.yieldAssumption')}</div>
               <div style={{display:"flex",alignItems:"center",gap:8,justifyContent:"flex-end"}}>
                 <input type="range" min={2} max={8} step={0.5} value={yieldRate} onChange={e=>setYieldRate(Number(e.target.value))} style={{width:80,accentColor:C.accent}}/>
                 <span style={{fontSize:14,fontWeight:600,color:C.accent}}>{yieldRate}%</span>
               </div>
-              <div style={{fontSize:10,color:C.textDim,marginTop:2}}>-{wealthTaxDrag}% wealth tax (Vermogenssteuer) ZH = {effectiveYield.toFixed(1)}% net</div>
+              <div style={{fontSize:10,color:C.textDim,marginTop:2}}>{t('fire.wealthTaxNote', {drag: wealthTaxDrag, net: effectiveYield.toFixed(1)})}</div>
             </div>
           </div>
         </div>
         {/* Explanation box */}
         <div style={{padding:"10px 12px",borderRadius:8,background:C.bg,border:`1px solid ${C.border}33`,fontSize:12,color:C.textDim,lineHeight:1.8,marginBottom:12}}>
-          <strong style={{color:C.textMuted}}>The math:</strong> CHF {mask(fmt(Math.round(cEssentialTotal)))} × 12 months = CHF {mask(fmt(Math.round(cEssentialTotal*12)))}/yr ÷ {effectiveYield.toFixed(1)}% net yield = <strong style={{color:C.accent}}>CHF {mask(fmt(Math.round(moneySystemTarget)))}</strong><br/>
-          <strong style={{color:C.textMuted}}>Yield {yieldRate}%:</strong> Historical average return of a global stock/bond portfolio (e.g. 60/40 or 80/20 ETF). Adjust the slider to be more conservative or aggressive.<br/>
-          <strong style={{color:C.textMuted}}>Wealth tax drag:</strong> Kanton Zurich charges ~{wealthTaxDrag}% per year on net assets (Vermogenssteuer), reducing your effective yield from {yieldRate}% to {effectiveYield.toFixed(1)}%.
+          <strong style={{color:C.textMuted}}>{t('fire.theMath')}</strong> {t('fire.theMathDesc', {essential: mask(fmt(Math.round(cEssentialTotal))), annual: mask(fmt(Math.round(cEssentialTotal*12))), yield: effectiveYield.toFixed(1), target: mask(fmt(Math.round(moneySystemTarget)))})}<br/>
+          <strong style={{color:C.textMuted}}>{t('fire.yieldAssumption')} {yieldRate}%:</strong> {t('fire.yieldExpl')}<br/>
+          <strong style={{color:C.textMuted}}>{t('fire.wealthTaxDrag')}</strong> {t('fire.wealthTaxDragDesc', {drag: wealthTaxDrag, gross: yieldRate, net: effectiveYield.toFixed(1)})}
         </div>
         <div style={{marginBottom:8}}>
           <div style={{display:"flex",justifyContent:"space-between",fontSize:12,color:C.textDim,marginBottom:4}}>
-            <span>Liquid assets: CHF {mask(fmt(liquidTotal))}</span>
+            <span>{t('fire.liquidAssets', {amount: mask(fmt(liquidTotal))})}</span>
             <span>{moneySystemProgress.toFixed(1)}%</span>
           </div>
           <div style={{height:8,borderRadius:4,background:C.border,overflow:"hidden",display:"flex"}}>
             <div style={{width:`${moneySystemProgress}%`,background:C.green,borderRadius:4,transition:"width .3s"}}/>
           </div>
           <div style={{display:"flex",justifyContent:"space-between",fontSize:10,color:C.textDim,marginTop:4}}>
-            <span>incl. pensions: {totalProgress.toFixed(1)}% (CHF {mask(fmt(totalWealth))} total)</span>
-            {yearsToTarget && <span style={{color:C.yellow}}>~{yearsToTarget} yrs at current savings rate</span>}
+            <span>{t('fire.inclPensions', {pct: totalProgress.toFixed(1), total: mask(fmt(totalWealth))})}</span>
+            {yearsToTarget && <span style={{color:C.yellow}}>{t('fire.yearsAtSavings', {years: yearsToTarget})}</span>}
           </div>
         </div>
         {/* Why liquid vs total */}
         <div style={{padding:"8px 12px",borderRadius:8,background:C.yellow+"0a",border:`1px solid ${C.yellow}15`,fontSize:12,color:C.textDim,lineHeight:1.7,marginBottom:8}}>
-          <strong style={{color:C.yellow}}>Why two progress bars?</strong> The main bar shows <strong>liquid assets</strong> only — money you can actually use today. Pensions (Pillar 2 + 3a = CHF {mask(fmt(pensionTotal))}) are locked until age 58-65 and cannot fund early financial freedom.
+          <strong style={{color:C.yellow}}>{t('fire.whyTwoBars')}</strong> {t('fire.whyTwoBarsDesc', {pension: mask(fmt(pensionTotal))})}
         </div>
         <div style={{padding:"10px 12px",borderRadius:8,background:C.accent+"0d",border:`1px solid ${C.accent}22`,fontSize:12,color:C.textDim,lineHeight:1.7}}>
-          <strong style={{color:C.accentLight}}>Swiss advantage:</strong> Capital gains are <strong style={{color:C.green}}>tax-free</strong> for private investors (Art. 16 Abs. 3 DBG). This means your portfolio growth is not taxed — only dividends and interest count as income. Favor accumulating ETFs over distributing ones to minimize tax drag.
+          <strong style={{color:C.accentLight}}>{t('fire.swissAdvantage')}</strong> {t('fire.swissAdvantageDesc')}
         </div>
       </Card>
 
       {/* Business System */}
       <Card>
-        <div style={{fontSize:12,fontFamily:"'DM Mono',monospace",color:C.textMuted,marginBottom:4,textTransform:"uppercase",letterSpacing:"0.08em"}}>Business System Target</div>
+        <div style={{fontSize:12,fontFamily:"'DM Mono',monospace",color:C.textMuted,marginBottom:4,textTransform:"uppercase",letterSpacing:"0.08em"}}>{t('fire.businessTarget')}</div>
         <div style={{fontSize:26,fontWeight:400,fontFamily:"'Fraunces',serif",color:C.teal,marginBottom:2}}>CHF {mask(fmt(Math.round(businessTargetGross)))}/mo</div>
-        <div style={{fontSize:12,color:C.textDim,marginBottom:12}}>Gross revenue needed (self-employed, pre-tax)</div>
+        <div style={{fontSize:12,color:C.textDim,marginBottom:12}}>{t('fire.businessGross')}</div>
         <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:12}}>
           <div style={{padding:"8px 12px",borderRadius:6,background:C.teal+"0d",border:`1px solid ${C.teal}22`}}>
-            <div style={{fontSize:12,color:C.textDim}}>Essential costs × 5</div>
-            <div style={{fontSize:14,fontWeight:600,color:C.teal}}>CHF {mask(fmt(Math.round(businessTarget)))}/mo net</div>
+            <div style={{fontSize:12,color:C.textDim}}>{t('fire.businessCalc')}</div>
+            <div style={{fontSize:14,fontWeight:600,color:C.teal}}>CHF {mask(fmt(Math.round(businessTarget)))}{t('fire.businessNet')}</div>
           </div>
           <div style={{padding:"8px 12px",borderRadius:6,background:C.orange+"0d",border:`1px solid ${C.orange}22`}}>
-            <div style={{fontSize:12,color:C.textDim}}>/ 0.65 for CH self-employed taxes</div>
-            <div style={{fontSize:12,color:C.textDim,marginTop:2}}>(~10% AHV + ~25% income tax)</div>
-            <div style={{fontSize:14,fontWeight:600,color:C.orange}}>CHF {mask(fmt(Math.round(businessTargetGross)))}/mo gross</div>
+            <div style={{fontSize:12,color:C.textDim}}>{t('fire.businessTax')}</div>
+            <div style={{fontSize:12,color:C.textDim,marginTop:2}}>{t('fire.businessTaxDetail')}</div>
+            <div style={{fontSize:14,fontWeight:600,color:C.orange}}>CHF {mask(fmt(Math.round(businessTargetGross)))}{t('fire.businessGrossMo')}</div>
           </div>
         </div>
         <div style={{padding:"8px 12px",borderRadius:8,background:C.bg,border:`1px solid ${C.border}33`,fontSize:12,color:C.textDim,lineHeight:1.7}}>
-          <strong style={{color:C.textMuted}}>Why × 5?</strong> A business generating 5× your essential costs gives you a comfortable buffer for taxes, reinvestment, savings, and lifestyle. The /0.65 adjusts for Swiss self-employed deductions: ~10% AHV/IV/EO on net profit + ~25% income tax (Zurich marginal rate).
+          <strong style={{color:C.textMuted}}>{t('fire.whyFive')}</strong> {t('fire.whyFiveDesc')}
         </div>
       </Card>
     </div>
@@ -3430,11 +3428,11 @@ function PillarPage({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes
 
     {tab==="coasting" && <>
     {/* ── Coasting FIRE Strategy ── */}
-    <h2 style={{fontSize:18,fontWeight:700,color:C.text,margin:"0 0 4px"}}>Coasting FIRE Strategy</h2>
-    <p style={{fontSize:14,color:C.textMuted,marginBottom:12}}>Two-phase model: accumulate aggressively until FI Number, then coast — stop saving entirely and let compound growth carry you to retirement</p>
+    <h2 style={{fontSize:18,fontWeight:700,color:C.text,margin:"0 0 4px"}}>{t('coasting.title')}</h2>
+    <p style={{fontSize:14,color:C.textMuted,marginBottom:12}}>{t('coasting.subtitle')}</p>
     <div style={{padding:"12px 16px",borderRadius:8,background:C.accent+"0a",border:`1px solid ${C.accent}15`,fontSize:13,color:C.textDim,lineHeight:1.8,marginBottom:16}}>
-      <strong style={{color:C.text}}>How Coasting FIRE works:</strong> Instead of retiring the moment you hit your FI Number, you stop all liquid savings and spend more of your salary on lifestyle. Your invested portfolio compounds untouched at market returns ({coastReturnRate}%) until your chosen retirement age ({coastRetirementAge}). While working (even coasting), you continue contributing to Pillar 3A (max) and 2A (BVG) — these grow alongside your liquid portfolio. At retirement, pension lump sums are added for spend-down. The result: a <strong style={{color:C.green}}>much larger portfolio</strong> at retirement with zero additional liquid savings effort.<br/>
-      <span style={{color:C.textDim}}>Note: AHV (1st pillar) is not included in these calculations. If it still exists at your retirement, it provides an additional CHF ~2'520/mo (2025 max) on top of everything shown here — treat it as a bonus.</span>
+      <strong style={{color:C.text}}>{t('coasting.howItWorks')}</strong> {t('coasting.howItWorksDesc', {returnRate: coastReturnRate, retireAge: coastRetirementAge})}<br/>
+      <span style={{color:C.textDim}}>{t('coasting.ahvNote')}</span>
     </div>
 
     <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:16,marginBottom:16}}>
@@ -3444,63 +3442,63 @@ function PillarPage({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes
           <div>
             <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
               <div style={{padding:"4px 12px",borderRadius:20,fontSize:12,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.08em",background:isCoastingNow?C.green+"22":C.orange+"22",color:isCoastingNow?C.green:C.orange}}>
-                {isCoastingNow ? "Coasting" : "Accumulating"}
+                {isCoastingNow ? t('coasting.statusCoasting') : t('coasting.statusAccumulating')}
               </div>
-              {currentAge != null && <div style={{fontSize:12,color:C.textDim}}>Age {currentAge}</div>}
+              {currentAge != null && <div style={{fontSize:12,color:C.textDim}}>{t('coasting.age', {age: currentAge})}</div>}
             </div>
             {isCoastingNow ? <>
-              <div style={{fontSize:13,color:C.textDim,marginBottom:4}}>Portfolio is <strong style={{color:C.green}}>above</strong> Coast FI Number — you can stop saving now</div>
+              <div style={{fontSize:13,color:C.textDim,marginBottom:4}}>{t('coasting.aboveCoastFi')}</div>
               <div style={{fontSize:26,fontWeight:400,fontFamily:"'Fraunces',serif",color:C.green}}>CHF {mask(fmt(Math.round(liquidTotal)))}</div>
-              <div style={{fontSize:12,color:C.textDim,marginTop:2}}>{((liquidTotal/coastFiNow-1)*100).toFixed(0)}% above Coast FI of CHF {mask(fmt(Math.round(coastFiNow)))}</div>
-              {currentAge != null && <div style={{fontSize:12,color:C.yellow,marginTop:4}}>{yearsToRetirement} years to retirement at age {coastRetirementAge} → portfolio compounds to CHF {mask(fmt(Math.round(liquidTotal * Math.pow(1+rGrow, yearsToRetirement))))}</div>}
+              <div style={{fontSize:12,color:C.textDim,marginTop:2}}>{t('coasting.abovePct', {pct: ((liquidTotal/coastFiNow-1)*100).toFixed(0), amount: mask(fmt(Math.round(coastFiNow)))})}</div>
+              {currentAge != null && <div style={{fontSize:12,color:C.yellow,marginTop:4}}>{t('coasting.yearsToRetire', {years: yearsToRetirement, age: coastRetirementAge, amount: mask(fmt(Math.round(liquidTotal * Math.pow(1+rGrow, yearsToRetirement))))})}</div>}
             </> : <>
-              <div style={{fontSize:12,fontFamily:"'DM Mono',monospace",color:C.textMuted,marginBottom:4,textTransform:"uppercase",letterSpacing:"0.08em"}}>Coast FI Number</div>
+              <div style={{fontSize:12,fontFamily:"'DM Mono',monospace",color:C.textMuted,marginBottom:4,textTransform:"uppercase",letterSpacing:"0.08em"}}>{t('coasting.coastFiNumber')}</div>
               <div style={{fontSize:26,fontWeight:400,fontFamily:"'Fraunces',serif",color:C.accent}}>CHF {mask(fmt(Math.round(coastFiNow)))}</div>
-              <div style={{fontSize:12,color:C.textDim,marginTop:2}}>If you had this much today, you could stop saving — it compounds to CHF {mask(fmt(Math.round(portfolioNeededAtRetirement)))} by age {coastRetirementAge}</div>
+              <div style={{fontSize:12,color:C.textDim,marginTop:2}}>{t('coasting.coastFiExpl', {amount: mask(fmt(Math.round(portfolioNeededAtRetirement))), age: coastRetirementAge})}</div>
               <div style={{marginTop:10,marginBottom:4}}>
                 <div style={{display:"flex",justifyContent:"space-between",fontSize:12,color:C.textDim,marginBottom:4}}>
-                  <span>Liquid: CHF {mask(fmt(Math.round(liquidTotal)))}</span>
+                  <span>{t('coasting.liquidLabel', {amount: mask(fmt(Math.round(liquidTotal)))})}</span>
                   <span>{coastFiProgress.toFixed(1)}%</span>
                 </div>
                 <div style={{height:8,borderRadius:4,background:C.border,overflow:"hidden",minHeight:8}}>
                   <div style={{width:`${coastFiProgress}%`,height:"100%",background:C.accent,borderRadius:4,transition:"width .3s"}}/>
                 </div>
                 {pensionTotal > 0 && <div style={{fontSize:11,color:C.textDim,marginTop:6}}>
-                  Total wealth: CHF {mask(fmt(Math.round(liquidTotal + pensionTotal)))} <span style={{color:C.blue}}>(incl. CHF {mask(fmt(Math.round(pensionTotal)))} in pensions — already factored into Coast FI)</span>
+                  {t('coasting.totalWealth', {total: mask(fmt(Math.round(liquidTotal + pensionTotal))), pension: mask(fmt(Math.round(pensionTotal)))})}
                 </div>}
               </div>
               {yearsToCoast != null && coastFiAge != null ? <div style={{padding:"8px 12px",borderRadius:6,background:C.yellow+"0d",border:`1px solid ${C.yellow}22`,fontSize:12,color:C.textDim,lineHeight:1.6,marginTop:8}}>
-                <strong style={{color:C.yellow}}>At your current liquid savings rate of <EditNum calc={liquidMonthlySavInv} override={oMonthlySav} setOverride={setOMonthlySav} color={C.yellow} size={12} suf="/mo"/>:</strong> you'll reach your Coast FI at <strong style={{color:C.text}}>age {coastFiAge}</strong> (~{yearsToCoast} years). After that, stop saving — {coastingYears} years of {coastReturnRate}% compounding grows it to CHF {mask(fmt(Math.round(portfolioNeededAtRetirement)))} by retirement.{cLiquidMonthlySavInv < monthlySavInv && <><br/><span style={{fontSize:11,color:C.textDim}}>Pension contributions (CHF {mask(fmt(Math.round(monthlySavInv - liquidMonthlySavInv)))}/mo) are excluded — projected separately above.</span></>}
+                <strong style={{color:C.yellow}}>{t('coasting.savingsRate')} <EditNum calc={liquidMonthlySavInv} override={oMonthlySav} setOverride={setOMonthlySav} color={C.yellow} size={12} suf="/mo"/>:</strong> {t('coasting.reachCoastFi', {age: coastFiAge, years: yearsToCoast, coastYears: coastingYears, rate: coastReturnRate, amount: mask(fmt(Math.round(portfolioNeededAtRetirement)))})}{cLiquidMonthlySavInv < monthlySavInv && <><br/><span style={{fontSize:11,color:C.textDim}}>{t('coasting.pensionExcluded', {amount: mask(fmt(Math.round(monthlySavInv - liquidMonthlySavInv)))})}</span></>}
               </div> : cLiquidMonthlySavInv <= 0 ? <div style={{padding:"8px 12px",borderRadius:6,background:C.orange+"0d",border:`1px solid ${C.orange}22`,fontSize:12,color:C.textDim,lineHeight:1.6,marginTop:8}}>
-                <strong style={{color:C.orange}}>{monthlySavInv > 0 ? "Only pension contributions found" : "No savings configured"}.</strong> {monthlySavInv > 0 ? "Add liquid savings/investments (non-pension) to your scenario." : "Add savings/investments to your active scenario to see when you can start coasting."}
+                <strong style={{color:C.orange}}>{monthlySavInv > 0 ? t('coasting.onlyPension') : t('coasting.noSavings')}</strong> {monthlySavInv > 0 ? t('coasting.addLiquid') : t('coasting.addSavings')}
               </div> : <div style={{padding:"8px 12px",borderRadius:6,background:C.orange+"0d",border:`1px solid ${C.orange}22`,fontSize:12,color:C.textDim,lineHeight:1.6,marginTop:8}}>
-                <strong style={{color:C.orange}}>At your current savings rate</strong>, you won't reach Coast FI before retirement. Consider increasing savings or adjusting parameters.
+                <strong style={{color:C.orange}}>{t('coasting.wontReach')}</strong>
               </div>}
             </>}
             {projectedPensionNet > 0 && <div style={{padding:"8px 12px",borderRadius:6,background:C.blue+"0a",border:`1px solid ${C.blue}15`,fontSize:12,color:C.textDim,lineHeight:1.8,marginTop:8}}>
-              <strong style={{color:C.blue}}>Pension accounts included (conservative)</strong><br/>
-              {projected2A > 0 && <>Pillar 2A (BVG): CHF {mask(fmt(Math.round(pensionTotal > 0 ? pension2A.reduce((s,a)=>s+a.balance,0) : 0)))} today → CHF {mask(fmt(Math.round(projected2A)))} at {coastRetirementAge} ({(pension2A[0]?.rate || 1.75)}% p.a.{annual2AContrib > 0 ? ` + CHF ${fmt(Math.round(annual2AContrib))}/yr contributions` : ""})<br/></>}
-              {projected3A > 0 && <>Pillar 3A: CHF {mask(fmt(Math.round(pension3A.reduce((s,a)=>s+a.balance,0))))} today → CHF {mask(fmt(Math.round(projected3A)))} at {coastRetirementAge} ({pension3A[0]?.rate || 4}% p.a.{annual3AContrib > 0 ? ` + CHF ${fmt(Math.round(annual3AContrib))}/yr contributions` : ""})<br/></>}
-              After ~{(pensionWithdrawalTax*100).toFixed(0)}% Kapitalbezugssteuer (ZH): <strong style={{color:C.text}}>CHF {mask(fmt(Math.round(projectedPensionNet)))}</strong> net at retirement
+              <strong style={{color:C.blue}}>{t('coasting.pensionIncluded')}</strong><br/>
+              {projected2A > 0 && <>{t('coasting.pillar2a', {today: mask(fmt(Math.round(pensionTotal > 0 ? pension2A.reduce((s,a)=>s+a.balance,0) : 0))), projected: mask(fmt(Math.round(projected2A))), age: coastRetirementAge, rate: (pension2A[0]?.rate || 1.75), contrib: annual2AContrib > 0 ? t('coasting.contribSuffix', {amount: fmt(Math.round(annual2AContrib))}) : ""})}<br/></>}
+              {projected3A > 0 && <>{t('coasting.pillar3a', {today: mask(fmt(Math.round(pension3A.reduce((s,a)=>s+a.balance,0)))), projected: mask(fmt(Math.round(projected3A))), age: coastRetirementAge, rate: (pension3A[0]?.rate || 4), contrib: annual3AContrib > 0 ? t('coasting.contribSuffix', {amount: fmt(Math.round(annual3AContrib))}) : ""})}<br/></>}
+              {t('coasting.afterTax', {pct: (pensionWithdrawalTax*100).toFixed(0), net: mask(fmt(Math.round(projectedPensionNet)))})}
             </div>}
             {projectedPensionNet === 0 && <div style={{padding:"8px 12px",borderRadius:6,background:C.orange+"0a",border:`1px solid ${C.orange}15`,fontSize:12,color:C.textDim,lineHeight:1.6,marginTop:8}}>
-              <strong style={{color:C.orange}}>No pension accounts found.</strong> Add your BVG (Pension 2A) and 3A (Pension 3A) accounts to reduce your Coast FI Number — they provide a significant lump sum at retirement.
+              <strong style={{color:C.orange}}>{t('coasting.noPensions')}</strong> {t('coasting.addPensions')}
             </div>}
             <div style={{padding:"8px 12px",borderRadius:6,background:C.green+"0a",border:`1px solid ${C.green}15`,fontSize:12,color:C.textDim,lineHeight:1.6,marginTop:8}}>
-              <strong style={{color:C.green}}>{savingsVsPerpetual}% less than perpetual FIRE</strong> (CHF {mask(fmt(Math.round(moneySystemTarget)))}). Your portfolio only needs to last until age {coastSpendDownAge}{projectedPensionNet > 0 ? ", and your pensions cover a large chunk at retirement" : ""}.
+              <strong style={{color:C.green}}>{t('coasting.lessThanPerpetual', {pct: savingsVsPerpetual, target: mask(fmt(Math.round(moneySystemTarget))), age: coastSpendDownAge, pensionNote: projectedPensionNet > 0 ? t('coasting.pensionsCover') : ""})}</strong>
             </div>
           </div>
           <div style={{display:"flex",flexDirection:"column",gap:12}}>
             <div>
               <div style={{display:"flex",justifyContent:"space-between",fontSize:12,color:C.textDim,marginBottom:4}}>
-                <span>Essential costs/mo</span>
+                <span>{t('coasting.essentialCostsMo')}</span>
                 <span style={{color:C.accent,fontWeight:600}}>CHF {fmt(Math.round(cEssentialTotal))}{oEssential!=null&&<span onClick={()=>{setOEssential(null);setOTotalRetirement(null);setOSpendDown(null);}} style={{marginLeft:4,color:C.yellow,cursor:"pointer"}} title="Reset">↺</span>}</span>
               </div>
               <input type="number" value={oEssential??""} placeholder={fmt(Math.round(essentialTotal))} onChange={e=>{const v=parseFloat(e.target.value);setOEssential(v>0?v:null);setOTotalRetirement(null);setOSpendDown(null);}} style={{width:isMobile?"100%":160,padding:"4px 8px",background:C.bg,border:`1px solid ${C.border}`,borderRadius:6,color:C.text,fontSize:12,outline:"none",boxSizing:"border-box"}}/>
             </div>
             <div>
               <div style={{display:"flex",justifyContent:"space-between",fontSize:12,color:C.textDim,marginBottom:4}}>
-                <span>Retirement age</span>
+                <span>{t('coasting.retirementAge')}</span>
                 <span style={{color:C.accent,fontWeight:600}}>{coastRetirementAge}</span>
               </div>
               <input type="range" min={55} max={70} step={1} value={coastRetirementAge} onChange={e=>setCoastRetirementAge(Number(e.target.value))} style={{width:isMobile?"100%":160,accentColor:C.accent}}/>
@@ -3510,19 +3508,19 @@ function PillarPage({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes
             </div>
             <div>
               <div style={{display:"flex",justifyContent:"space-between",fontSize:12,color:C.textDim,marginBottom:4}}>
-                <span>Expected return</span>
+                <span>{t('coasting.expectedReturn')}</span>
                 <span style={{color:C.accent,fontWeight:600}}>{coastReturnRate}%</span>
               </div>
               <input type="range" min={4} max={10} step={0.5} value={coastReturnRate} onChange={e=>setCoastReturnRate(Number(e.target.value))} style={{width:isMobile?"100%":160,accentColor:C.accent}}/>
               <div style={{display:"flex",justifyContent:"space-between",fontSize:10,color:C.textDim,marginTop:2}}>
-                <span>4% conservative</span><span>10%</span>
+                <span>4% {t('coasting.conservative')}</span><span>10%</span>
               </div>
             </div>
           </div>
         </div>
         {/* Projection Chart — full lifecycle */}
         {coastChartData.length > 1 && <div style={{marginTop:8}}>
-          <div style={{fontSize:12,color:C.textMuted,marginBottom:8}}>Full lifecycle: coasting phase → spend-down to age {coastSpendDownAge}</div>
+          <div style={{fontSize:12,color:C.textMuted,marginBottom:8}}>{t('coasting.lifecycle', {age: coastSpendDownAge})}</div>
           <ResponsiveContainer width="100%" height={220}>
             <AreaChart data={coastChartData} margin={{top:5,right:20,bottom:5,left:20}}>
               <defs>
@@ -3534,8 +3532,8 @@ function PillarPage({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes
               <XAxis dataKey="age" tick={{fontSize:11,fill:C.textDim}} tickLine={false} axisLine={false} label={{value:"Age",position:"insideBottom",offset:-2,fontSize:11,fill:C.textDim}}/>
               <YAxis tick={{fontSize:11,fill:C.textDim}} tickLine={false} axisLine={false} tickFormatter={v=>v>=1e6?`${(v/1e6).toFixed(1)}M`:`${Math.round(v/1000)}k`}/>
               <Tooltip contentStyle={{background:C.card,border:`1px solid ${C.border}`,borderRadius:8,fontSize:12}} formatter={(v,n,p)=>[`CHF ${fmt(v)}`,p.payload.phase]} labelFormatter={l=>`Age ${l}`}/>
-              <ReferenceLine x={coastRetirementAge} stroke={C.yellow} strokeDasharray="5 5" label={{value:`Retire ${coastRetirementAge}`,position:"top",fontSize:10,fill:C.yellow}}/>
-              <ReferenceLine y={coastFiNow} stroke={C.accent} strokeDasharray="5 5" label={{value:"Coasting FI#",position:"insideTopRight",fontSize:10,fill:C.accent}}/>
+              <ReferenceLine x={coastRetirementAge} stroke={C.yellow} strokeDasharray="5 5" label={{value:t('coasting.retire', {age: coastRetirementAge}),position:"top",fontSize:10,fill:C.yellow}}/>
+              <ReferenceLine y={coastFiNow} stroke={C.accent} strokeDasharray="5 5" label={{value:t('coasting.coastingFiHash'),position:"insideTopRight",fontSize:10,fill:C.accent}}/>
               <Area type="monotone" dataKey="value" stroke={C.green} fill="url(#coastGrad)" strokeWidth={2}/>
             </AreaChart>
           </ResponsiveContainer>
@@ -3546,14 +3544,14 @@ function PillarPage({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes
     <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:16,marginBottom:24}}>
       {/* Card 2 — Retirement Income Calculator */}
       <Card>
-        <div style={{fontSize:12,fontFamily:"'DM Mono',monospace",color:C.textMuted,marginBottom:8,textTransform:"uppercase",letterSpacing:"0.08em"}}>Retirement Income Calculator</div>
+        <div style={{fontSize:12,fontFamily:"'DM Mono',monospace",color:C.textMuted,marginBottom:8,textTransform:"uppercase",letterSpacing:"0.08em"}}>{t('coasting.retirementIncome')}</div>
         <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:12}}>
           <div style={{padding:"8px 12px",borderRadius:6,background:C.green+"0d",border:`1px solid ${C.green}22`}}>
-            <div style={{fontSize:12,color:C.textDim}}>Total at retirement (age {coastRetirementAge})</div>
+            <div style={{fontSize:12,color:C.textDim}}>{t('coasting.totalAtRetirement', {age: coastRetirementAge})}</div>
             <div style={{fontSize:20,fontWeight:600,color:C.green}}><EditNum calc={totalAtRetirement} override={oTotalRetirement} setOverride={v=>{setOTotalRetirement(v);setOSpendDown(null);}} color={C.green} size={20}/></div>
             <div style={{fontSize:11,color:C.textDim}}>
-              Liquid: CHF {mask(fmt(Math.round(liquidAtRetirement)))}
-              {projectedPensionNet > 0 && <> + Pensions: CHF {mask(fmt(Math.round(projectedPensionNet)))} (net after tax)</>}
+              {t('coasting.liquidAmount', {amount: mask(fmt(Math.round(liquidAtRetirement)))})}
+              {projectedPensionNet > 0 && <> {t('coasting.pensionAmount', {amount: mask(fmt(Math.round(projectedPensionNet)))})}</>}
             </div>
           </div>
         </div>
@@ -3561,7 +3559,7 @@ function PillarPage({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes
         <div style={{display:"flex",gap:16,flexWrap:"wrap",marginBottom:12}}>
           <div style={{flex:1,minWidth:140}}>
             <div style={{display:"flex",justifyContent:"space-between",fontSize:12,color:C.textDim,marginBottom:4}}>
-              <span>Spend down to age</span>
+              <span>{t('coasting.spendDownAge')}</span>
               <span style={{color:C.accent,fontWeight:600}}>{coastSpendDownAge}</span>
             </div>
             <input type="range" min={80} max={110} step={1} value={coastSpendDownAge} onChange={e=>setCoastSpendDownAge(Number(e.target.value))} style={{width:"100%",accentColor:C.accent}}/>
@@ -3571,52 +3569,52 @@ function PillarPage({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes
           </div>
           <div style={{flex:1,minWidth:140}}>
             <div style={{display:"flex",justifyContent:"space-between",fontSize:12,color:C.textDim,marginBottom:4}}>
-              <span>Return in retirement</span>
+              <span>{t('coasting.returnInRetirement')}</span>
               <span style={{color:C.accent,fontWeight:600}}>{coastRetirementReturn}%</span>
             </div>
             <input type="range" min={0} max={6} step={0.5} value={coastRetirementReturn} onChange={e=>setCoastRetirementReturn(Number(e.target.value))} style={{width:"100%",accentColor:C.accent}}/>
             <div style={{display:"flex",justifyContent:"space-between",fontSize:10,color:C.textDim,marginTop:2}}>
-              <span>0% (mattress)</span><span>6%</span>
+              <span>0% ({t('coasting.mattress')})</span><span>6%</span>
             </div>
           </div>
         </div>
         {/* Spend-down result */}
         <div style={{padding:"10px 12px",borderRadius:6,background:C.accent+"0d",border:`1px solid ${C.accent}22`,marginBottom:8}}>
-          <div style={{fontSize:12,color:C.textDim}}>Spend-down withdrawal (portfolio → 0 at age {coastSpendDownAge})</div>
+          <div style={{fontSize:12,color:C.textDim}}>{t('coasting.spendDownWithdrawal', {age: coastSpendDownAge})}</div>
           <div style={{fontSize:20,fontWeight:600,color:C.accent}}><EditNum calc={spendDownCalc} override={oSpendDown} setOverride={setOSpendDown} color={C.accent} size={20} suf="/yr"/></div>
-          <div style={{fontSize:13,color:C.textDim}}>= <strong style={{color:C.accent}}>CHF {mask(fmt(Math.round(spendDownWithdrawal/12)))}/mo</strong> for {retirementYears} years</div>
+          <div style={{fontSize:13,color:C.textDim}}>{t('coasting.spendDownMonthly', {amount: mask(fmt(Math.round(spendDownWithdrawal/12))), years: retirementYears})}</div>
         </div>
         {/* Comparison: perpetual vs spend-down */}
         <div style={{padding:"8px 12px",borderRadius:8,background:C.bg,border:`1px solid ${C.border}33`,fontSize:12,color:C.textDim,lineHeight:1.8}}>
-          <strong style={{color:C.textMuted}}>Perpetual (4% rule) vs Spend-down:</strong><br/>
-          4% rule (never touch principal): CHF {mask(fmt(Math.round(safeWithdrawalAtRetirement)))}/yr = {mask(fmt(Math.round(safeWithdrawalAtRetirement/12)))}/mo<br/>
-          Spend to 0 by age {coastSpendDownAge}: <strong style={{color:C.accent}}>CHF {mask(fmt(Math.round(spendDownWithdrawal)))}/yr</strong> = {mask(fmt(Math.round(spendDownWithdrawal/12)))}/mo<br/>
-          <span style={{color:C.green}}>+{safeWithdrawalAtRetirement>0?((spendDownWithdrawal/safeWithdrawalAtRetirement-1)*100).toFixed(0):0}% more income</span> when you plan to use it all
+          <strong style={{color:C.textMuted}}>{t('coasting.perpetualVsSpendDown')}</strong><br/>
+          {t('coasting.fourPctRule', {annual: mask(fmt(Math.round(safeWithdrawalAtRetirement))), monthly: mask(fmt(Math.round(safeWithdrawalAtRetirement/12)))})}<br/>
+          {t('coasting.spendToZero', {age: coastSpendDownAge, annual: mask(fmt(Math.round(spendDownWithdrawal))), monthly: mask(fmt(Math.round(spendDownWithdrawal/12)))})}<br/>
+          <span style={{color:C.green}}>{t('coasting.moreIncome', {pct: safeWithdrawalAtRetirement>0?((spendDownWithdrawal/safeWithdrawalAtRetirement-1)*100).toFixed(0):0})}</span>
         </div>
         <div style={{padding:"8px 12px",borderRadius:8,background:C.yellow+"0a",border:`1px solid ${C.yellow}15`,fontSize:12,color:C.textDim,lineHeight:1.7,marginTop:8}}>
-          <strong style={{color:C.yellow}}>Why spend down?</strong> The 4% rule preserves capital forever — great for legacy, but you die with most of your money. A spend-down plan uses your full portfolio over your expected lifespan, giving you significantly more income. Adjust the age slider to match your comfort level (higher = more conservative).
+          <strong style={{color:C.yellow}}>{t('coasting.whySpendDown')}</strong> {t('coasting.whySpendDownDesc')}
         </div>
       </Card>
 
       {/* Card 3 — Phase Comparison Table */}
       <Card>
-        <div style={{fontSize:12,fontFamily:"'DM Mono',monospace",color:C.textMuted,marginBottom:8,textTransform:"uppercase",letterSpacing:"0.08em"}}>Phase Comparison</div>
+        <div style={{fontSize:12,fontFamily:"'DM Mono',monospace",color:C.textMuted,marginBottom:8,textTransform:"uppercase",letterSpacing:"0.08em"}}>{t('coasting.phaseComparison')}</div>
         <table style={{width:"100%",fontSize:12,borderCollapse:"collapse"}}>
           <thead>
             <tr>
               <th style={{padding:"8px 10px",textAlign:"left",color:C.textDim,borderBottom:`1px solid ${C.border}33`}}/>
-              <th style={{padding:"8px 10px",textAlign:"left",color:C.orange,fontWeight:600,borderBottom:`1px solid ${C.border}33`}}>Accumulation</th>
-              <th style={{padding:"8px 10px",textAlign:"left",color:C.green,fontWeight:600,borderBottom:`1px solid ${C.border}33`}}>Coasting</th>
+              <th style={{padding:"8px 10px",textAlign:"left",color:C.orange,fontWeight:600,borderBottom:`1px solid ${C.border}33`}}>{t('coasting.accumulation')}</th>
+              <th style={{padding:"8px 10px",textAlign:"left",color:C.green,fontWeight:600,borderBottom:`1px solid ${C.border}33`}}>{t('coasting.coasting')}</th>
             </tr>
           </thead>
           <tbody>
             {[
-              ["Duration",yearsToCoast!=null?`~${yearsToCoast} years`:"—",`${coastingYears} years`],
-              ["Savings Rate","Maximum possible","0% — spend it all"],
-              ["Portfolio","Active contributions","Untouched, compounding"],
-              ["Lifestyle","Frugal, disciplined","Full salary, relaxed"],
-              ["Career Pressure","High — income critical","Low — any job works"],
-              ["Stress Level","Higher","Much lower"],
+              [t('coasting.duration'),yearsToCoast!=null?`~${yearsToCoast} years`:"—",`${coastingYears} years`],
+              [t('coasting.savingsRateRow'),t('coasting.maxPossible'),t('coasting.zeroSpendAll')],
+              [t('coasting.portfolio'),t('coasting.activeContrib'),t('coasting.untouched')],
+              [t('coasting.lifestyle'),t('coasting.frugal'),t('coasting.fullSalary')],
+              [t('coasting.careerPressure'),t('coasting.incomeCritical'),t('coasting.anyJob')],
+              [t('coasting.stressLevel'),t('coasting.higher'),t('coasting.muchLower')],
             ].map(([label,acc,coast],i)=><tr key={i} style={{background:i%2===0?"transparent":C.bg}}>
               <td style={{padding:"6px 10px",color:C.textMuted,fontWeight:600}}>{label}</td>
               <td style={{padding:"6px 10px",color:C.textDim}}>{acc}</td>
@@ -3625,7 +3623,7 @@ function PillarPage({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes
           </tbody>
         </table>
         <div style={{padding:"8px 12px",borderRadius:8,background:C.yellow+"0a",border:`1px solid ${C.yellow}15`,fontSize:12,color:C.textDim,lineHeight:1.7,marginTop:12}}>
-          <strong style={{color:C.yellow}}>Key insight:</strong> Coasting FIRE trades a few extra working years for dramatically reduced financial stress. You still work, but the pressure to save vanishes — your portfolio does all the heavy lifting.
+          <strong style={{color:C.yellow}}>{t('coasting.keyInsight')}</strong> {t('coasting.keyInsightDesc')}
         </div>
       </Card>
     </div>
@@ -3634,38 +3632,38 @@ function PillarPage({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes
 
     {tab==="indentured" && <>
     {/* ── Indentured Time Calculator ── */}
-    <h2 style={{fontSize:18,fontWeight:700,color:C.text,margin:"0 0 4px"}}>Indentured Time Calculator</h2>
-    <p style={{fontSize:14,color:C.textMuted,marginBottom:12}}>How many hours of your life does a purchase actually cost?</p>
+    <h2 style={{fontSize:18,fontWeight:700,color:C.text,margin:"0 0 4px"}}>{t('indentured.title')}</h2>
+    <p style={{fontSize:14,color:C.textMuted,marginBottom:12}}>{t('indentured.subtitle')}</p>
     <div style={{padding:"10px 14px",borderRadius:8,background:C.accent+"0a",border:`1px solid ${C.accent}15`,fontSize:12,color:C.textDim,lineHeight:1.7,marginBottom:16}}>
-      <strong style={{color:C.text}}>The concept:</strong> Every purchase is paid for with your time. Your <strong style={{color:C.yellow}}>net hourly rate</strong> = annual net salary ÷ actual working hours (after vacation and public holidays). Enter any amount below to see how many hours, days, or weeks of work it really costs you.
+      <strong style={{color:C.text}}>{t('indentured.concept')}</strong> {t('indentured.conceptDesc')}
     </div>
     <div style={{display:"grid",gridTemplateColumns:isMobile?"1fr":"1fr 1fr",gap:16}}>
       <Card>
         <div style={{display:"flex",flexDirection:"column",gap:16}}>
           <div>
-            <div style={{fontSize:13,color:C.textMuted,marginBottom:6}}>Your net hourly rate</div>
+            <div style={{fontSize:13,color:C.textMuted,marginBottom:6}}>{t('indentured.hourlyRate')}</div>
             <div style={{fontSize:30,fontWeight:400,fontFamily:"'Fraunces',serif",color:C.yellow}}>CHF {mask(fmtD(hourlyRate))}/h</div>
-            <div style={{fontSize:12,color:C.textDim,marginTop:2}}>{sc?`CHF ${mask(fmt(Math.round(inc*12)))}/yr net ÷ ${Math.round(annualHours)}h/yr (${hoursPerWeek}h × ${workingWeeks} weeks)`:"No active scenario"}</div>
+            <div style={{fontSize:12,color:C.textDim,marginTop:2}}>{sc ? t('indentured.hourlyCalc', {annual: mask(fmt(Math.round(inc*12))), hours: Math.round(annualHours), hpw: hoursPerWeek, weeks: workingWeeks}) : t('indentured.noScenario')}</div>
           </div>
           <div>
             <div style={{display:"flex",justifyContent:"space-between",fontSize:13,color:C.textMuted,marginBottom:6}}>
-              <span>Work hours / week</span>
+              <span>{t('indentured.workHoursWeek')}</span>
               <span style={{color:C.accent,fontWeight:600}}>{hoursPerWeek}h</span>
             </div>
             <input type="range" min={20} max={50} step={1} value={hoursPerWeek} onChange={e=>setHoursPerWeek(Number(e.target.value))} style={{width:"100%",accentColor:C.accent}}/>
             <div style={{display:"flex",justifyContent:"space-between",fontSize:10,color:C.textDim,marginTop:2}}>
-              <span>Part-time</span>
-              <span>40h standard (ArG Art. 9)</span>
-              <span>50h max</span>
+              <span>{t('indentured.partTime')}</span>
+              <span>{t('indentured.standard40')}</span>
+              <span>{t('indentured.max50')}</span>
             </div>
           </div>
           <div>
-            <div style={{fontSize:13,color:C.textMuted,marginBottom:6}}>Purchase amount (CHF)</div>
+            <div style={{fontSize:13,color:C.textMuted,marginBottom:6}}>{t('indentured.purchaseAmount')}</div>
             <input
               type="text"
               value={purchase}
               onChange={e=>setPurchase(e.target.value)}
-              placeholder="e.g. 50000"
+              placeholder={t('indentured.purchasePlaceholder')}
               style={{width:"100%",padding:"10px 12px",background:C.bg,border:`1px solid ${C.border}`,borderRadius:8,color:C.text,fontSize:17,outline:"none",boxSizing:"border-box"}}
             />
           </div>
@@ -3673,12 +3671,12 @@ function PillarPage({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes
       </Card>
       <Card>
         {purchaseAmt > 0 && hourlyRate > 0 ? <>
-          <div style={{fontSize:13,color:C.textMuted,marginBottom:16}}>A purchase of <strong style={{color:C.text}}>CHF {fmt(purchaseAmt)}</strong> costs you:</div>
+          <div style={{fontSize:13,color:C.textMuted,marginBottom:16}}>{t('indentured.purchaseOf', {amount: fmt(purchaseAmt)})}</div>
           {[
-            {label:"Working hours", value:`${Math.round(hoursNeeded).toLocaleString("de-CH")}h`, sub:"net hours at your current salary", color:C.red},
-            {label:"Working days", value:`${daysNeeded.toFixed(1)} days`, sub:`at ${hoursPerWeek/5}h/day`, color:C.orange},
-            {label:"Working weeks", value:`${weeksNeeded.toFixed(1)} weeks`, sub:`at ${hoursPerWeek}h/week`, color:C.yellow},
-            {label:"Working months", value:`${(weeksNeeded/4.33).toFixed(1)} months`, sub:"approx. calendar months", color:C.green},
+            {label:t('indentured.workingHours'), value:`${Math.round(hoursNeeded).toLocaleString("de-CH")}h`, sub:t('indentured.netHours'), color:C.red},
+            {label:t('indentured.workingDays'), value:`${daysNeeded.toFixed(1)} days`, sub:t('indentured.atHoursDay', {hours: hoursPerWeek/5}), color:C.orange},
+            {label:t('indentured.workingWeeks'), value:`${weeksNeeded.toFixed(1)} weeks`, sub:t('indentured.atHoursWeek', {hours: hoursPerWeek}), color:C.yellow},
+            {label:t('indentured.workingMonths'), value:`${(weeksNeeded/4.33).toFixed(1)} months`, sub:t('indentured.approxCalendar'), color:C.green},
           ].map((r,i)=><div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 0",borderBottom:i<3?`1px solid ${C.border}22`:"none"}}>
             <div>
               <div style={{fontSize:14,color:C.textMuted}}>{r.label}</div>
@@ -3687,10 +3685,10 @@ function PillarPage({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes
             <div style={{fontSize:20,fontWeight:700,color:r.color}}>{r.value}</div>
           </div>)}
           <div style={{marginTop:12,padding:"10px 12px",borderRadius:8,background:C.bg,fontSize:12,color:C.textDim,lineHeight:1.7}}>
-            Based on {Math.round(annualHours).toLocaleString("de-CH")}h/yr = {hoursPerWeek}h/week × {workingWeeks} working weeks (52 − 5 vacation − ~2 public holidays). Net income used — no gross-to-net conversion needed as your scenario already tracks net salary.
+            {t('indentured.basedOn', {hours: Math.round(annualHours).toLocaleString("de-CH"), hpw: hoursPerWeek, weeks: workingWeeks})}
           </div>
         </> : <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100%",color:C.textDim,fontSize:13}}>
-          Enter a purchase amount to see how many hours of work it costs.
+          {t('indentured.enterAmount')}
         </div>}
       </Card>
     </div>
@@ -3701,7 +3699,7 @@ function PillarPage({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes
 // ───────────────────────────────────────────────────────────────
 // AI CHAT PANEL
 // ───────────────────────────────────────────────────────────────
-function ChatPanel({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes, insurance, profile, open, setOpen, externalInput, setExternalInput, promptTemplate, onPinned }) {
+function ChatPanel({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes, insurance, profile, open, setOpen, externalInput, setExternalInput, promptTemplate, onPinned, t }) {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
@@ -4010,7 +4008,7 @@ function ChatPanel({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes,
 
   return <>
     {/* Floating button */}
-    <button onMouseDown={startDrag} onClick={()=>{ if(!isDragging.current) setOpen(o=>!o); }} title="AI Finance Advisor" style={{position:"fixed",bottom:btnPos.bottom,right:btnPos.right,width:52,height:52,borderRadius:26,background:C.accent,border:"none",cursor:"grab",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 4px 20px rgba(37,99,235,0.5)",zIndex:1000,userSelect:"none"}}>
+    <button onMouseDown={startDrag} onClick={()=>{ if(!isDragging.current) setOpen(o=>!o); }} title={t('chat.title')} style={{position:"fixed",bottom:btnPos.bottom,right:btnPos.right,width:52,height:52,borderRadius:26,background:C.accent,border:"none",cursor:"grab",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 4px 20px rgba(37,99,235,0.5)",zIndex:1000,userSelect:"none"}}>
       <Sparkles size={22} color="#fff"/>
     </button>
 
@@ -4021,10 +4019,10 @@ function ChatPanel({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes,
           when the pre-send scan turned up sensitive data in the attached file. */}
       {pendingAttachmentConfirm && <div style={{position:'absolute',inset:0,background:'rgba(0,0,0,0.75)',zIndex:11,display:'flex',alignItems:'center',justifyContent:'center',padding:20,borderRadius:16}}>
         <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:14,padding:22,maxWidth:420,width:'100%',boxShadow:'0 8px 40px rgba(0,0,0,0.5)',maxHeight:'90%',overflowY:'auto'}}>
-          <div style={{fontSize:16,marginBottom:6,display:'flex',alignItems:'center',gap:8,fontWeight:600,color:C.text}}><Info size={18} color={C.accent}/>Heads up — personal data detected</div>
+          <div style={{fontSize:16,marginBottom:6,display:'flex',alignItems:'center',gap:8,fontWeight:600,color:C.text}}><Info size={18} color={C.accent}/>{t('chat.piiTitle')}</div>
           <div style={{fontSize:12,color:C.textDim,marginBottom:14,display:'flex',alignItems:'center',gap:4}}><Paperclip size={11}/> {pendingAttachmentConfirm.sentAttachment.name}</div>
           <div style={{fontSize:13,color:C.textMuted,lineHeight:1.6,marginBottom:12}}>
-            This file appears to contain personal information that will be sent to <strong style={{color:C.accent}}>{aiProvider?.label || 'the cloud provider'}</strong>. Unlike text, file contents cannot be automatically masked.
+            {t('chat.piiDesc', {provider: aiProvider?.label || 'the cloud provider'})}
           </div>
           <div style={{fontSize:12,color:C.text,lineHeight:1.8,marginBottom:14,padding:'10px 14px',background:C.bg,borderRadius:9,border:`1px solid ${C.border}`,fontFamily:"'DM Mono',monospace"}}>
             {(() => {
@@ -4047,8 +4045,8 @@ function ChatPanel({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes,
             This is usually fine for personal use. If you'd prefer not to share this data, you can cancel and redact the file, or switch to <strong>Ollama</strong> (fully local) in AI Settings.
           </div>
           <div style={{display:'flex',gap:10}}>
-            <button onClick={handleAttachmentConfirmCancel} style={{flex:1,padding:'10px 0',borderRadius:8,border:`1px solid ${C.border}`,background:'transparent',color:C.textMuted,fontSize:14,cursor:'pointer'}}>Cancel</button>
-            <button onClick={handleAttachmentConfirmAccept} style={{flex:1,padding:'10px 0',borderRadius:8,border:'none',background:C.accent,color:'#fff',fontWeight:700,fontSize:14,cursor:'pointer'}}>Continue</button>
+            <button onClick={handleAttachmentConfirmCancel} style={{flex:1,padding:'10px 0',borderRadius:8,border:`1px solid ${C.border}`,background:'transparent',color:C.textMuted,fontSize:14,cursor:'pointer'}}>{t('common.cancel')}</button>
+            <button onClick={handleAttachmentConfirmAccept} style={{flex:1,padding:'10px 0',borderRadius:8,border:'none',background:C.accent,color:'#fff',fontWeight:700,fontSize:14,cursor:'pointer'}}>{t('chat.piiContinue')}</button>
           </div>
         </div>
       </div>}
@@ -4056,22 +4054,22 @@ function ChatPanel({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes,
       {/* Consent modal */}
       {pendingConsent && <div style={{position:'absolute',inset:0,background:'rgba(0,0,0,0.75)',zIndex:10,display:'flex',alignItems:'center',justifyContent:'center',padding:20,borderRadius:16}}>
         <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:14,padding:24,maxWidth:380,width:'100%',boxShadow:'0 8px 40px rgba(0,0,0,0.5)'}}>
-          <div style={{fontSize:20,marginBottom:12,display:'flex',alignItems:'center',gap:8}}><Cloud size={20}/> Cloud AI Privacy Notice</div>
+          <div style={{fontSize:20,marginBottom:12,display:'flex',alignItems:'center',gap:8}}><Cloud size={20}/> {t('chat.privacyTitle')}</div>
           <div style={{fontSize:13,color:C.text,lineHeight:1.7,marginBottom:12}}>
-            You are using <strong style={{color:C.accent}}>{aiProvider?.label || 'a cloud AI provider'}</strong>. Your financial context — balances, income, expenses, and scenarios — is sent with each message.
+            {t('chat.privacyDesc', {provider: aiProvider?.label || 'a cloud AI provider'})}
           </div>
           <div style={{fontSize:12,color:C.green,lineHeight:1.6,marginBottom:10,padding:'10px 14px',background:C.green+'15',borderRadius:9,border:`1px solid ${C.green}33`}}>
-            <strong>PII masked automatically.</strong> Names, AHV, IBAN, email, phone, and addresses are replaced with placeholders (PERSON_1, AHV_1…) before leaving this server. The provider never sees your identity. Real values are restored in the response shown to you.
+            {t('chat.privacyMasked')}
           </div>
           <div style={{fontSize:12,color:C.orange,lineHeight:1.6,marginBottom:10,padding:'10px 14px',background:C.orange+'15',borderRadius:9,border:`1px solid ${C.orange}33`}}>
-            <AlertTriangle size={12} style={{marginRight:4,flexShrink:0}}/> <strong>File attachments are not fully masked.</strong> PDFs and images go to the provider as-is — anything written inside them (names, numbers, signatures) will be visible. Text files (CSV/JSON/TXT) get the regex pass but random names inside may slip through. Strip sensitive data before uploading if that matters to you.
+            <AlertTriangle size={12} style={{marginRight:4,flexShrink:0}}/> {t('chat.privacyFiles')}
           </div>
           <div style={{fontSize:11,color:C.textDim,lineHeight:1.6,marginBottom:18}}>
-            Canton, marital status, age, and children are <em>not</em> masked — they shape tax advice and aren't identifying alone. To keep 100% of data local, switch to <strong>Ollama</strong> in AI Settings.
+            {t('chat.privacyUnmasked')}
           </div>
           <div style={{display:'flex',gap:10}}>
-            <button onClick={handleConsentAccept} style={{flex:1,padding:'10px 0',borderRadius:8,border:'none',background:C.accent,color:'#fff',fontWeight:700,fontSize:14,cursor:'pointer'}}>I understand — continue</button>
-            <button onClick={handleConsentDecline} style={{padding:'10px 16px',borderRadius:8,border:`1px solid ${C.border}`,background:'transparent',color:C.textMuted,fontSize:14,cursor:'pointer'}}>Cancel</button>
+            <button onClick={handleConsentAccept} style={{flex:1,padding:'10px 0',borderRadius:8,border:'none',background:C.accent,color:'#fff',fontWeight:700,fontSize:14,cursor:'pointer'}}>{t('chat.privacyAccept')}</button>
+            <button onClick={handleConsentDecline} style={{padding:'10px 16px',borderRadius:8,border:`1px solid ${C.border}`,background:'transparent',color:C.textMuted,fontSize:14,cursor:'pointer'}}>{t('common.cancel')}</button>
           </div>
         </div>
       </div>}
@@ -4080,19 +4078,19 @@ function ChatPanel({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes,
       <div style={{padding:"14px 18px",borderBottom:`1px solid ${C.border}`,display:"flex",alignItems:"center",justifyContent:"space-between",background:C.bg}}>
         <div style={{display:"flex",alignItems:"center",gap:10}}>
           <Sparkles size={16} color={C.accentLight}/>
-          <span style={{fontSize:14,fontWeight:600,color:C.text}}>AI Finance Advisor</span>
+          <span style={{fontSize:14,fontWeight:600,color:C.text}}>{t('chat.title')}</span>
           {providerIsLocal
-            ? <span style={{fontSize:10,padding:'1px 7px',borderRadius:9,background:C.green+'22',color:C.green,fontWeight:700,display:'inline-flex',alignItems:'center'}}><Lock size={10} style={{marginRight:2}}/> Local</span>
+            ? <span style={{fontSize:10,padding:'1px 7px',borderRadius:9,background:C.green+'22',color:C.green,fontWeight:700,display:'inline-flex',alignItems:'center'}}><Lock size={10} style={{marginRight:2}}/> {t('chat.local')}</span>
             : aiProvider?.provider && <>
                 <span style={{fontSize:10,padding:'1px 7px',borderRadius:9,background:C.orange+'22',color:C.orange,fontWeight:700,display:'inline-flex',alignItems:'center'}}><Cloud size={10} style={{marginRight:2}}/> {aiProvider.label}</span>
-                <span title="Names, AHV, IBAN, email, phone and addresses are replaced with placeholders before leaving this server. The cloud provider never sees your real identity." style={{fontSize:10,padding:'1px 7px',borderRadius:9,background:C.green+'22',color:C.green,fontWeight:700,cursor:'help',display:'inline-flex',alignItems:'center',whiteSpace:'nowrap'}}><ShieldCheck size={10} style={{marginRight:3}}/>PII masked</span>
+                <span title={t('chat.piiTooltip')} style={{fontSize:10,padding:'1px 7px',borderRadius:9,background:C.green+'22',color:C.green,fontWeight:700,cursor:'help',display:'inline-flex',alignItems:'center',whiteSpace:'nowrap'}}><ShieldCheck size={10} style={{marginRight:3}}/>{t('chat.piiMasked')}</span>
               </>
           }
         </div>
         <div style={{display:"flex",gap:6,alignItems:'center'}}>
-          {messages.length>0 && <button onClick={()=>setMessages([])} title="Clear chat" style={{padding:"4px 8px",borderRadius:6,border:`1px solid ${C.border}`,background:"transparent",color:C.textDim,fontSize:12,cursor:"pointer"}}>Clear</button>}
-          {messages.some(m=>m.role==="assistant"&&m.content) && <button onClick={pinLastResponse} title="Pin last AI response to notes" style={{padding:"4px 8px",borderRadius:6,border:`1px solid ${C.border}`,background:"transparent",color:saved?C.green:pinPending?C.yellow:C.textDim,fontSize:12,cursor:"pointer"}}>{saved?"✓ Pinned":pinPending?<><RefreshCw size={11} style={{animation:'spin 1s linear infinite',marginRight:2}}/> Pinning…</>:<><Pin size={11} style={{marginRight:2}}/> Pin</>}</button>}
-          <button onClick={()=>setMaximized(m=>!m)} title={maximized?"Restore":"Maximize"} style={{background:"transparent",border:"none",cursor:"pointer",color:C.textDim,padding:4,display:'flex'}}>{maximized?<Minimize2 size={15}/>:<Maximize2 size={15}/>}</button>
+          {messages.length>0 && <button onClick={()=>setMessages([])} title={t('chat.clear')} style={{padding:"4px 8px",borderRadius:6,border:`1px solid ${C.border}`,background:"transparent",color:C.textDim,fontSize:12,cursor:"pointer"}}>{t('chat.clear')}</button>}
+          {messages.some(m=>m.role==="assistant"&&m.content) && <button onClick={pinLastResponse} title={t('chat.pin')} style={{padding:"4px 8px",borderRadius:6,border:`1px solid ${C.border}`,background:"transparent",color:saved?C.green:pinPending?C.yellow:C.textDim,fontSize:12,cursor:"pointer"}}>{saved?t('chat.pinned'):pinPending?<><RefreshCw size={11} style={{animation:'spin 1s linear infinite',marginRight:2}}/> {t('chat.pinning')}</>:<><Pin size={11} style={{marginRight:2}}/> {t('chat.pin')}</>}</button>}
+          <button onClick={()=>setMaximized(m=>!m)} title={maximized?t('chat.restore'):t('chat.maximize')} style={{background:"transparent",border:"none",cursor:"pointer",color:C.textDim,padding:4,display:'flex'}}>{maximized?<Minimize2 size={15}/>:<Maximize2 size={15}/>}</button>
           <button onClick={()=>setOpen(false)} style={{background:"transparent",border:"none",cursor:"pointer",color:C.textDim,padding:4,display:'flex'}}><X size={16}/></button>
         </div>
       </div>
@@ -4100,8 +4098,8 @@ function ChatPanel({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes,
       {/* Messages */}
       <div style={{flex:1,overflowY:"auto",padding:16,display:"flex",flexDirection:"column",gap:12}}>
         {messages.length===0 && <div style={{color:C.textDim,fontSize:14,textAlign:"center",marginTop:40,lineHeight:1.7}}>
-          Ask anything about your finances.<br/>
-          <span style={{fontSize:13,opacity:0.7}}>e.g. "How long is my survival runway?" or "Am I maxing my 3a?"</span>
+          {t('chat.empty')}<br/>
+          <span style={{fontSize:13,opacity:0.7}}>{t('chat.emptyHint')}</span>
         </div>}
         {messages.map((m,i) => <div key={i} style={{display:"flex",justifyContent:m.role==="user"?"flex-end":"flex-start"}}>
           <div style={{maxWidth:"85%"}}>
@@ -4131,7 +4129,7 @@ function ChatPanel({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes,
           if (scanning) {
             return <div style={{margin:"6px 14px 0",padding:"6px 10px",fontSize:11,lineHeight:1.5,color:C.textDim,background:C.bg,border:`1px solid ${C.border}`,borderRadius:7,display:"flex",gap:6,alignItems:"center"}}>
               <div style={{display:'flex',gap:2,alignItems:'center'}}>{[0,1,2].map(i=><div key={i} style={{width:4,height:4,borderRadius:'50%',background:C.textDim,animation:`aipulse 1.2s ease-in-out ${i*0.2}s infinite`}}/>)}</div>
-              <span>Scanning file for sensitive data…</span>
+              <span>{t('chat.scanning')}</span>
             </div>;
           }
           // Tag describing how the file was read, shown in tooltips so the
@@ -4153,35 +4151,35 @@ function ChatPanel({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes,
             if (f.addresses?.length)items.push(`${f.addresses.length} address-part${f.addresses.length>1?'s':''}`);
             return <div title={`Scan method${methodNote}`} style={{margin:"6px 14px 0",padding:"7px 10px",fontSize:11,lineHeight:1.5,color:C.orange,background:C.orange+'15',border:`1px solid ${C.orange}33`,borderRadius:7,display:"flex",gap:6,alignItems:"flex-start"}}>
               <AlertTriangle size={12} style={{flexShrink:0,marginTop:1}}/>
-              <span>Sensitive data detected: <strong>{items.join(' · ')}</strong>. This file goes to <strong>{aiProvider?.label || 'the cloud provider'}</strong> as-is — masking cannot rewrite binary contents. You'll see a confirmation before sending.{scanResult.pageLimitHit && <> <em>Page limit reached — content beyond page {scanResult.pageCount} was not scanned and may contain more.</em></>}</span>
+              <span>{t('chat.scanWarning', {items: items.join(' · '), provider: aiProvider?.label || 'the cloud provider'})}{scanResult.pageLimitHit && <> <em>Page limit reached — content beyond page {scanResult.pageCount} was not scanned and may contain more.</em></>}</span>
             </div>;
           }
           if (scanResult?.supported && scanResult.totalFindings === 0) {
             return <div title={`Scan method${methodNote}`} style={{margin:"6px 14px 0",padding:"6px 10px",fontSize:11,lineHeight:1.5,color:C.green,background:C.green+'15',border:`1px solid ${C.green}33`,borderRadius:7,display:"flex",gap:6,alignItems:"center"}}>
               <ShieldCheck size={12} style={{flexShrink:0}}/>
-              <span>Scanned{scanResult.method === 'pdf-ocr' ? ` (OCR'd ${scanResult.pageCount} page${scanResult.pageCount > 1 ? 's' : ''})` : ''} — no obvious PII patterns (AHV, IBAN, email, phone, address) found in this file.</span>
+              <span>{t('chat.scanClean')}</span>
             </div>;
           }
           if (scanResult?.supported && scanResult.extractionEmpty) {
             return <div style={{margin:"6px 14px 0",padding:"6px 10px",fontSize:11,lineHeight:1.5,color:C.orange,background:C.orange+'15',border:`1px solid ${C.orange}33`,borderRadius:7,display:"flex",gap:6,alignItems:"flex-start"}}>
               <AlertTriangle size={12} style={{flexShrink:0,marginTop:1}}/>
-              <span>Could not read this file's contents (likely a scanned PDF with no text layer). <strong>We cannot verify what's inside</strong> — it will still be sent to {aiProvider?.label || 'the cloud provider'} as-is.</span>
+              <span>{t('chat.scanUnreadable', {provider: aiProvider?.label || 'the cloud provider'})}</span>
             </div>;
           }
           // Extraction error or unsupported type — still warn generically.
           return <div style={{margin:"6px 14px 0",padding:"6px 10px",fontSize:11,lineHeight:1.5,color:C.orange,background:C.orange+'15',border:`1px solid ${C.orange}33`,borderRadius:7,display:"flex",gap:6,alignItems:"flex-start"}}>
             <AlertTriangle size={12} style={{flexShrink:0,marginTop:1}}/>
-            <span>File contents could not be pre-scanned ({scanResult?.error || scanResult?.reason || 'unsupported format'}). It will be sent to {aiProvider?.label || 'the cloud provider'} as-is.</span>
+            <span>{t('chat.scanError', {error: scanResult?.error || scanResult?.reason || 'unsupported format', provider: aiProvider?.label || 'the cloud provider'})}</span>
           </div>;
         })()}
         <div style={{padding:"12px 14px",display:"flex",gap:8,alignItems:"center"}}>
           <input type="file" ref={fileInputRef} onChange={handleFileSelect} accept="image/*,.pdf,.txt,.csv,.md,.json" style={{display:"none"}}/>
-          <button onClick={()=>fileInputRef.current?.click()} disabled={streaming} title="Attach file" style={{padding:"8px",borderRadius:8,border:`1px solid ${C.border}`,background:"transparent",color:attachment?C.accent:C.textDim,cursor:"pointer",display:"flex",flexShrink:0}}>
+          <button onClick={()=>fileInputRef.current?.click()} disabled={streaming} title={t('chat.attachFile')} style={{padding:"8px",borderRadius:8,border:`1px solid ${C.border}`,background:"transparent",color:attachment?C.accent:C.textDim,cursor:"pointer",display:"flex",flexShrink:0}}>
             <Paperclip size={15}/>
           </button>
-          <input ref={inputRef} value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();sendMessage();}}} placeholder="Ask about your finances…" disabled={streaming} style={{flex:1,padding:"9px 12px",borderRadius:8,border:`1px solid ${C.border}`,background:C.card,color:C.text,fontSize:14,outline:"none"}}/>
+          <input ref={inputRef} value={input} onChange={e=>setInput(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();sendMessage();}}} placeholder={t('chat.placeholder')} disabled={streaming} style={{flex:1,padding:"9px 12px",borderRadius:8,border:`1px solid ${C.border}`,background:C.card,color:C.text,fontSize:14,outline:"none"}}/>
           <button onClick={sendMessage} disabled={streaming||(!input.trim()&&!attachment)} style={{padding:"9px 14px",borderRadius:8,border:"none",background:streaming||(!input.trim()&&!attachment)?C.border:C.accent,color:streaming||(!input.trim()&&!attachment)?C.textDim:"#fff",cursor:streaming||(!input.trim()&&!attachment)?"not-allowed":"pointer",fontSize:14,fontWeight:600,flexShrink:0}}>
-            {streaming?<div style={{display:'flex',gap:2,alignItems:'center',padding:'0 4px'}}>{[0,1,2].map(i=><div key={i} style={{width:4,height:4,borderRadius:'50%',background:'#fff',animation:`aipulse 1.2s ease-in-out ${i*0.2}s infinite`}}/>)}</div>:"Send"}
+            {streaming?<div style={{display:'flex',gap:2,alignItems:'center',padding:'0 4px'}}>{[0,1,2].map(i=><div key={i} style={{width:4,height:4,borderRadius:'50%',background:'#fff',animation:`aipulse 1.2s ease-in-out ${i*0.2}s infinite`}}/>)}</div>:t('chat.send')}
           </button>
         </div>
       </div>
@@ -4193,7 +4191,7 @@ function ChatPanel({ accounts, scenarios, subsP, subsPInScenario, yearly, taxes,
 // ───────────────────────────────────────────────────────────────
 // PORTFOLIO PAGE
 // ───────────────────────────────────────────────────────────────
-function PortfolioPage({ accounts, setAccounts, hideBalances, setChatOpen, setChatInput }) {
+function PortfolioPage({ accounts, setAccounts, hideBalances, setChatOpen, setChatInput, t }) {
   const INVEST_TYPES = ['Investment', 'Crypto'];
   const mask = v => hideBalances ? '••••' : v;
   const winW = useWindowWidth(); const isMobile = winW < 768;
@@ -4305,30 +4303,30 @@ function PortfolioPage({ accounts, setAccounts, hideBalances, setChatOpen, setCh
   return <div>
     {/* Summary stats */}
     <div style={{display:'grid',gridTemplateColumns:isMobile?'1fr 1fr':'repeat(auto-fit,minmax(200px,1fr))',gap:16,marginBottom:24}}>
-      <StatCard label="Total Portfolio" value={`CHF ${mask(fmt(Math.round(totalPortfolio)))}`} icon={Wallet} color={C.accent}/>
-      <StatCard label="Total Invested" value={`CHF ${mask(fmt(Math.round(totalInvested)))}`} sub="cost basis in positions" icon={TrendingUp} color={C.blue}/>
-      <StatCard label="Current Value" value={`CHF ${mask(fmt(Math.round(totalCurrentVal)))}`} sub={lastFetched?`prices at ${lastFetched.toLocaleTimeString('de-CH',{hour:'2-digit',minute:'2-digit'})}`:'no live prices'} icon={BarChart3} color={C.teal}/>
+      <StatCard label={t('portfolio.totalPortfolio')} value={`CHF ${mask(fmt(Math.round(totalPortfolio)))}`} icon={Wallet} color={C.accent}/>
+      <StatCard label={t('portfolio.totalInvested')} value={`CHF ${mask(fmt(Math.round(totalInvested)))}`} sub={t('portfolio.investedSub')} icon={TrendingUp} color={C.blue}/>
+      <StatCard label={t('portfolio.currentValue')} value={`CHF ${mask(fmt(Math.round(totalCurrentVal)))}`} sub={lastFetched?t('portfolio.pricesAt',{time:lastFetched.toLocaleTimeString('de-CH',{hour:'2-digit',minute:'2-digit'})}):t('portfolio.noLivePrices')} icon={BarChart3} color={C.teal}/>
       <StatCard
-        label="Overall P&L"
+        label={t('portfolio.overallPnL')}
         value={overallPnLPct!=null?`${overallPnLPct>=0?'+':''}${overallPnLPct.toFixed(2)}%`:'—'}
-        sub={totalInvested>0?`CHF ${mask(fmt(Math.round(totalCurrentVal-totalInvested)))}`:'no positions'}
+        sub={totalInvested>0?`CHF ${mask(fmt(Math.round(totalCurrentVal-totalInvested)))}`:t('portfolio.noPositions')}
         icon={ArrowUpRight}
         color={overallPnLPct==null?C.textDim:overallPnLPct>=0?C.green:C.red}
       />
     </div>
 
     {/* All Accounts */}
-    <Card title="Accounts & Positions" style={{marginBottom:24}}
+    <Card title={t('portfolio.accountsPositions')} style={{marginBottom:24}}
       headerRight={
         <div style={{display:'flex',alignItems:'center',gap:8}}>
-          {stale && <span style={{fontSize:12,color:C.yellow,display:'flex',alignItems:'center',gap:3}}><AlertTriangle size={12}/> Prices may be stale</span>}
-          {lastFetched && !stale && <span style={{fontSize:12,color:C.textDim}}>prices at {lastFetched.toLocaleTimeString('de-CH',{hour:'2-digit',minute:'2-digit'})}</span>}
+          {stale && <span style={{fontSize:12,color:C.yellow,display:'flex',alignItems:'center',gap:3}}><AlertTriangle size={12}/> {t('portfolio.pricesStale')}</span>}
+          {lastFetched && !stale && <span style={{fontSize:12,color:C.textDim}}>{t('portfolio.pricesAt',{time:lastFetched.toLocaleTimeString('de-CH',{hour:'2-digit',minute:'2-digit'})})}</span>}
           {allTickers.length>0 && <button onClick={refresh} disabled={quotesLoading} style={{display:'flex',alignItems:'center',gap:4,padding:'5px 10px',borderRadius:6,border:`1px solid ${C.border}`,background:'transparent',color:quotesLoading?C.textDim:C.accentLight,fontSize:13,cursor:quotesLoading?'not-allowed':'pointer'}}>
-            <RefreshCw size={12}/>{quotesLoading?'Loading…':'Refresh'}
+            <RefreshCw size={12}/>{quotesLoading?t('common.loading'):t('portfolio.refresh')}
           </button>}
         </div>
       }>
-      {accounts.filter(a=>a.type!=="Debt").length===0 && <div style={{textAlign:'center',padding:'32px 0',color:C.textDim,fontSize:13}}>No accounts — add some on the Accounts page.</div>}
+      {accounts.filter(a=>a.type!=="Debt").length===0 && <div style={{textAlign:'center',padding:'32px 0',color:C.textDim,fontSize:13}}>{t('portfolio.noAccounts')}</div>}
       {accounts.filter(a=>a.type!=="Debt").map(account=>{
         const canExpand = INVEST_TYPES.includes(account.type) || (account.positions||[]).length>0;
         const isExpanded = expanded.has(account.id);
@@ -4351,15 +4349,15 @@ function PortfolioPage({ accounts, setAccounts, hideBalances, setChatOpen, setCh
                 <div style={{fontSize:14,fontWeight:600,color:C.text}}>{account.name}</div>
                 <div style={{fontSize:12,color:C.textMuted}}>{account.institution||account.type}</div>
               </div>
-              {ago && <span style={{fontSize:10,color:C.textDim,marginLeft:4}}>Updated {ago}</span>}
+              {ago && <span style={{fontSize:10,color:C.textDim,marginLeft:4}}>{t('portfolio.updated')} {ago}</span>}
             </div>
             <div style={{display:'flex',gap:16,alignItems:'center',flexWrap:'wrap',justifyContent:'flex-end'}}>
-              {annualReturn!=null && <div style={{textAlign:'right'}}><div style={{fontSize:10,color:C.textDim}}>Rate / Yield</div><div style={{fontSize:13,color:C.green}}>{account.interestRate}% · CHF {mask(fmt(Math.round(annualReturn)))}/yr</div></div>}
-              <div style={{textAlign:'right'}}><div style={{fontSize:10,color:C.textDim}}>Balance</div><div style={{fontSize:14,fontWeight:600,color:account.type==="Debt"?C.red:C.text}}>{account.type==="Debt"&&account.balance>0?"−":""}{mask(fmt(account.balance))}</div></div>
+              {annualReturn!=null && <div style={{textAlign:'right'}}><div style={{fontSize:10,color:C.textDim}}>{t('accounts.column.rate')}</div><div style={{fontSize:13,color:C.green}}>{account.interestRate}% · CHF {mask(fmt(Math.round(annualReturn)))}/yr</div></div>}
+              <div style={{textAlign:'right'}}><div style={{fontSize:10,color:C.textDim}}>{t('common.balance')}</div><div style={{fontSize:14,fontWeight:600,color:account.type==="Debt"?C.red:C.text}}>{account.type==="Debt"&&account.balance>0?"−":""}{mask(fmt(account.balance))}</div></div>
               {acctInvested>0&&<>
-                <div style={{textAlign:'right'}}><div style={{fontSize:10,color:C.textDim}}>Invested</div><div style={{fontSize:14,color:C.textMuted}}>{mask(fmt(Math.round(acctInvested)))}</div></div>
-                <div style={{textAlign:'right'}}><div style={{fontSize:10,color:C.textDim}}>Current</div><div style={{fontSize:14,fontWeight:600,color:C.teal}}>{mask(fmt(Math.round(acctCurrentVal)))}</div></div>
-                {acctPnLPct!=null&&<div style={{textAlign:'right'}}><div style={{fontSize:10,color:C.textDim}}>P&L</div><div style={{fontSize:14,fontWeight:600,color:acctPnLPct>=0?C.green:C.red}}>{acctPnLPct>=0?'+':''}{acctPnLPct.toFixed(1)}%</div></div>}
+                <div style={{textAlign:'right'}}><div style={{fontSize:10,color:C.textDim}}>{t('portfolio.invested')}</div><div style={{fontSize:14,color:C.textMuted}}>{mask(fmt(Math.round(acctInvested)))}</div></div>
+                <div style={{textAlign:'right'}}><div style={{fontSize:10,color:C.textDim}}>{t('portfolio.current')}</div><div style={{fontSize:14,fontWeight:600,color:C.teal}}>{mask(fmt(Math.round(acctCurrentVal)))}</div></div>
+                {acctPnLPct!=null&&<div style={{textAlign:'right'}}><div style={{fontSize:10,color:C.textDim}}>{t('portfolio.pnl')}</div><div style={{fontSize:14,fontWeight:600,color:acctPnLPct>=0?C.green:C.red}}>{acctPnLPct>=0?'+':''}{acctPnLPct.toFixed(1)}%</div></div>}
               </>}
             </div>
           </div>
@@ -4369,7 +4367,7 @@ function PortfolioPage({ accounts, setAccounts, hideBalances, setChatOpen, setCh
               <div style={{overflowX:'auto'}}>
                 <table style={{width:'100%',borderCollapse:'collapse',marginTop:8,minWidth:580}}>
                   <thead><tr>
-                    {['Ticker','Name','Shares','Avg Buy','Price','Δ%','Value','P&L',''].map((h,i)=><TH key={i}>{h}</TH>)}
+                    {[t('accounts.ticker'),t('common.name'),t('portfolio.shares'),t('portfolio.avgBuy'),t('portfolio.price'),t('portfolio.deltaPct'),t('accounts.value'),t('portfolio.pnl'),''].map((h,i)=><TH key={i}>{h}</TH>)}
                   </tr></thead>
                   <tbody>
                     {positions.map(p=>{
@@ -4404,13 +4402,13 @@ function PortfolioPage({ accounts, setAccounts, hideBalances, setChatOpen, setCh
                 </table>
               </div>
             ) : (
-              <div style={{fontSize:14,color:C.textDim,textAlign:'center',padding:'16px 0'}}>No positions — add one below</div>
+              <div style={{fontSize:14,color:C.textDim,textAlign:'center',padding:'16px 0'}}>{t('portfolio.noPositionsAdd')}</div>
             )}
             {/* Add position / ticker search */}
             <div style={{marginTop:12,display:'flex',gap:8,alignItems:'center'}}>
               <div style={{flex:1,position:'relative'}}>
                 <input value={searchQ[account.id]||''} onChange={e=>handleSearch(account.id,e.target.value)}
-                  placeholder="Search ticker (e.g. VT, NOVN.SW, BTC-USD)…"
+                  placeholder={t('portfolio.searchTicker')}
                   style={{width:'100%',padding:'7px 12px',borderRadius:8,border:`1px solid ${C.border}`,background:C.bg,color:C.text,fontSize:13,outline:'none',boxSizing:'border-box'}}/>
                 {(searchRes[account.id]||[]).length>0&&(
                   <div style={{position:'absolute',top:'calc(100% + 4px)',left:0,right:0,background:C.card,border:`1px solid ${C.border}`,borderRadius:8,zIndex:50,maxHeight:200,overflowY:'auto',boxShadow:'0 4px 20px rgba(0,0,0,0.4)'}}>
@@ -4428,11 +4426,11 @@ function PortfolioPage({ accounts, setAccounts, hideBalances, setChatOpen, setCh
                 )}
               </div>
               <button onClick={()=>addPosition(account.id)} style={{padding:'7px 12px',borderRadius:8,border:`1px dashed ${C.border}`,background:'transparent',color:C.textDim,fontSize:13,cursor:'pointer',flexShrink:0,display:'flex',alignItems:'center',gap:4}}>
-                <Plus size={13}/>Manual
+                <Plus size={13}/>{t('portfolio.manual')}
               </button>
             </div>
             <div style={{fontSize:10,color:C.textDim,marginTop:4}}>
-              Swiss stocks: use <code style={{background:C.bg,padding:'1px 3px',borderRadius:2,fontSize:10}}>.SW</code> suffix (e.g. <code style={{background:C.bg,padding:'1px 3px',borderRadius:2,fontSize:10}}>NOVN.SW</code>). Crypto: <code style={{background:C.bg,padding:'1px 3px',borderRadius:2,fontSize:10}}>BTC-USD</code>
+              {t('portfolio.swissStocks')}
             </div>
           </div>}
         </div>;
@@ -4440,7 +4438,7 @@ function PortfolioPage({ accounts, setAccounts, hideBalances, setChatOpen, setCh
     </Card>
 
     {/* Allocation chart */}
-    {pieData.length>0&&<Card title="Allocation" style={{marginBottom:24}}>
+    {pieData.length>0&&<Card title={t('portfolio.allocation')} style={{marginBottom:24}}>
       <ResponsiveContainer width="100%" height={260}>
         <PieChart>
           <Pie data={pieData} cx="50%" cy="50%" outerRadius={90} innerRadius={50} dataKey="value" paddingAngle={2} stroke="none">
@@ -4462,17 +4460,17 @@ function PortfolioPage({ accounts, setAccounts, hideBalances, setChatOpen, setCh
     </Card>}
 
     {/* AI quick actions */}
-    <Card title="AI Portfolio Analysis">
-      <p style={{margin:'0 0 14px',fontSize:13,color:C.textDim}}>Open the AI advisor with pre-loaded portfolio context.</p>
+    <Card title={t('portfolio.aiAnalysis')}>
+      <p style={{margin:'0 0 14px',fontSize:13,color:C.textDim}}>{t('portfolio.aiAnalysisDesc')}</p>
       <div style={{display:'flex',flexWrap:'wrap',gap:10}}>
         <button onClick={()=>{setChatInput('Analyse my portfolio — give me a breakdown of my asset allocation, performance of positions, and top 3 concrete actions to improve my investment strategy as a Swiss investor.');setChatOpen(true);}} style={{padding:'10px 16px',borderRadius:8,border:`1px solid ${C.accent}44`,background:C.accent+'18',color:C.accentLight,fontSize:14,cursor:'pointer'}}>
-          Analyse my portfolio
+          {t('portfolio.analysePortfolio')}
         </button>
         <button onClick={()=>{setChatInput('Suggest a rebalancing strategy for my portfolio. I am a Swiss investor. Consider my savings rate, current asset allocation, and any underweight or overweight categories based on my age and goals.');setChatOpen(true);}} style={{padding:'10px 16px',borderRadius:8,border:`1px solid ${C.teal}44`,background:C.teal+'18',color:C.teal,fontSize:14,cursor:'pointer'}}>
-          Suggest rebalancing
+          {t('portfolio.suggestRebalancing')}
         </button>
         <button onClick={()=>{setChatInput('What are the Swiss tax implications of my current investments? Explain capital gains tax, dividend tax, and wealth tax rules relevant to my portfolio.');setChatOpen(true);}} style={{padding:'10px 16px',borderRadius:8,border:`1px solid ${C.yellow}44`,background:C.yellow+'18',color:C.yellow,fontSize:14,cursor:'pointer'}}>
-          Tax implications (CH)
+          {t('portfolio.taxImplications')}
         </button>
       </div>
     </Card>
@@ -4554,13 +4552,13 @@ function showImportScanModal({ items, providerLabel, fileName }) {
 // ───────────────────────────────────────────────────────────────────────────────
 // AI SETTINGS PAGE
 // ───────────────────────────────────────────────────────────────────────────────
-function AISettingsPage() {
+function AISettingsPage({ t }) {
   const PROVIDERS = [
-    { id: 'auto',      label: 'Auto (server)',        desc: 'Use whichever provider the server has configured via .env',       cloud: false },
-    { id: 'anthropic', label: 'Anthropic (Claude)',   desc: 'claude-opus-4-6 · web-search capable · data sent to Anthropic',  cloud: true  },
-    { id: 'openai',    label: 'OpenAI (GPT-4o)',      desc: 'gpt-4o · powerful · data sent to OpenAI',                        cloud: true  },
-    { id: 'gemini',    label: 'Google Gemini',        desc: 'gemini-2.0-flash · fast · data sent to Google',                  cloud: true  },
-    { id: 'ollama',    label: 'Ollama (local)',        desc: '100% local · no data leaves your machine · requires Ollama',     cloud: false },
+    { id: 'auto',      label: t('aiSettings.autoServer'),  desc: t('aiSettings.autoServerDesc'),       cloud: false },
+    { id: 'anthropic', label: t('aiSettings.anthropic'),    desc: t('aiSettings.anthropicDesc'),  cloud: true  },
+    { id: 'openai',    label: t('aiSettings.openai'),       desc: t('aiSettings.openaiDesc'),                        cloud: true  },
+    { id: 'gemini',    label: t('aiSettings.gemini'),       desc: t('aiSettings.geminiDesc'),                  cloud: true  },
+    { id: 'ollama',    label: t('aiSettings.ollama'),       desc: t('aiSettings.ollamaDesc'),     cloud: false },
   ];
 
   // Curated model lists per cloud provider (latest first)
@@ -4661,26 +4659,26 @@ function AISettingsPage() {
         <Bot size={20} color={C.accentLight}/>
         <div style={{flex:1}}>
           <div style={{fontSize:13,fontWeight:600,color:C.text}}>
-            Currently active: <span style={{color:C.accent}}>
+            {t('aiSettings.currentlyActive')} <span style={{color:C.accent}}>
               {activeLocal ? (PROVIDERS.find(p => p.id === storedConfig.provider)?.label || storedConfig.provider) : (serverProvider?.label || '…')}
             </span>
-            {activeLocal && <span style={{fontSize:11,color:C.blue,marginLeft:8,padding:'1px 7px',borderRadius:10,background:C.blue+'22'}}>custom (localStorage)</span>}
-            {!activeLocal && serverProvider && <span style={{fontSize:11,color:C.textDim,marginLeft:8,padding:'1px 7px',borderRadius:10,background:C.border}}>.env</span>}
+            {activeLocal && <span style={{fontSize:11,color:C.blue,marginLeft:8,padding:'1px 7px',borderRadius:10,background:C.blue+'22'}}>{t('aiSettings.custom')}</span>}
+            {!activeLocal && serverProvider && <span style={{fontSize:11,color:C.textDim,marginLeft:8,padding:'1px 7px',borderRadius:10,background:C.border}}>{t('aiSettings.env')}</span>}
           </div>
           {serverProvider?.description && !activeLocal && <div style={{fontSize:12,color:C.textDim,marginTop:2}}>{serverProvider.description}</div>}
-          {activeLocal && <div style={{fontSize:12,color:C.textDim,marginTop:2}}>Your custom override — set below. Clear to revert to server .env config.</div>}
+          {activeLocal && <div style={{fontSize:12,color:C.textDim,marginTop:2}}>{t('aiSettings.customOverride')}</div>}
         </div>
         <div style={{display:'flex',alignItems:'center',gap:6}}>
-          {ollamaModels === null && <span style={{fontSize:12,color:C.textDim}}>Checking Ollama…</span>}
-          {ollamaModels !== null && ollamaModels.length > 0 && <span style={{fontSize:12,color:C.green,display:'flex',alignItems:'center',gap:4}}><div style={{width:7,height:7,borderRadius:'50%',background:C.green}}/> Ollama detected ({ollamaModels.length} model{ollamaModels.length>1?'s':''})</span>}
-          {ollamaModels !== null && ollamaModels.length === 0 && <span style={{fontSize:12,color:C.textMuted,display:'flex',alignItems:'center',gap:4}}><WifiOff size={12}/> Ollama not detected</span>}
+          {ollamaModels === null && <span style={{fontSize:12,color:C.textDim}}>{t('aiSettings.checkingOllama')}</span>}
+          {ollamaModels !== null && ollamaModels.length > 0 && <span style={{fontSize:12,color:C.green,display:'flex',alignItems:'center',gap:4}}><div style={{width:7,height:7,borderRadius:'50%',background:C.green}}/> {t('aiSettings.ollamaDetected', {count: ollamaModels.length, s: ollamaModels.length>1?'s':''})}</span>}
+          {ollamaModels !== null && ollamaModels.length === 0 && <span style={{fontSize:12,color:C.textMuted,display:'flex',alignItems:'center',gap:4}}><WifiOff size={12}/> {t('aiSettings.ollamaNotDetected')}</span>}
         </div>
       </div>
 
-      <Card title="Configure AI Provider">
+      <Card title={t('aiSettings.title')}>
         {/* Provider selector */}
         <div style={{marginBottom:20}}>
-          <div style={{fontSize:12,color:C.textDim,fontWeight:600,textTransform:'uppercase',letterSpacing:0.5,marginBottom:10}}>Provider</div>
+          <div style={{fontSize:12,color:C.textDim,fontWeight:600,textTransform:'uppercase',letterSpacing:0.5,marginBottom:10}}>{t('aiSettings.provider')}</div>
           <div style={{display:'flex',flexDirection:'column',gap:8}}>
             {PROVIDERS.map(p => (
               <label key={p.id} style={{display:'flex',alignItems:'flex-start',gap:10,padding:'10px 14px',borderRadius:9,border:`1px solid ${editConfig.provider===p.id?C.accent:C.border}`,background:editConfig.provider===p.id?C.accent+'0d':C.bg,cursor:'pointer',transition:'border-color .15s'}}>
@@ -4688,10 +4686,10 @@ function AISettingsPage() {
                 <div style={{flex:1}}>
                   <div style={{fontSize:13,fontWeight:600,color:C.text,display:'flex',alignItems:'center',gap:8}}>
                     {p.label}
-                    {p.cloud && <span style={{fontSize:10,padding:'1px 6px',borderRadius:8,background:C.orange+'22',color:C.orange,fontWeight:700,display:'inline-flex',alignItems:'center'}}><Cloud size={10} style={{marginRight:2}}/> Cloud</span>}
-                    {!p.cloud && p.id!=='auto' && <span style={{fontSize:10,padding:'1px 6px',borderRadius:8,background:C.green+'22',color:C.green,fontWeight:700,display:'inline-flex',alignItems:'center'}}><Lock size={10} style={{marginRight:2}}/> Local</span>}
-                    {p.id==='ollama' && ollamaModels !== null && ollamaModels.length > 0 && <span style={{fontSize:10,padding:'1px 6px',borderRadius:8,background:C.green+'22',color:C.green}}>● running</span>}
-                    {p.id==='ollama' && ollamaModels !== null && ollamaModels.length === 0 && <span style={{fontSize:10,padding:'1px 6px',borderRadius:8,background:C.red+'22',color:C.red}}>not detected</span>}
+                    {p.cloud && <span style={{fontSize:10,padding:'1px 6px',borderRadius:8,background:C.orange+'22',color:C.orange,fontWeight:700,display:'inline-flex',alignItems:'center'}}><Cloud size={10} style={{marginRight:2}}/> {t('aiSettings.cloud')}</span>}
+                    {!p.cloud && p.id!=='auto' && <span style={{fontSize:10,padding:'1px 6px',borderRadius:8,background:C.green+'22',color:C.green,fontWeight:700,display:'inline-flex',alignItems:'center'}}><Lock size={10} style={{marginRight:2}}/> {t('aiSettings.localBadge')}</span>}
+                    {p.id==='ollama' && ollamaModels !== null && ollamaModels.length > 0 && <span style={{fontSize:10,padding:'1px 6px',borderRadius:8,background:C.green+'22',color:C.green}}>{t('aiSettings.running')}</span>}
+                    {p.id==='ollama' && ollamaModels !== null && ollamaModels.length === 0 && <span style={{fontSize:10,padding:'1px 6px',borderRadius:8,background:C.red+'22',color:C.red}}>{t('aiSettings.notDetected')}</span>}
                   </div>
                   <div style={{fontSize:12,color:C.textDim,marginTop:2}}>{p.desc}</div>
                 </div>
@@ -4706,14 +4704,14 @@ function AISettingsPage() {
             {editConfig.provider !== 'ollama' && (
               <div>
                 <label style={{fontSize:12,color:C.accent,fontWeight:600,textTransform:'uppercase',letterSpacing:0.5,display:'flex',alignItems:'center',gap:6,marginBottom:6}}>
-                  <Key size={12}/> API Key
+                  <Key size={12}/> {t('aiSettings.apiKey')}
                 </label>
-                {inp(editConfig.apiKey, v => setEditConfig(c=>({...c,apiKey:v})), 'Paste your API key here (stored in browser localStorage only)', 'password')}
-                <div style={{fontSize:11,color:C.textDim,marginTop:4}}>Stored locally in your browser — never sent to the server unless actively used for a chat or test.</div>
+                {inp(editConfig.apiKey, v => setEditConfig(c=>({...c,apiKey:v})), t('aiSettings.apiKeyPlaceholder'), 'password')}
+                <div style={{fontSize:11,color:C.textDim,marginTop:4}}>{t('aiSettings.apiKeyNote')}</div>
               </div>
             )}
             <div>
-              <label style={{fontSize:12,color:C.accent,fontWeight:600,textTransform:'uppercase',letterSpacing:0.5,display:'block',marginBottom:6}}>Model (optional)</label>
+              <label style={{fontSize:12,color:C.accent,fontWeight:600,textTransform:'uppercase',letterSpacing:0.5,display:'block',marginBottom:6}}>{t('aiSettings.modelOptional')}</label>
               {inp(editConfig.model, v => setEditConfig(c=>({...c,model:v})),
                 editConfig.provider==='anthropic'?'claude-opus-4-6 (default)':editConfig.provider==='openai'?'gpt-4o (default)':editConfig.provider==='gemini'?'gemini-2.0-flash (default)':'llama3.2 (default)')}
               {CLOUD_MODELS[editConfig.provider] && (
@@ -4737,11 +4735,11 @@ function AISettingsPage() {
             {(editConfig.provider==='ollama'||editConfig.provider==='openai') && (
               <div>
                 <label style={{fontSize:12,color:C.accent,fontWeight:600,textTransform:'uppercase',letterSpacing:0.5,display:'block',marginBottom:6}}>
-                  {editConfig.provider==='ollama'?'Ollama Base URL':'Custom Base URL (optional)'}
+                  {editConfig.provider==='ollama'?t('aiSettings.ollamaBaseUrl'):t('aiSettings.customBaseUrl')}
                 </label>
                 {inp(editConfig.baseUrl, v => setEditConfig(c=>({...c,baseUrl:v})),
                   editConfig.provider==='ollama'?'http://localhost:11434 (default: host.docker.internal)':'Leave blank for default OpenAI endpoint')}
-                {editConfig.provider==='ollama' && <div style={{fontSize:11,color:C.textDim,marginTop:4}}>Set to http://localhost:11434 if running Ollama on the same machine as your browser (not in Docker).</div>}
+                {editConfig.provider==='ollama' && <div style={{fontSize:11,color:C.textDim,marginTop:4}}>{t('aiSettings.ollamaUrlNote')}</div>}
               </div>
             )}
           </div>
@@ -4750,7 +4748,7 @@ function AISettingsPage() {
         {/* Ollama model list */}
         {editConfig.provider==='ollama' && ollamaModels && ollamaModels.length > 0 && (
           <div style={{marginTop:10,padding:'10px 14px',background:C.green+'0d',borderRadius:9,border:`1px solid ${C.green+'44'}`}}>
-            <div style={{fontSize:12,fontWeight:600,color:C.green,marginBottom:6}}>Ollama models available locally:</div>
+            <div style={{fontSize:12,fontWeight:600,color:C.green,marginBottom:6}}>{t('aiSettings.ollamaModels')}</div>
             <div style={{display:'flex',flexWrap:'wrap',gap:6}}>
               {ollamaModels.map(m => (
                 <button key={m} onClick={()=>setEditConfig(c=>({...c,model:m}))} style={{padding:'3px 10px',borderRadius:6,border:`1px solid ${editConfig.model===m?C.green:C.border}`,background:editConfig.model===m?C.green+'22':'transparent',color:editConfig.model===m?C.green:C.textMuted,fontSize:12,cursor:'pointer'}}>
@@ -4769,35 +4767,35 @@ function AISettingsPage() {
         {/* Actions */}
         <div style={{display:'flex',gap:10,marginTop:20,alignItems:'center'}}>
           <button onClick={handleSave} style={{padding:'9px 22px',borderRadius:8,border:'none',background:C.accent,color:'#fff',fontSize:14,fontWeight:600,cursor:'pointer'}}>
-            {saved ? '✓ Saved' : 'Save'}
+            {saved ? t('aiSettings.saved') : t('common.save')}
           </button>
           <button onClick={handleTest} disabled={testing || (editConfig.provider==='auto' && !serverProvider?.provider)} title={editConfig.provider==='auto'?`Test the server's .env provider${serverProvider?.provider?` (${serverProvider.provider})`:''}`:undefined} style={{padding:'9px 18px',borderRadius:8,border:`1px solid ${C.border}`,background:'transparent',color:C.text,fontSize:14,cursor:(testing||(editConfig.provider==='auto'&&!serverProvider?.provider))?'not-allowed':'pointer',opacity:(testing||(editConfig.provider==='auto'&&!serverProvider?.provider))?0.6:1}}>
-            {testing ? 'Testing…' : (editConfig.provider==='auto' ? `Test .env Connection${serverProvider?.provider?` (${serverProvider.provider})`:''}` : 'Test Connection')}
+            {testing ? t('aiSettings.testing') : (editConfig.provider==='auto' ? t('aiSettings.testEnv') + (serverProvider?.provider ? ` (${serverProvider.provider})` : '') : t('aiSettings.testConnection'))}
           </button>
           {storedConfig && (
             <button onClick={()=>{ localStorage.removeItem('finance_hub_provider_config'); setEditConfig({provider:'auto',apiKey:'',model:'',baseUrl:''}); setSaved(false); setTestResult({ok:true,msg:'Cleared — reverted to server config.'}); }} style={{padding:'9px 16px',borderRadius:8,border:`1px solid ${C.red+'55'}`,background:'transparent',color:C.red,fontSize:14,cursor:'pointer'}}>
-              Clear override
+              {t('aiSettings.clearOverride')}
             </button>
           )}
         </div>
 
         {testResult && (
           <div style={{marginTop:14,padding:'10px 14px',borderRadius:9,background:testResult.ok?C.green+'0d':C.red+'0d',border:`1px solid ${testResult.ok?C.green+'44':C.red+'44'}`,fontSize:13,color:testResult.ok?C.green:C.red}}>
-            {testResult.ok ? `✓ Connection successful${testResult.model?` — model: ${testResult.model}`:''}${testResult.msg?' — '+testResult.msg:''}` : `✗ ${testResult.error || 'Test failed'}`}
+            {testResult.ok ? `${t('aiSettings.connectionSuccess')}${testResult.model?` — model: ${testResult.model}`:''}${testResult.msg?' — '+testResult.msg:''}` : `✗ ${testResult.error || t('aiSettings.testFailed')}`}
           </div>
         )}
       </Card>
 
       {/* Privacy note */}
       <div style={{marginTop:16,padding:'14px 18px',borderRadius:10,background:C.card,border:`1px solid ${C.border}`,fontSize:13,color:C.textMuted,lineHeight:1.7}}>
-        <strong style={{color:C.text}}>Privacy note:</strong> API keys are stored in your browser's <code style={{background:C.bg,padding:'1px 5px',borderRadius:4}}>localStorage</code> only. They are sent to your self-hosted backend server solely when you use the AI chat or run a connection test. Cloud providers (Anthropic, OpenAI, Gemini) receive your financial context with each message — switch to Ollama for full local privacy.
+        <strong style={{color:C.text}}>{t('aiSettings.privacyNote')}</strong> {t('aiSettings.privacyNoteDesc')}
       </div>
     </div>
   );
 }
 
 // ── Transactions Page ──
-function TransactionsPage({ transactions, setTransactions, hideBalances }) {
+function TransactionsPage({ transactions, setTransactions, hideBalances, t }) {
   const [importing, setImporting] = useState(false);
   const [importProgress, setImportProgress] = useState('');
   const [importPct, setImportPct] = useState(0);
@@ -5126,20 +5124,20 @@ Rules:
   return <div style={{ display: 'flex', flexDirection: 'column', gap: 18, width: '100%' }}>
     {/* Header */}
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
-      <h2 style={{ margin: 0, fontSize: 22, fontWeight: 600 }}>Transactions</h2>
+      <h2 style={{ margin: 0, fontSize: 22, fontWeight: 600 }}>{t("transactions.title")}</h2>
       <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-        <button onClick={() => setPromptOpen(true)} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 10px', borderRadius: 6, border: `1px solid ${C.border}`, background: 'transparent', cursor: 'pointer', color: transactions.prompt ? C.accentLight : C.textMuted, fontSize: 12 }}><Sparkles size={12}/>Import Prompt{transactions.prompt ? ' ✓' : ''}</button>
+        <button onClick={() => setPromptOpen(true)} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 10px', borderRadius: 6, border: `1px solid ${C.border}`, background: 'transparent', cursor: 'pointer', color: transactions.prompt ? C.accentLight : C.textMuted, fontSize: 12 }}><Sparkles size={12}/>{t("transactions.importPrompt")}{transactions.prompt ? ' ✓' : ''}</button>
         <button onClick={() => setEditingRules(!editingRules)} title="Category rules" style={{ background: 'transparent', border: `1px solid ${C.border}`, color: C.textMuted, borderRadius: 8, padding: '6px 8px', cursor: 'pointer' }}><ClipboardList size={15}/></button>
         {allTxns.length > 0 && (confirmDeleteAll
           ? <span style={{ display: 'flex', gap: 4, alignItems: 'center', fontSize: 12 }}>
-              <span style={{ color: C.textMuted }}>Delete all?</span>
+              <span style={{ color: C.textMuted }}>{t('transactions.deleteAll')}</span>
               <button onClick={deleteAllTxns} style={{ background: C.red, color: '#fff', border: 'none', borderRadius: 6, padding: '4px 10px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>Yes</button>
               <button onClick={() => setConfirmDeleteAll(false)} style={{ background: 'transparent', border: `1px solid ${C.border}`, color: C.textMuted, borderRadius: 6, padding: '4px 10px', fontSize: 12, cursor: 'pointer' }}>No</button>
             </span>
           : <button onClick={() => setConfirmDeleteAll(true)} title="Delete all transactions" style={{ background: 'transparent', border: `1px solid ${C.border}`, color: C.red, borderRadius: 8, padding: '6px 8px', cursor: 'pointer', opacity: 0.7 }}><Trash2 size={15}/></button>
         )}
         <button onClick={() => fileRef.current?.click()} disabled={importing} style={{ background: C.accent, color: '#000', border: 'none', borderRadius: 8, padding: '7px 16px', fontWeight: 600, fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, opacity: importing ? 0.6 : 1 }}>
-          <Upload size={14}/> {importing ? 'Importing…' : 'Import Statement'}
+          <Upload size={14}/> {importing ? t('transactions.importing') : t('transactions.importStatement')}
         </button>
         <input ref={fileRef} type="file" accept=".csv,.xlsx,.xls,.pdf" onChange={handleImport} style={{ display: 'none' }} />
       </div>
@@ -5163,12 +5161,12 @@ Rules:
     {promptOpen && <div onClick={() => setPromptOpen(false)} style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.7)',zIndex:200,display:'flex',alignItems:'center',justifyContent:'center',padding:24}}>
       <div onClick={e => e.stopPropagation()} style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:16,width:'100%',maxWidth:1140,maxHeight:'84vh',overflowY:'auto',padding:28,boxShadow:'0 24px 80px rgba(0,0,0,0.6)'}}>
         <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:8}}>
-          <h2 style={{margin:0,fontSize:18,fontWeight:700,color:C.text}}>Transaction Import Prompt</h2>
+          <h2 style={{margin:0,fontSize:18,fontWeight:700,color:C.text}}>{t("transactions.importPromptTitle")}</h2>
           <button onClick={() => setPromptOpen(false)} style={{background:'transparent',border:'none',cursor:'pointer',color:C.textDim}}><X size={18}/></button>
         </div>
         <p style={{margin:'0 0 12px',fontSize:13,color:C.textDim}}>
-          Customise the AI prompt used when importing bank statements. Leave blank to use the built-in default.
-          Category rules are always appended automatically.
+          {t("transactions.importPromptDesc")}
+          {t("transactions.categoryRulesAppended")}
         </p>
         <div style={{display:'flex',gap:8,marginBottom:10}}>
           <button onClick={() => setTransactions(prev => ({ ...prev, prompt: DEFAULT_TXN_PROMPT }))}
@@ -5188,7 +5186,7 @@ Rules:
           style={{width:'100%',padding:'10px 12px',borderRadius:8,border:`1px solid ${C.border}`,background:C.bg,color:C.text,
             fontSize:13,outline:'none',resize:'vertical',boxSizing:'border-box',fontFamily:"'DM Mono',monospace",lineHeight:1.5}}
         />
-        {transactions.prompt && <div style={{marginTop:6,fontSize:12,color:C.green}}>✓ Custom import prompt active — will be used instead of the default.</div>}
+        {transactions.prompt && <div style={{marginTop:6,fontSize:12,color:C.green}}>{t("transactions.customPromptActive")}</div>}
         <button onClick={() => setPromptOpen(false)} style={{width:'100%',padding:'11px',borderRadius:8,border:'none',background:C.accent,color:'#fff',fontSize:14,fontWeight:600,cursor:'pointer',marginTop:12}}>
           Save & Close
         </button>
@@ -5200,7 +5198,7 @@ Rules:
       <div onClick={e => e.stopPropagation()} style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:16,width:'100%',maxWidth:480,padding:28,boxShadow:'0 24px 80px rgba(0,0,0,0.6)'}}>
         <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:12}}>
           <AlertTriangle size={20} style={{color:C.red,flexShrink:0}}/>
-          <h2 style={{margin:0,fontSize:18,fontWeight:700,color:C.text}}>Import Failed</h2>
+          <h2 style={{margin:0,fontSize:18,fontWeight:700,color:C.text}}>{t("transactions.importFailed")}</h2>
         </div>
         <p style={{margin:'0 0 16px',fontSize:13,color:C.textMuted,lineHeight:1.5}}>{importError}</p>
         <button onClick={() => setImportError(null)} style={{width:'100%',padding:'11px',borderRadius:8,border:'none',background:C.accent,color:'#fff',fontSize:14,fontWeight:600,cursor:'pointer'}}>
@@ -5212,9 +5210,9 @@ Rules:
     {/* Category rules modal */}
     {editingRules && <div onClick={() => setEditingRules(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
       <div onClick={e => e.stopPropagation()} style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, width: '100%', maxWidth: 600, padding: 24, maxHeight: '80vh', overflowY: 'auto' }}>
-        <h3 style={{ margin: '0 0 12px', fontSize: 16 }}>Category Rules</h3>
-        <p style={{ color: C.textMuted, fontSize: 12, margin: '0 0 12px' }}>When a merchant matches a rule, it gets auto-categorized. Rules are also sent to the AI as context.</p>
-        {(transactions.categoryRules || []).length === 0 && <p style={{ color: C.textDim, fontSize: 13 }}>No rules yet. Change a transaction's category to create one.</p>}
+        <h3 style={{ margin: '0 0 12px', fontSize: 16 }}>{t('transactions.categoryRulesTitle')}</h3>
+        <p style={{ color: C.textMuted, fontSize: 12, margin: '0 0 12px' }}>{t('transactions.categoryRulesDesc')}</p>
+        {(transactions.categoryRules || []).length === 0 && <p style={{ color: C.textDim, fontSize: 13 }}>{t('transactions.noRules')}</p>}
         <table style={{ width: '100%', borderCollapse: 'collapse' }}><tbody>
           {(transactions.categoryRules || []).map((r, i) => <tr key={i} style={{ borderBottom: `1px solid ${C.border}` }}>
             <td style={{ padding: '6px 8px', fontSize: 13 }}>{r.match}</td>
@@ -5222,12 +5220,12 @@ Rules:
             <td style={{ padding: '6px 4px', textAlign: 'right' }}><button onClick={() => deleteRule(i)} style={{ background: 'transparent', border: 'none', color: C.red, cursor: 'pointer', padding: 2 }}><Trash2 size={13}/></button></td>
           </tr>)}
         </tbody></table>
-        <h4 style={{ margin: '16px 0 8px', fontSize: 14 }}>Custom Categories</h4>
+        <h4 style={{ margin: '16px 0 8px', fontSize: 14 }}>{t('transactions.customCategories')}</h4>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
           {(transactions.customCategories || []).map((c, i) => <span key={i} style={{ background: C.input, border: `1px solid ${C.border}`, borderRadius: 6, padding: '3px 8px', fontSize: 12, display: 'flex', alignItems: 'center', gap: 4 }}>{c} <button onClick={() => setTransactions(prev => ({ ...prev, customCategories: prev.customCategories.filter((_, j) => j !== i) }))} style={{ background: 'transparent', border: 'none', color: C.red, cursor: 'pointer', padding: 0 }}><X size={11}/></button></span>)}
         </div>
         <div style={{ display: 'flex', gap: 6 }}>
-          <input value={newCat} onChange={e => setNewCat(e.target.value)} onKeyDown={e => e.key === 'Enter' && addCategory()} placeholder="New category…" style={{ flex: 1, background: C.input, color: C.text, border: `1px solid ${C.border}`, borderRadius: 6, padding: '5px 8px', fontSize: 12 }} />
+          <input value={newCat} onChange={e => setNewCat(e.target.value)} onKeyDown={e => e.key === 'Enter' && addCategory()} placeholder={t('transactions.newCategory')} style={{ flex: 1, background: C.input, color: C.text, border: `1px solid ${C.border}`, borderRadius: 6, padding: '5px 8px', fontSize: 12 }} />
           <button onClick={addCategory} style={{ background: C.accent, color: '#000', border: 'none', borderRadius: 6, padding: '5px 12px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>Add</button>
         </div>
         <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 14 }}>
@@ -5239,7 +5237,7 @@ Rules:
     {/* Import preview modal */}
     {importPreview && <div onClick={() => setImportPreview(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
       <div onClick={e => e.stopPropagation()} style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, width: '100%', maxWidth: 900, padding: 24, maxHeight: '85vh', overflowY: 'auto' }}>
-        <h3 style={{ margin: '0 0 4px', fontSize: 16 }}>Import Preview</h3>
+        <h3 style={{ margin: '0 0 4px', fontSize: 16 }}>{t('transactions.importPreview')}</h3>
         <p style={{ color: C.textMuted, fontSize: 12, margin: '0 0 14px' }}>{importPreview.transactions.length} transactions · {importPreview.currency || 'CHF'}{importPreview.failedBatches > 0 ? <span style={{ color: C.orange, marginLeft: 8 }}>({importPreview.failedBatches} batch{importPreview.failedBatches > 1 ? 'es' : ''} failed — some transactions may be missing)</span> : ''}</p>
         <div style={{ display: 'flex', gap: 8, marginBottom: 14, alignItems: 'center' }}>
           <label style={{ fontSize: 12, color: C.textMuted }}>Name:</label>
@@ -5249,10 +5247,10 @@ Rules:
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead style={{ position: 'sticky', top: 0, background: C.card }}><tr>
               <th style={{ padding: '6px 8px', textAlign: 'left', borderBottom: `1px solid ${C.border}`, fontSize: 11, color: C.textDim }}>Date</th>
-              <th style={{ padding: '6px 8px', textAlign: 'left', borderBottom: `1px solid ${C.border}`, fontSize: 11, color: C.textDim }}>Merchant</th>
-              <th style={{ padding: '6px 8px', textAlign: 'left', borderBottom: `1px solid ${C.border}`, fontSize: 11, color: C.textDim }}>Description</th>
+              <th style={{ padding: '6px 8px', textAlign: 'left', borderBottom: `1px solid ${C.border}`, fontSize: 11, color: C.textDim }}>{t('transactions.merchant')}</th>
+              <th style={{ padding: '6px 8px', textAlign: 'left', borderBottom: `1px solid ${C.border}`, fontSize: 11, color: C.textDim }}>{t('transactions.description')}</th>
               <th style={{ padding: '6px 8px', textAlign: 'right', borderBottom: `1px solid ${C.border}`, fontSize: 11, color: C.textDim }}>Amount</th>
-              <th style={{ padding: '6px 8px', textAlign: 'left', borderBottom: `1px solid ${C.border}`, fontSize: 11, color: C.textDim }}>Category</th>
+              <th style={{ padding: '6px 8px', textAlign: 'left', borderBottom: `1px solid ${C.border}`, fontSize: 11, color: C.textDim }}>{t('transactions.category')}</th>
               <th style={{ padding: '6px 8px', textAlign: 'left', borderBottom: `1px solid ${C.border}`, fontSize: 11, color: C.textDim }}>Type</th>
             </tr></thead>
             <tbody>{importPreview.transactions.map((t, i) => <tr key={i} style={{ borderBottom: `1px solid ${C.border}22` }}>
@@ -5277,8 +5275,8 @@ Rules:
         </div>
         <div style={{ display: 'flex', gap: 8, marginTop: 16, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
           <button onClick={() => setImportPreview(null)} style={{ background: 'transparent', border: `1px solid ${C.border}`, color: C.textMuted, borderRadius: 8, padding: '7px 16px', cursor: 'pointer', fontSize: 13 }}>Cancel</button>
-          <button onClick={() => confirmImport('merge')} style={{ background: C.green, color: '#000', border: 'none', borderRadius: 8, padding: '7px 16px', fontWeight: 600, fontSize: 13, cursor: 'pointer' }}>Merge (skip duplicates)</button>
-          <button onClick={() => confirmImport('replace')} style={{ background: C.accent, color: '#000', border: 'none', borderRadius: 8, padding: '7px 16px', fontWeight: 600, fontSize: 13, cursor: 'pointer' }}>Replace date range</button>
+          <button onClick={() => confirmImport('merge')} style={{ background: C.green, color: '#000', border: 'none', borderRadius: 8, padding: '7px 16px', fontWeight: 600, fontSize: 13, cursor: 'pointer' }}>{t('transactions.mergeDuplicates')}</button>
+          <button onClick={() => confirmImport('replace')} style={{ background: C.accent, color: '#000', border: 'none', borderRadius: 8, padding: '7px 16px', fontWeight: 600, fontSize: 13, cursor: 'pointer' }}>{t('transactions.replaceDateRange')}</button>
         </div>
       </div>
     </div>}
@@ -5293,9 +5291,9 @@ Rules:
           { label: '1M', days: 30 },
           { label: '3M', days: 90 },
           { label: '6M', days: 180 },
-          { label: 'YTD', days: 'ytd' },
+          { label: t('transactions.ytd'), days: 'ytd' },
           { label: '1Y', days: 365 },
-          { label: 'All', days: 0 },
+          { label: t('transactions.all'), days: 0 },
         ].map(s => {
           const today = new Date();
           let from = '';
@@ -5310,7 +5308,7 @@ Rules:
         <input type="date" value={filter.dateTo} onChange={e => setFilter(f => ({ ...f, dateTo: e.target.value }))} style={{ background: C.input, color: C.text, border: `1px solid ${C.border}`, borderRadius: 6, padding: '5px 8px', fontSize: 12 }} />
         <div style={{ position: 'relative', display: 'inline-block' }}>
           <button onClick={() => setFilter(f => ({ ...f, _catOpen: !f._catOpen }))} style={{ background: C.input, color: filter.categories.length ? C.text : C.textMuted, border: `1px solid ${C.border}`, borderRadius: 6, padding: '5px 8px', fontSize: 12, cursor: 'pointer', minWidth: 130, textAlign: 'left', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 4 }}>
-            {filter.categories.length ? `${filter.categories.length} categor${filter.categories.length === 1 ? 'y' : 'ies'}` : 'All Categories'}
+            {filter.categories.length ? `${filter.categories.length} categor${filter.categories.length === 1 ? 'y' : 'ies'}` : t('transactions.allCategories')}
             <ChevronDown size={12} />
           </button>
           {filter._catOpen && <>
@@ -5324,24 +5322,24 @@ Rules:
                 </button>;
               })}
               <div style={{ display: 'flex', gap: 4, marginTop: 4, borderTop: `1px solid ${C.border}`, paddingTop: 4 }}>
-                <button onClick={() => setFilter(f => ({ ...f, categories: [...allCategories] }))} style={{ flex: 1, padding: '5px 8px', border: 'none', background: 'transparent', color: C.textMuted, borderRadius: 4, cursor: 'pointer', fontSize: 11, textAlign: 'center' }}>Select all</button>
-                {filter.categories.length > 0 && <button onClick={() => setFilter(f => ({ ...f, categories: [] }))} style={{ flex: 1, padding: '5px 8px', border: 'none', background: 'transparent', color: C.textMuted, borderRadius: 4, cursor: 'pointer', fontSize: 11, textAlign: 'center' }}>Clear all</button>}
+                <button onClick={() => setFilter(f => ({ ...f, categories: [...allCategories] }))} style={{ flex: 1, padding: '5px 8px', border: 'none', background: 'transparent', color: C.textMuted, borderRadius: 4, cursor: 'pointer', fontSize: 11, textAlign: 'center' }}>{t('transactions.selectAll')}</button>
+                {filter.categories.length > 0 && <button onClick={() => setFilter(f => ({ ...f, categories: [] }))} style={{ flex: 1, padding: '5px 8px', border: 'none', background: 'transparent', color: C.textMuted, borderRadius: 4, cursor: 'pointer', fontSize: 11, textAlign: 'center' }}>{t('transactions.clearAll')}</button>}
               </div>
             </div>
           </>}
         </div>
         <input placeholder="Search…" value={filter.search} onChange={e => setFilter(f => ({ ...f, search: e.target.value }))} style={{ flex: 1, minWidth: 120, background: C.input, color: C.text, border: `1px solid ${C.border}`, borderRadius: 6, padding: '5px 8px', fontSize: 12 }} />
-        {(filter.search || filter.categories.length || filter.dateFrom || filter.dateTo) && <button onClick={() => setFilter({ search: '', categories: [], dateFrom: '', dateTo: '' })} style={{ background: 'transparent', border: 'none', color: C.textMuted, cursor: 'pointer', fontSize: 11 }}>Clear</button>}
+        {(filter.search || filter.categories.length || filter.dateFrom || filter.dateTo) && <button onClick={() => setFilter({ search: '', categories: [], dateFrom: '', dateTo: '' })} style={{ background: 'transparent', border: 'none', color: C.textMuted, cursor: 'pointer', fontSize: 11 }}>{ t('common.clear') }</button>}
       </div>
     </Card>}
 
     {/* Summary cards */}
     {allTxns.length > 0 && <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12 }}>
       {[
-        { label: 'Income', value: totalIncome, color: C.green },
-        { label: 'Expenses', value: totalExpenses, color: C.red },
-        { label: 'Net', value: net, color: net >= 0 ? C.green : C.red },
-        { label: 'Top Category', value: topCategory ? topCategory[1] : 0, color: C.accent, sub: topCategory ? topCategory[0] : '-' },
+        { label: t('common.income'), value: totalIncome, color: C.green },
+        { label: t('common.expenses'), value: totalExpenses, color: C.red },
+        { label: t('transactions.net'), value: net, color: net >= 0 ? C.green : C.red },
+        { label: t('transactions.topCategory'), value: topCategory ? topCategory[1] : 0, color: C.accent, sub: topCategory ? topCategory[0] : '-' },
       ].map((s, i) => <div key={i} style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: '14px 16px' }}>
         <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.5 }}>{s.label}{hasNonCHF ? ' (CHF)' : ''}</div>
         <div style={{ fontSize: 20, fontWeight: 600, color: s.color }}>{fmt(s.value)}</div>
@@ -5351,7 +5349,7 @@ Rules:
 
     {/* Charts */}
     {allTxns.length > 0 && <div style={{ display: 'grid', gridTemplateColumns: pieData.length > 0 ? '1fr 1.5fr' : '1fr', gap: 14 }}>
-      {pieData.length > 0 && <Card title="Spending by Category">
+      {pieData.length > 0 && <Card title={t('transactions.spendingByCategory')}>
         <ResponsiveContainer width="100%" height={250}>
           <PieChart>
             <Pie data={pieData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={50} outerRadius={90} paddingAngle={2}>
@@ -5362,7 +5360,7 @@ Rules:
           </PieChart>
         </ResponsiveContainer>
       </Card>}
-      {monthlyData.length > 1 && <Card title="Monthly Spending Trend">
+      {monthlyData.length > 1 && <Card title={t('transactions.monthlyTrend')}>
         <ResponsiveContainer width="100%" height={250}>
           <BarChart data={monthlyData}>
             <CartesianGrid strokeDasharray="3 3" stroke={C.border} />
@@ -5382,10 +5380,10 @@ Rules:
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead><tr>
             <SortTH col="date">Date</SortTH>
-            <SortTH col="merchant">Merchant</SortTH>
-            <SortTH col="description">Description</SortTH>
+            <SortTH col="merchant">{t('transactions.merchant')}</SortTH>
+            <SortTH col="description">{t('transactions.description')}</SortTH>
             <SortTH col="amount" style={{ textAlign: 'right' }}>Amount</SortTH>
-            <SortTH col="category">Category</SortTH>
+            <SortTH col="category">{t('transactions.category')}</SortTH>
             <SortTH col="type">Type</SortTH>
             <th style={{ padding: '8px 10px', width: 32, borderBottom: `1px solid ${C.border}` }}></th>
           </tr></thead>
@@ -5411,22 +5409,22 @@ Rules:
     </Card> : <Card>
       <div style={{ textAlign: 'center', padding: '40px 20px', color: C.textMuted }}>
         <Receipt size={40} style={{ marginBottom: 12, opacity: 0.4 }} />
-        <div style={{ fontSize: 15, fontWeight: 500, marginBottom: 6 }}>No transactions yet</div>
-        <div style={{ fontSize: 13 }}>Import a bank statement to see your spending breakdown</div>
+        <div style={{ fontSize: 15, fontWeight: 500, marginBottom: 6 }}>{t('transactions.noTransactions')}</div>
+        <div style={{ fontSize: 13 }}>{t('transactions.noTransactionsSub')}</div>
       </div>
     </Card>}
   </div>;
 }
 
 const NAV = [
-  { id:"dashboard", label:"Dashboard", icon:LayoutDashboard },
-  { id:"accounts", label:"Accounts", icon:Landmark },
-  { id:"portfolio", label:"Portfolio", icon:TrendingUp },
-  { id:"scenarios", label:"Scenarios", icon:Target },
-  { id:"tracker", label:"Tracker", icon:Activity },
-  { id:"expenses", label:"Expenses", icon:CreditCard },
-  { id:"transactions", label:"Transactions", icon:Receipt },
-  { id:"pillars", label:"Strategy", icon:PiggyBank },
+  { id:"dashboard", tKey:"nav.dashboard", icon:LayoutDashboard },
+  { id:"accounts", tKey:"nav.accounts", icon:Landmark },
+  { id:"portfolio", tKey:"nav.portfolio", icon:TrendingUp },
+  { id:"scenarios", tKey:"nav.scenarios", icon:Target },
+  { id:"tracker", tKey:"nav.tracker", icon:Activity },
+  { id:"expenses", tKey:"nav.expenses", icon:CreditCard },
+  { id:"transactions", tKey:"nav.transactions", icon:Receipt },
+  { id:"pillars", tKey:"nav.strategy", icon:PiggyBank },
 ];
 
 export default function FinanceApp() {
@@ -5459,6 +5457,8 @@ export default function FinanceApp() {
   const [hideBalances, setHideBalances] = useState(false);
   const [onboarding, setOnboarding] = useState({ dismissed: false, welcomeAck: false, aiAdviserAck: false, dataCleared: false, backupDone: false, transactionsAck: false, aiSettingsAck: false, lastMonthlyUpdate: null, lastTrackerSync: null });
   const [darkMode, setDarkMode] = useState(false);
+  const [lang, setLang] = useState('en');
+  const t = useCallback((key, params) => { let s = translations[lang]?.[key] ?? translations.en?.[key] ?? key; if (params) Object.entries(params).forEach(([k,v]) => { s = s.replaceAll(`{${k}}`, v); }); return s; }, [lang]);
   const [chatOpen, setChatOpen] = useState(false);
   const [chatInput, setChatInput] = useState("");
   const [notesVersion, setNotesVersion] = useState(0);
@@ -5500,6 +5500,7 @@ export default function FinanceApp() {
           if (settings.recPrompt != null) setRecPrompt(settings.recPrompt);
           if (settings.subPrompt != null) setSubPrompt(settings.subPrompt);
           if (settings.onboarding) setOnboarding(o => ({ ...o, ...settings.onboarding }));
+          if (settings.lang) setLang(settings.lang);
         }
         // profile key is loaded separately
         if (prof) setProfile(prof);
@@ -5537,7 +5538,7 @@ export default function FinanceApp() {
   useEffect(() => { save('insurance', insurance); }, [insurance, save]);
   useEffect(() => { save('profile', profile); }, [profile, save]);
   useEffect(() => { save('transactions', transactions); }, [transactions, save]);
-  useEffect(() => { save('settings', { subsPInScenario, promptTemplate, extractionPrompt, payrollExtractionPrompt, insPrompt, taxPrompt, recPrompt, subPrompt, onboarding }); }, [subsPInScenario, promptTemplate, extractionPrompt, payrollExtractionPrompt, insPrompt, taxPrompt, recPrompt, subPrompt, onboarding, save]);
+  useEffect(() => { save('settings', { subsPInScenario, promptTemplate, extractionPrompt, payrollExtractionPrompt, insPrompt, taxPrompt, recPrompt, subPrompt, onboarding, lang }); }, [subsPInScenario, promptTemplate, extractionPrompt, payrollExtractionPrompt, insPrompt, taxPrompt, recPrompt, subPrompt, onboarding, lang, save]);
   useEffect(() => { save('strategy_overrides', strategyOverrides); }, [strategyOverrides, save]);
 
   if (loading) return <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", background: darkMode ? "#141310" : "#f5f3ee", color: darkMode ? "#9a9688" : "#7a7a72", fontSize: 16, fontFamily: "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif" }}>Loading…</div>;
@@ -5552,9 +5553,9 @@ export default function FinanceApp() {
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:18,padding:sidebarOpen?"0 4px":"0"}}>
         {sidebarOpen && <div>
           <div style={{fontSize:16,fontWeight:400,fontFamily:"'Fraunces',serif",letterSpacing:"0.04em",color:C.text,lineHeight:1.2}}>Finance<span style={{fontStyle:"italic",color:C.accent}}>Hub</span></div>
-          <div style={{fontSize:8,color:C.textDim,marginTop:1,fontFamily:"'DM Mono',monospace",letterSpacing:"0.08em",textTransform:"uppercase"}}>Personal Finance</div>
+          <div style={{fontSize:8,color:C.textDim,marginTop:1,fontFamily:"'DM Mono',monospace",letterSpacing:"0.08em",textTransform:"uppercase"}}>{t('sidebar.tagline')}</div>
         </div>}
-        {!isMobile && <button onClick={()=>setSidebarOpen(o=>!o)} style={{background:"transparent",border:"none",cursor:"pointer",color:C.textDim,padding:3,borderRadius:5,display:"flex",alignItems:"center",flexShrink:0}} title={sidebarOpen?"Collapse":"Expand"}>
+        {!isMobile && <button onClick={()=>setSidebarOpen(o=>!o)} style={{background:"transparent",border:"none",cursor:"pointer",color:C.textDim,padding:3,borderRadius:5,display:"flex",alignItems:"center",flexShrink:0}} title={sidebarOpen?t('sidebar.collapse'):t('sidebar.expand')}>
           {sidebarOpen ? <ChevronLeft size={15}/> : <ChevronRight size={15}/>}
         </button>}
       </div>
@@ -5563,10 +5564,10 @@ export default function FinanceApp() {
       <nav style={{display:"flex",flexDirection:"column",gap:1}}>
         {NAV.map(n=>{
           const a=page===n.id;
-          return <button key={n.id} onClick={()=>{setPage(n.id);if(isMobile)setSidebarOpen(false);}} title={sidebarOpen?undefined:n.label}
+          return <button key={n.id} onClick={()=>{setPage(n.id);if(isMobile)setSidebarOpen(false);}} title={sidebarOpen?undefined:t(n.tKey)}
             style={{display:"flex",alignItems:"center",gap:8,padding:sidebarOpen?"7px 10px":"8px 0",justifyContent:sidebarOpen?"flex-start":"center",borderRadius:7,border:"none",cursor:"pointer",fontSize:13,fontWeight:a?600:400,color:a?C.text:C.textMuted,background:a?C.accent+"18":"transparent",textAlign:"left",whiteSpace:"nowrap",transition:"background .12s,color .12s",position:"relative"}}>
             <n.icon size={15} color={a?C.accentLight:C.textDim}/>
-            {sidebarOpen && <span style={{flex:1}}>{n.label}</span>}
+            {sidebarOpen && <span style={{flex:1}}>{t(n.tKey)}</span>}
             {sidebarOpen && a && <div style={{width:4,height:4,borderRadius:2,background:C.accent,flexShrink:0}}/>}
           </button>;
         })}
@@ -5579,21 +5580,21 @@ export default function FinanceApp() {
         <button onClick={()=>setProfileOpen(true)} title={sidebarOpen?undefined:`${profile.firstName||'Profile'} ${profile.lastName}`}
           style={{display:"flex",alignItems:"center",gap:8,width:"100%",padding:"6px 10px",borderRadius:7,border:"none",background:"transparent",cursor:"pointer",textAlign:"left",justifyContent:sidebarOpen?"flex-start":"center",color:C.textMuted,marginBottom:2}}>
           <User size={14} color={C.accentLight}/>
-          {sidebarOpen && <span style={{fontSize:11,color:C.textDim,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{profile.firstName?`${profile.firstName} ${profile.lastName}`.trim():"Profile"}</span>}
+          {sidebarOpen && <span style={{fontSize:11,color:C.textDim,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{profile.firstName?`${profile.firstName} ${profile.lastName}`.trim():t('sidebar.profile')}</span>}
         </button>
 
         {/* AI Prompt */}
-        <button onClick={()=>setPromptOpen(true)} title={sidebarOpen?undefined:"AI Advisor Prompt"}
+        <button onClick={()=>setPromptOpen(true)} title={sidebarOpen?undefined:t('sidebar.aiPrompt')}
           style={{display:"flex",alignItems:"center",gap:8,width:"100%",padding:"6px 10px",borderRadius:7,border:"none",background:"transparent",cursor:"pointer",textAlign:"left",justifyContent:sidebarOpen?"flex-start":"center",color:C.textMuted,marginBottom:2}}>
           <Sparkles size={14} color={C.accentLight}/>
-          {sidebarOpen && <span style={{fontSize:11,color:C.textDim}}>AI Advisor Prompt</span>}
+          {sidebarOpen && <span style={{fontSize:11,color:C.textDim}}>{t('sidebar.aiPrompt')}</span>}
         </button>
 
         {/* AI Settings */}
-        <button onClick={()=>{setPage('ai-settings');if(isMobile)setSidebarOpen(false);}} title={sidebarOpen?undefined:"AI Settings"}
+        <button onClick={()=>{setPage('ai-settings');if(isMobile)setSidebarOpen(false);}} title={sidebarOpen?undefined:t('sidebar.aiSettings')}
           style={{display:"flex",alignItems:"center",gap:8,width:"100%",padding:"6px 10px",borderRadius:7,border:"none",background:page==='ai-settings'?C.accent+"18":"transparent",cursor:"pointer",textAlign:"left",justifyContent:sidebarOpen?"flex-start":"center",color:page==='ai-settings'?C.accentLight:C.textMuted,marginBottom:4}}>
           <Settings size={14} color={page==='ai-settings'?C.accentLight:undefined}/>
-          {sidebarOpen && <span style={{fontSize:11,color:page==='ai-settings'?C.accentLight:C.textDim}}>AI Settings</span>}
+          {sidebarOpen && <span style={{fontSize:11,color:page==='ai-settings'?C.accentLight:C.textDim}}>{t('sidebar.aiSettings')}</span>}
         </button>
 
         {/* Dark Mode toggle row */}
@@ -5601,12 +5602,12 @@ export default function FinanceApp() {
           <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"6px 10px",borderRadius:7}}>
             <div style={{display:"flex",alignItems:"center",gap:7,color:C.textMuted}}>
               {darkMode ? <Sun size={13}/> : <Moon size={13}/>}
-              <span style={{fontSize:11}}>{darkMode?"Light Mode":"Dark Mode"}</span>
+              <span style={{fontSize:11}}>{darkMode?t('sidebar.lightMode'):t('sidebar.darkMode')}</span>
             </div>
             <Toggle on={darkMode} onToggle={()=>setDarkMode(d=>!d)}/>
           </div>
         ) : (
-          <button onClick={()=>setDarkMode(d=>!d)} title={darkMode?"Light Mode":"Dark Mode"} style={{display:"flex",alignItems:"center",justifyContent:"center",width:"100%",padding:"8px 0",borderRadius:7,border:"none",background:"transparent",color:C.textMuted,cursor:"pointer"}}>
+          <button onClick={()=>setDarkMode(d=>!d)} title={darkMode?t('sidebar.lightMode'):t('sidebar.darkMode')} style={{display:"flex",alignItems:"center",justifyContent:"center",width:"100%",padding:"8px 0",borderRadius:7,border:"none",background:"transparent",color:C.textMuted,cursor:"pointer"}}>
             {darkMode ? <Sun size={15}/> : <Moon size={15}/>}
           </button>
         )}
@@ -5616,20 +5617,33 @@ export default function FinanceApp() {
           <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"6px 10px",borderRadius:7}}>
             <div style={{display:"flex",alignItems:"center",gap:7,color:C.textMuted}}>
               {hideBalances ? <EyeOff size={13}/> : <Eye size={13}/>}
-              <span style={{fontSize:11}}>Hide Balances</span>
+              <span style={{fontSize:11}}>{t('sidebar.hideBalances')}</span>
             </div>
             <Toggle on={hideBalances} onToggle={()=>setHideBalances(h=>!h)}/>
           </div>
         ) : (
-          <button onClick={()=>setHideBalances(h=>!h)} title={hideBalances?"Show Balances":"Hide Balances"} style={{display:"flex",alignItems:"center",justifyContent:"center",width:"100%",padding:"8px 0",borderRadius:7,border:"none",background:"transparent",color:hideBalances?C.accentLight:C.textMuted,cursor:"pointer"}}>
+          <button onClick={()=>setHideBalances(h=>!h)} title={hideBalances?t('sidebar.showBalances'):t('sidebar.hideBalances')} style={{display:"flex",alignItems:"center",justifyContent:"center",width:"100%",padding:"8px 0",borderRadius:7,border:"none",background:"transparent",color:hideBalances?C.accentLight:C.textMuted,cursor:"pointer"}}>
             {hideBalances ? <EyeOff size={15}/> : <Eye size={15}/>}
           </button>
         )}
 
+        {/* Language toggle */}
+        {sidebarOpen ? (
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"6px 10px",borderRadius:7}}>
+            <div style={{display:"flex",alignItems:"center",gap:7,color:C.textMuted}}>
+              <span style={{fontSize:13,fontWeight:600}}>🌐</span>
+              <span style={{fontSize:11}}>{t('sidebar.language')}</span>
+            </div>
+            <button onClick={()=>setLang(l=>l==='en'?'de':'en')} style={{padding:"2px 8px",borderRadius:5,border:`1px solid ${C.border}`,background:C.accent+"18",color:C.accent,fontSize:11,fontWeight:700,cursor:"pointer",letterSpacing:"0.04em"}}>{lang.toUpperCase()}</button>
+          </div>
+        ) : (
+          <button onClick={()=>setLang(l=>l==='en'?'de':'en')} title={lang==='en'?'Deutsch':'English'} style={{display:"flex",alignItems:"center",justifyContent:"center",width:"100%",padding:"8px 0",borderRadius:7,border:"none",background:"transparent",color:C.accent,cursor:"pointer",fontSize:11,fontWeight:700}}>{lang.toUpperCase()}</button>
+        )}
+
         {/* Getting Started */}
-        <button onClick={()=>{setOnboarding(o=>({...o,dismissed:false}));setPage('dashboard');}} title={sidebarOpen?undefined:"Getting Started"}
+        <button onClick={()=>{setOnboarding(o=>({...o,dismissed:false}));setPage('dashboard');}} title={sidebarOpen?undefined:t('sidebar.gettingStarted')}
           style={{display:"flex",alignItems:"center",gap:8,width:"100%",padding:"6px 10px",borderRadius:7,border:"none",background:!onboarding.dismissed?C.accent+"18":"transparent",cursor:"pointer",textAlign:"left",justifyContent:sidebarOpen?"flex-start":"center",color:!onboarding.dismissed?C.accentLight:C.textMuted,marginTop:2}}>
-          <BookOpen size={13}/>{sidebarOpen && <span style={{fontSize:11}}>Getting Started</span>}
+          <BookOpen size={13}/>{sidebarOpen && <span style={{fontSize:11}}>{t('sidebar.gettingStarted')}</span>}
         </button>
 
         {/* Export / Import */}
@@ -5640,8 +5654,8 @@ export default function FinanceApp() {
             for(const k of keys){ const r=await fetch(`${API_URL}/${k}`); out[k]=r.status===404?null:await r.json(); }
             const ts=new Date().toISOString().slice(0,16).replace('T','_').replace(':','');
             const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([JSON.stringify(out,null,2)],{type:'application/json'})); a.download=`finance_hub_${ts}.json`; a.style.display='none'; document.body.appendChild(a); a.click(); URL.revokeObjectURL(a.href); document.body.removeChild(a);
-          }} style={{flex:1,padding:"4px 0",borderRadius:5,border:`1px solid ${C.border}`,background:"transparent",color:C.textDim,fontSize:10,cursor:"pointer",letterSpacing:"0.02em"}}>Export</button>
-          <button onClick={()=>importJsonRef.current?.click()} style={{flex:1,padding:"4px 0",borderRadius:5,border:`1px solid ${C.border}`,background:"transparent",color:C.textDim,fontSize:10,cursor:"pointer",letterSpacing:"0.02em"}}>Import</button>
+          }} style={{flex:1,padding:"4px 0",borderRadius:5,border:`1px solid ${C.border}`,background:"transparent",color:C.textDim,fontSize:10,cursor:"pointer",letterSpacing:"0.02em"}}>{t('sidebar.export')}</button>
+          <button onClick={()=>importJsonRef.current?.click()} style={{flex:1,padding:"4px 0",borderRadius:5,border:`1px solid ${C.border}`,background:"transparent",color:C.textDim,fontSize:10,cursor:"pointer",letterSpacing:"0.02em"}}>{t('sidebar.import')}</button>
           <input ref={importJsonRef} type="file" accept=".json" style={{display:"none"}} onChange={async e=>{
             const file=e.target.files[0]; if(!file) return;
             e.target.value='';
@@ -5662,10 +5676,10 @@ export default function FinanceApp() {
           <button onClick={()=>setSidebarOpen(o=>!o)} style={{padding:"8px",borderRadius:8,border:`1px solid ${C.border}`,background:C.card,color:C.text,cursor:"pointer",display:"flex",alignItems:"center"}}>
             <Menu size={18}/>
           </button>
-          <h1 style={{fontSize:20,fontWeight:700,margin:0}}>{NAV.find(n=>n.id===page)?.label}</h1>
+          <h1 style={{fontSize:20,fontWeight:700,margin:0}}>{t(NAV.find(n=>n.id===page)?.tKey||'')}</h1>
         </div>}
         {!isMobile && <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:24}}>
-          <h1 style={{fontSize:26,fontWeight:400,fontFamily:"'Fraunces',serif",margin:0}}>{NAV.find(n=>n.id===page)?.label}</h1>
+          <h1 style={{fontSize:26,fontWeight:400,fontFamily:"'Fraunces',serif",margin:0}}>{t(NAV.find(n=>n.id===page)?.tKey||'')}</h1>
         </div>}
 
         {/* Ollama detection banner */}
@@ -5676,40 +5690,40 @@ export default function FinanceApp() {
           return <div style={{marginBottom:18,padding:'12px 18px',borderRadius:10,background:C.green+'11',border:`1px solid ${C.green+'44'}`,display:'flex',alignItems:'center',gap:12}}>
             <div style={{width:8,height:8,borderRadius:'50%',background:C.green,flexShrink:0,boxShadow:`0 0 6px ${C.green}`}}/>
             <div style={{flex:1,fontSize:13,color:C.text}}>
-              <strong>Ollama detected!</strong> You have a local AI running on this machine — switch to it for 100% private, zero-cost AI.
-              <button onClick={()=>setPage('ai-settings')} style={{marginLeft:10,padding:'2px 10px',borderRadius:6,border:`1px solid ${C.green}`,background:'transparent',color:C.green,fontSize:12,cursor:'pointer',fontWeight:600}}>Configure →</button>
+              <strong>{t('ollama.detected')}</strong> {t('ollama.benefit')}
+              <button onClick={()=>setPage('ai-settings')} style={{marginLeft:10,padding:'2px 10px',borderRadius:6,border:`1px solid ${C.green}`,background:'transparent',color:C.green,fontSize:12,cursor:'pointer',fontWeight:600}}>{t('ollama.configure')}</button>
             </div>
             <button onClick={()=>{ setOllamaBannerDismissed(true); sessionStorage.setItem('ollama_banner_dismissed','true'); }} style={{background:'transparent',border:'none',color:C.textDim,cursor:'pointer',padding:4,flexShrink:0}}><X size={14}/></button>
           </div>;
         })()}
 
         {page==="dashboard" && <>
-          <OnboardingChecklist accounts={accounts} scenarios={scenarios} subsP={subsP} yearly={yearly} profile={profile} onboarding={onboarding} setOnboarding={setOnboarding} setPage={setPage} setProfileOpen={setProfileOpen} setPromptOpen={setPromptOpen} onClearAll={(skipConfirm)=>{ if(skipConfirm !== 'skip' && !window.confirm('Clear all data and start fresh? This cannot be undone.')) return; setAccounts([]); setScenarios([]); setSubsP([]); setYearly([]); setTaxes([]); setInsurance([]); setTracker({2026:[]}); setProfile({firstName:'',lastName:'',gender:'',birthDate:'',address:'',postalCode:'',city:'',canton:'',phone:'',maritalStatus:'',religion:'',children:'',ahvNumber:'',company:'',jobTitle:'',businessName:'',businessType:'',businessProjects:'',notes:''}); setOnboarding(o=>({...o,dataCleared:true})); }}/>
-          <Dashboard accounts={accounts} scenarios={scenarios} subsP={subsP} subsPInScenario={subsPInScenario} yearly={yearly} taxes={taxes} insurance={insurance} profile={profile} hideBalances={hideBalances} setChatOpen={setChatOpen} setChatInput={setChatInput} notesVersion={notesVersion}/>
+          <OnboardingChecklist accounts={accounts} scenarios={scenarios} subsP={subsP} yearly={yearly} profile={profile} onboarding={onboarding} setOnboarding={setOnboarding} setPage={setPage} setProfileOpen={setProfileOpen} setPromptOpen={setPromptOpen} t={t} onClearAll={(skipConfirm)=>{ if(skipConfirm !== 'skip' && !window.confirm(t('onboarding.clearConfirm'))) return; setAccounts([]); setScenarios([]); setSubsP([]); setYearly([]); setTaxes([]); setInsurance([]); setTracker({2026:[]}); setProfile({firstName:'',lastName:'',gender:'',birthDate:'',address:'',postalCode:'',city:'',canton:'',phone:'',maritalStatus:'',religion:'',children:'',ahvNumber:'',company:'',jobTitle:'',businessName:'',businessType:'',businessProjects:'',notes:''}); setOnboarding(o=>({...o,dataCleared:true})); }}/>
+          <Dashboard accounts={accounts} scenarios={scenarios} subsP={subsP} subsPInScenario={subsPInScenario} yearly={yearly} taxes={taxes} insurance={insurance} profile={profile} hideBalances={hideBalances} setChatOpen={setChatOpen} setChatInput={setChatInput} notesVersion={notesVersion} t={t}/>
         </>}
-        {page==="accounts" && <AccountsPage accounts={accounts} setAccounts={setAccounts} hideBalances={hideBalances} onAccountsUpdated={() => setOnboarding(o => ({...o, lastMonthlyUpdate: new Date().toISOString()}))} extractionPrompt={extractionPrompt} setExtractionPrompt={setExtractionPrompt}/>}
-        {page==="portfolio" && <PortfolioPage accounts={accounts} setAccounts={setAccounts} hideBalances={hideBalances} setChatOpen={setChatOpen} setChatInput={setChatInput}/>}
-        {page==="scenarios" && <ScenariosPage scenarios={scenarios} setScenarios={setScenarios} subsP={subsP} subsPInScenario={subsPInScenario} yearly={yearly} taxes={taxes} insurance={insurance} hideBalances={hideBalances} darkMode={darkMode} payrollExtractionPrompt={payrollExtractionPrompt} setPayrollExtractionPrompt={setPayrollExtractionPrompt}/>}
-        {page==="tracker" && <TrackerPage tracker={tracker} setTracker={setTracker} accounts={accounts} hideBalances={hideBalances} onTrackerSynced={() => setOnboarding(o => ({...o, lastTrackerSync: new Date().toISOString()}))}/>}
-        {page==="expenses" && <ExpensesPage subsP={subsP} setSubsP={setSubsP} subsPInScenario={subsPInScenario} setSubsPInScenario={setSubsPInScenario} yearly={yearly} setYearly={setYearly} taxes={taxes} setTaxes={setTaxes} insurance={insurance} setInsurance={setInsurance} hideBalances={hideBalances} profile={profile} accounts={accounts} scenarios={scenarios} darkMode={darkMode} insPrompt={insPrompt} setInsPrompt={setInsPrompt} taxPrompt={taxPrompt} setTaxPrompt={setTaxPrompt} recPrompt={recPrompt} setRecPrompt={setRecPrompt} subPrompt={subPrompt} setSubPrompt={setSubPrompt}/>}
-        {page==="transactions" && <TransactionsPage transactions={transactions} setTransactions={setTransactions} hideBalances={hideBalances}/>}
-        {page==="pillars" && <PillarPage accounts={accounts} scenarios={scenarios} subsP={subsP} subsPInScenario={subsPInScenario} yearly={yearly} taxes={taxes} insurance={insurance} hideBalances={hideBalances} profile={profile} strategyOverrides={strategyOverrides} setStrategyOverrides={setStrategyOverrides}/>}
-        {page==="ai-settings" && <AISettingsPage/>}
+        {page==="accounts" && <AccountsPage accounts={accounts} setAccounts={setAccounts} hideBalances={hideBalances} onAccountsUpdated={() => setOnboarding(o => ({...o, lastMonthlyUpdate: new Date().toISOString()}))} extractionPrompt={extractionPrompt} setExtractionPrompt={setExtractionPrompt} t={t}/>}
+        {page==="portfolio" && <PortfolioPage accounts={accounts} setAccounts={setAccounts} hideBalances={hideBalances} setChatOpen={setChatOpen} setChatInput={setChatInput} t={t}/>}
+        {page==="scenarios" && <ScenariosPage scenarios={scenarios} setScenarios={setScenarios} subsP={subsP} subsPInScenario={subsPInScenario} yearly={yearly} taxes={taxes} insurance={insurance} hideBalances={hideBalances} darkMode={darkMode} payrollExtractionPrompt={payrollExtractionPrompt} setPayrollExtractionPrompt={setPayrollExtractionPrompt} t={t}/>}
+        {page==="tracker" && <TrackerPage tracker={tracker} setTracker={setTracker} accounts={accounts} hideBalances={hideBalances} onTrackerSynced={() => setOnboarding(o => ({...o, lastTrackerSync: new Date().toISOString()}))} t={t}/>}
+        {page==="expenses" && <ExpensesPage subsP={subsP} setSubsP={setSubsP} subsPInScenario={subsPInScenario} setSubsPInScenario={setSubsPInScenario} yearly={yearly} setYearly={setYearly} taxes={taxes} setTaxes={setTaxes} insurance={insurance} setInsurance={setInsurance} hideBalances={hideBalances} profile={profile} accounts={accounts} scenarios={scenarios} darkMode={darkMode} insPrompt={insPrompt} setInsPrompt={setInsPrompt} taxPrompt={taxPrompt} setTaxPrompt={setTaxPrompt} recPrompt={recPrompt} setRecPrompt={setRecPrompt} subPrompt={subPrompt} setSubPrompt={setSubPrompt} t={t}/>}
+        {page==="transactions" && <TransactionsPage transactions={transactions} setTransactions={setTransactions} hideBalances={hideBalances} t={t}/>}
+        {page==="pillars" && <PillarPage accounts={accounts} scenarios={scenarios} subsP={subsP} subsPInScenario={subsPInScenario} yearly={yearly} taxes={taxes} insurance={insurance} hideBalances={hideBalances} profile={profile} strategyOverrides={strategyOverrides} setStrategyOverrides={setStrategyOverrides} t={t}/>}
+        {page==="ai-settings" && <AISettingsPage t={t}/>}
       </div>
     </div>
-    <ChatPanel accounts={accounts} scenarios={scenarios} subsP={subsP} subsPInScenario={subsPInScenario} yearly={yearly} taxes={taxes} insurance={insurance} profile={profile} open={chatOpen} setOpen={setChatOpen} externalInput={chatInput} setExternalInput={setChatInput} promptTemplate={promptTemplate} onPinned={() => setNotesVersion(v => v + 1)}/>
+    <ChatPanel accounts={accounts} scenarios={scenarios} subsP={subsP} subsPInScenario={subsPInScenario} yearly={yearly} taxes={taxes} insurance={insurance} profile={profile} open={chatOpen} setOpen={setChatOpen} externalInput={chatInput} setExternalInput={setChatInput} promptTemplate={promptTemplate} onPinned={() => setNotesVersion(v => v + 1)} t={t}/>
     {profileOpen && <div onClick={()=>setProfileOpen(false)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.7)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:24}}>
       <div onClick={e=>e.stopPropagation()} style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:16,width:"100%",maxWidth:1140,maxHeight:"84vh",overflowY:"auto",padding:28,boxShadow:"0 24px 80px rgba(0,0,0,0.6)"}}>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:24}}>
-          <h2 style={{margin:0,fontSize:18,fontWeight:700,color:C.text}}>My Profile</h2>
+          <h2 style={{margin:0,fontSize:18,fontWeight:700,color:C.text}}>{t('profile.title')}</h2>
           <button onClick={()=>setProfileOpen(false)} style={{background:"transparent",border:"none",cursor:"pointer",color:C.textDim}}><X size={18}/></button>
         </div>
-        <p style={{margin:"0 0 20px",fontSize:13,color:C.textDim}}>This information is included in every AI analysis so the advisor can personalise advice for your specific situation.</p>
+        <p style={{margin:"0 0 20px",fontSize:13,color:C.textDim}}>{t('profile.desc')}</p>
 
         {/* ── Personal Info ── */}
-        <div style={{fontSize:12,color:C.textDim,fontWeight:600,textTransform:"uppercase",letterSpacing:0.5,marginBottom:12}}>Personal Info</div>
+        <div style={{fontSize:12,color:C.textDim,fontWeight:600,textTransform:"uppercase",letterSpacing:0.5,marginBottom:12}}>{t('profile.personalInfo')}</div>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 16px"}}>
-          {[{label:"First Name",key:"firstName"},{label:"Last Name",key:"lastName"},{label:"Gender",key:"gender"},{label:"Date of Birth",key:"birthDate"}].map(({label,key})=>(
+          {[{label:t('profile.firstName'),key:"firstName"},{label:t('profile.lastName'),key:"lastName"},{label:t('profile.gender'),key:"gender"},{label:t('profile.dateOfBirth'),key:"birthDate"}].map(({label,key})=>(
             <div key={key} style={{marginBottom:14}}>
               <label style={{fontSize:12,color:C.accent,fontWeight:600,textTransform:"uppercase",letterSpacing:0.5,display:"block",marginBottom:4}}>{label}</label>
               <input value={profile[key]||''} onChange={e=>setProfile(p=>({...p,[key]:e.target.value}))}
@@ -5719,14 +5733,14 @@ export default function FinanceApp() {
         </div>
 
         {/* ── Residence & Contact ── */}
-        <div style={{fontSize:12,color:C.textDim,fontWeight:600,textTransform:"uppercase",letterSpacing:0.5,marginBottom:12,marginTop:4,paddingTop:12,borderTop:`1px solid ${C.border}`}}>Residence &amp; Contact</div>
+        <div style={{fontSize:12,color:C.textDim,fontWeight:600,textTransform:"uppercase",letterSpacing:0.5,marginBottom:12,marginTop:4,paddingTop:12,borderTop:`1px solid ${C.border}`}}>{t('profile.residenceContact')}</div>
         <div style={{marginBottom:14}}>
-          <label style={{fontSize:12,color:C.accent,fontWeight:600,textTransform:"uppercase",letterSpacing:0.5,display:"block",marginBottom:4}}>Street Address</label>
+          <label style={{fontSize:12,color:C.accent,fontWeight:600,textTransform:"uppercase",letterSpacing:0.5,display:"block",marginBottom:4}}>{t('profile.streetAddress')}</label>
           <input value={profile.address||''} onChange={e=>setProfile(p=>({...p,address:e.target.value}))}
             style={{width:"100%",padding:"9px 12px",borderRadius:8,border:`1px solid ${C.border}`,background:C.bg,color:C.text,fontSize:14,outline:"none",boxSizing:"border-box"}}/>
         </div>
         <div style={{display:"grid",gridTemplateColumns:"120px 1fr 1fr 1fr",gap:"0 12px"}}>
-          {[{label:"Postal Code (PLZ)",key:"postalCode"},{label:"City / Municipality",key:"city"},{label:"Canton",key:"canton"},{label:"Phone",key:"phone"}].map(({label,key})=>{
+          {[{label:t('profile.postalCode'),key:"postalCode"},{label:t('profile.city'),key:"city"},{label:t('profile.canton'),key:"canton"},{label:t('profile.phone'),key:"phone"}].map(({label,key})=>{
             if (key==="canton") return (
               <div key={key} style={{marginBottom:14}}>
                 <label style={{fontSize:12,color:C.accent,fontWeight:600,textTransform:"uppercase",letterSpacing:0.5,display:"block",marginBottom:4}}>{label}</label>
@@ -5748,10 +5762,10 @@ export default function FinanceApp() {
         </div>
 
         {/* ── Tax Information ── */}
-        <div style={{fontSize:12,color:C.textDim,fontWeight:600,textTransform:"uppercase",letterSpacing:0.5,marginBottom:12,marginTop:4,paddingTop:12,borderTop:`1px solid ${C.border}`}}>Tax Information</div>
+        <div style={{fontSize:12,color:C.textDim,fontWeight:600,textTransform:"uppercase",letterSpacing:0.5,marginBottom:12,marginTop:4,paddingTop:12,borderTop:`1px solid ${C.border}`}}>{t('profile.taxInfo')}</div>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr",gap:"0 16px"}}>
           <div style={{marginBottom:14}}>
-            <label style={{fontSize:12,color:C.accent,fontWeight:600,textTransform:"uppercase",letterSpacing:0.5,display:"block",marginBottom:4}}>Marital Status</label>
+            <label style={{fontSize:12,color:C.accent,fontWeight:600,textTransform:"uppercase",letterSpacing:0.5,display:"block",marginBottom:4}}>{t('profile.maritalStatus')}</label>
             <select value={profile.maritalStatus||''} onChange={e=>setProfile(p=>({...p,maritalStatus:e.target.value}))}
               style={{width:"100%",padding:"9px 12px",borderRadius:8,border:`1px solid ${C.border}`,background:C.bg,color:profile.maritalStatus?C.text:C.textDim,fontSize:14,outline:"none",boxSizing:"border-box",cursor:"pointer"}}>
               <option value="">— select —</option>
@@ -5763,7 +5777,7 @@ export default function FinanceApp() {
             </select>
           </div>
           <div style={{marginBottom:14}}>
-            <label style={{fontSize:12,color:C.accent,fontWeight:600,textTransform:"uppercase",letterSpacing:0.5,display:"block",marginBottom:4}}>Religion (Church Tax)</label>
+            <label style={{fontSize:12,color:C.accent,fontWeight:600,textTransform:"uppercase",letterSpacing:0.5,display:"block",marginBottom:4}}>{t('profile.religion')}</label>
             <select value={profile.religion||''} onChange={e=>setProfile(p=>({...p,religion:e.target.value}))}
               style={{width:"100%",padding:"9px 12px",borderRadius:8,border:`1px solid ${C.border}`,background:C.bg,color:profile.religion?C.text:C.textDim,fontSize:14,outline:"none",boxSizing:"border-box",cursor:"pointer"}}>
               <option value="">— select —</option>
@@ -5775,21 +5789,21 @@ export default function FinanceApp() {
             </select>
           </div>
           <div style={{marginBottom:14}}>
-            <label style={{fontSize:12,color:C.accent,fontWeight:600,textTransform:"uppercase",letterSpacing:0.5,display:"block",marginBottom:4}}>Children (Kinder)</label>
+            <label style={{fontSize:12,color:C.accent,fontWeight:600,textTransform:"uppercase",letterSpacing:0.5,display:"block",marginBottom:4}}>{t('profile.children')}</label>
             <input type="number" min="0" value={profile.children||''} onChange={e=>setProfile(p=>({...p,children:e.target.value}))} placeholder="0"
               style={{width:"100%",padding:"9px 12px",borderRadius:8,border:`1px solid ${C.border}`,background:C.bg,color:C.text,fontSize:14,outline:"none",boxSizing:"border-box"}}/>
           </div>
           <div style={{marginBottom:14}}>
-            <label style={{fontSize:12,color:C.accent,fontWeight:600,textTransform:"uppercase",letterSpacing:0.5,display:"block",marginBottom:4}}>AHV / AVS Number</label>
+            <label style={{fontSize:12,color:C.accent,fontWeight:600,textTransform:"uppercase",letterSpacing:0.5,display:"block",marginBottom:4}}>{t('profile.ahvNumber')}</label>
             <input value={profile.ahvNumber||''} onChange={e=>setProfile(p=>({...p,ahvNumber:e.target.value}))} placeholder="756.XXXX.XXXX.XX"
               style={{width:"100%",padding:"9px 12px",borderRadius:8,border:`1px solid ${C.border}`,background:C.bg,color:C.text,fontSize:14,outline:"none",boxSizing:"border-box"}}/>
           </div>
         </div>
 
         {/* ── Employment ── */}
-        <div style={{fontSize:12,color:C.textDim,fontWeight:600,textTransform:"uppercase",letterSpacing:0.5,marginBottom:12,marginTop:4,paddingTop:12,borderTop:`1px solid ${C.border}`}}>Employment</div>
+        <div style={{fontSize:12,color:C.textDim,fontWeight:600,textTransform:"uppercase",letterSpacing:0.5,marginBottom:12,marginTop:4,paddingTop:12,borderTop:`1px solid ${C.border}`}}>{t('profile.employment')}</div>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 16px"}}>
-          {[{label:"Employer / Company",key:"company"},{label:"Job Title",key:"jobTitle"}].map(({label,key})=>(
+          {[{label:t('profile.company'),key:"company"},{label:t('profile.jobTitle'),key:"jobTitle"}].map(({label,key})=>(
             <div key={key} style={{marginBottom:14}}>
               <label style={{fontSize:12,color:C.accent,fontWeight:600,textTransform:"uppercase",letterSpacing:0.5,display:"block",marginBottom:4}}>{label}</label>
               <input value={profile[key]||''} onChange={e=>setProfile(p=>({...p,[key]:e.target.value}))}
@@ -5799,9 +5813,9 @@ export default function FinanceApp() {
         </div>
 
         {/* ── Side Business ── */}
-        <div style={{fontSize:12,color:C.textDim,fontWeight:600,textTransform:"uppercase",letterSpacing:0.5,marginBottom:12,marginTop:4,paddingTop:12,borderTop:`1px solid ${C.border}`}}>Side Business</div>
+        <div style={{fontSize:12,color:C.textDim,fontWeight:600,textTransform:"uppercase",letterSpacing:0.5,marginBottom:12,marginTop:4,paddingTop:12,borderTop:`1px solid ${C.border}`}}>{t('profile.sideBusiness')}</div>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:"0 16px"}}>
-          {[{label:"Business Name",key:"businessName"},{label:"Business Type",key:"businessType"},{label:"Active Projects / Products",key:"businessProjects"}].map(({label,key})=>(
+          {[{label:t('profile.businessName'),key:"businessName"},{label:t('profile.businessType'),key:"businessType"},{label:t('profile.businessProjects'),key:"businessProjects"}].map(({label,key})=>(
             <div key={key} style={{marginBottom:14}}>
               <label style={{fontSize:12,color:C.accent,fontWeight:600,textTransform:"uppercase",letterSpacing:0.5,display:"block",marginBottom:4}}>{label}</label>
               <input value={profile[key]||''} onChange={e=>setProfile(p=>({...p,[key]:e.target.value}))}
@@ -5811,23 +5825,22 @@ export default function FinanceApp() {
         </div>
 
         <div style={{marginBottom:14,paddingTop:12,borderTop:`1px solid ${C.border}`}}>
-          <label style={{fontSize:12,color:C.accent,fontWeight:600,textTransform:"uppercase",letterSpacing:0.5,display:"block",marginBottom:4}}>Additional Notes for AI</label>
+          <label style={{fontSize:12,color:C.accent,fontWeight:600,textTransform:"uppercase",letterSpacing:0.5,display:"block",marginBottom:4}}>{t('profile.notesForAi')}</label>
           <textarea value={profile.notes||''} onChange={e=>setProfile(p=>({...p,notes:e.target.value}))} rows={3}
             placeholder="e.g. planning to buy property, partner earns CHF X, business revenue target..."
             style={{width:"100%",padding:"9px 12px",borderRadius:8,border:`1px solid ${C.border}`,background:C.bg,color:C.text,fontSize:14,outline:"none",resize:"vertical",boxSizing:"border-box",fontFamily:"inherit"}}/>
         </div>
-        <button onClick={()=>setProfileOpen(false)} style={{width:"100%",padding:"11px",borderRadius:8,border:"none",background:C.accent,color:"#fff",fontSize:14,fontWeight:600,cursor:"pointer",marginTop:8}}>Save & Close</button>
+        <button onClick={()=>setProfileOpen(false)} style={{width:"100%",padding:"11px",borderRadius:8,border:"none",background:C.accent,color:"#fff",fontSize:14,fontWeight:600,cursor:"pointer",marginTop:8}}>{t('common.saveClose')}</button>
       </div>
     </div>}
     {promptOpen && <div onClick={()=>setPromptOpen(false)} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.7)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:24}}>
       <div onClick={e=>e.stopPropagation()} style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:16,width:"100%",maxWidth:1140,maxHeight:"84vh",overflowY:"auto",padding:28,boxShadow:"0 24px 80px rgba(0,0,0,0.6)"}}>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
-          <h2 style={{margin:0,fontSize:18,fontWeight:700,color:C.text}}>AI Advisor Prompt</h2>
+          <h2 style={{margin:0,fontSize:18,fontWeight:700,color:C.text}}>{t('aiPrompt.title')}</h2>
           <button onClick={()=>setPromptOpen(false)} style={{background:"transparent",border:"none",cursor:"pointer",color:C.textDim}}><X size={18}/></button>
         </div>
         <p style={{margin:'0 0 12px',fontSize:13,color:C.textDim}}>
-          Customise the system prompt for your AI financial advisor. Applied to every chat session.
-          Leave blank to use the built-in default prompt.
+          {t('aiPrompt.desc')} {t('aiPrompt.desc2')}
         </p>
         <div style={{display:'flex',gap:8,marginBottom:10}}>
           <button onClick={async()=>{
@@ -5845,14 +5858,14 @@ export default function FinanceApp() {
         <textarea
           value={promptTemplate}
           onChange={e=>setPromptTemplate(e.target.value)}
-          placeholder="Leave blank to use the built-in default prompt…"
+          placeholder={t('aiPrompt.placeholder')}
           rows={28}
           style={{width:'100%',padding:'10px 12px',borderRadius:8,border:`1px solid ${C.border}`,background:C.bg,color:C.text,
             fontSize:13,outline:'none',resize:'vertical',boxSizing:'border-box',fontFamily:"'DM Mono',monospace",lineHeight:1.5}}
         />
-        {promptTemplate && <div style={{marginTop:6,fontSize:12,color:C.green}}>✓ Custom prompt active — will be used instead of the default.</div>}
+        {promptTemplate && <div style={{marginTop:6,fontSize:12,color:C.green}}>{t('aiPrompt.customActive')}</div>}
         <button onClick={()=>setPromptOpen(false)} style={{width:'100%',padding:'11px',borderRadius:8,border:'none',background:C.accent,color:'#fff',fontSize:14,fontWeight:600,cursor:'pointer',marginTop:12}}>
-          Save & Close
+          {t('common.saveClose')}
         </button>
       </div>
     </div>}
